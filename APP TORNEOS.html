@@ -101,7 +101,7 @@
 }
 
 /* ============================= RESET ============================= */
-*,*::before,*::after{box-sizing:border-box;}
+*,*::before,*::after{box-sizing:border-box;cursor:var(--page-cursor,auto);}
 html,body{height:100%;}
 html{
   padding-top:env(safe-area-inset-top,0px);
@@ -120,8 +120,9 @@ body{
 }
 h1,h2,h3,h4{font-family:var(--font-display);font-weight:700;letter-spacing:-.01em;margin:0;color:var(--text);}
 p{margin:0;}
-button{font-family:inherit;}
-input,select,textarea{font-family:inherit;font-size:15px;color:var(--text);}
+button{font-family:inherit;cursor:var(--page-cursor,auto);}
+input,textarea{font-family:inherit;font-size:15px;color:var(--text);cursor:text;}
+select{font-family:inherit;font-size:15px;color:var(--text);cursor:var(--page-cursor,auto);}
 a{color:inherit;}
 ul{margin:0;padding:0;list-style:none;}
 ::selection{background:var(--accent-soft);}
@@ -129,7 +130,6 @@ ul{margin:0;padding:0;list-style:none;}
   *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important;}
 }
 :focus-visible{outline:2px solid var(--accent2);outline-offset:2px;border-radius:4px;}
-button{cursor:pointer;}
 button:disabled{cursor:not-allowed;}
 
 /* ============================= LAYOUT SHELL ============================= */
@@ -183,10 +183,16 @@ button:disabled{cursor:not-allowed;}
 .tourn-list{display:flex;flex-direction:column;gap:2px;max-height:260px;overflow-y:auto;}
 .tourn-item{
   display:flex;flex-direction:column;gap:2px;
-  padding:8px 10px;border-radius:10px;border:none;background:transparent;text-align:left;width:100%;
+  padding:8px 10px;border:1px solid transparent;border-radius:10px;background:transparent;text-align:left;width:100%;
   color:var(--text-dim);
+  transition:background .15s var(--ease), border-color .15s var(--ease), color .15s var(--ease);
 }
 .tourn-item:hover{background:var(--surface-2);}
+.tourn-item-accent:hover{border-color:var(--accent-strong);}
+.tourn-item-teal:hover{border-color:var(--accent2);}
+.tourn-item-warn:hover{border-color:var(--warning);}
+.tourn-item-danger:hover,.tourn-item-live:hover{border-color:var(--danger);}
+.tourn-item-neutral:hover{border-color:var(--text-dim);}
 .tourn-item.is-active{background:var(--surface-3);color:var(--text);}
 .tourn-item .t-name{font-size:13.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .tourn-item .t-meta{font-size:11.5px;color:var(--text-faint);}
@@ -214,7 +220,13 @@ button:disabled{cursor:not-allowed;}
 .page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap;}
 .page-head h1{font-size:26px;}
 .page-head .sub{color:var(--text-dim);font-size:14px;margin-top:4px;}
+.page-head .sub svg{width:28px;height:28px;vertical-align:-7px;flex-shrink:0;}
 .head-actions{display:flex;gap:8px;flex-wrap:wrap;}
+.tennis-clock-hand{
+  transform-box:view-box;transform-origin:12px 12px;animation:tennis-clock-turn 30s linear infinite;
+}
+.tennis-clock-hour{animation-duration:360s;}
+@keyframes tennis-clock-turn{to{transform:rotate(360deg);}}
 
 /* ============================= BUTTONS ============================= */
 .btn{
@@ -252,7 +264,7 @@ button:disabled{cursor:not-allowed;}
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
   padding:18px;
 }
-.card-hover{transition:border-color .15s var(--ease), box-shadow .15s var(--ease), transform .1s var(--ease);cursor:pointer;}
+.card-hover{transition:border-color .15s var(--ease), box-shadow .15s var(--ease), transform .1s var(--ease);}
 .card-hover:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm);}
 
 .grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;}
@@ -266,8 +278,14 @@ button:disabled{cursor:not-allowed;}
 }
 .tourn-card .meta-row{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--text-dim);}
 .tourn-card .meta-row span{display:flex;align-items:center;gap:6px;}
-.tourn-card .meta-row svg{width:14px;height:14px;color:var(--text-faint);flex-shrink:0;}
+.tourn-card .meta-row svg{width:20px;height:20px;color:var(--text-faint);flex-shrink:0;}
+.tourn-card .meta-row .calendar-date-icon{width:24px;height:24px;}
 .tourn-card .foot{display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid var(--border);}
+.tourn-card-accent:hover{border-color:var(--accent-strong);}
+.tourn-card-teal:hover{border-color:var(--accent2);}
+.tourn-card-warn:hover{border-color:var(--warning);}
+.tourn-card-danger:hover,.tourn-card-live:hover{border-color:var(--danger);}
+.tourn-card-neutral:hover{border-color:var(--text-dim);}
 
 /* ============================= BADGES ============================= */
 .badge{
@@ -354,6 +372,30 @@ legend{font-family:var(--font-display);font-size:15px;font-weight:700;margin-bot
 .wizard-step.is-active .label{color:var(--text);}
 .wizard-step-sep{width:20px;height:1px;background:var(--border);}
 .wizard-panel{max-width:640px;}
+.wizard-panel svg{width:16px;height:16px;flex-shrink:0;vertical-align:middle;}
+.wizard-panel .meta-row{display:flex;flex-direction:column;gap:8px;}
+.wizard-panel .meta-row>span{display:flex;align-items:center;gap:7px;}
+.wizard-panel .meta-row svg{color:var(--text-faint);}
+.wizard-panel .meta-row>span>svg{width:24px;height:24px;}
+.wizard-panel .wizard-trophy{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;
+  width:34px;height:34px;overflow:hidden;flex-shrink:0;border-radius:10px;
+  background:linear-gradient(145deg,#fff3c4,#f3d77b);
+  color:#a87308;
+}
+.wizard-panel .wizard-trophy svg{width:20px;height:20px;color:#171a13;}
+.wizard-panel .wizard-trophy::after{
+  content:"";position:absolute;top:-12px;left:-20%;width:140%;height:5px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.98),transparent);
+  filter:drop-shadow(0 0 4px rgba(255,255,255,.9));
+  transform:rotate(-18deg);animation:trophy-shine 2.2s ease-in-out infinite;
+}
+@keyframes trophy-shine{
+  0%{top:-12px;opacity:0;}
+  12%{opacity:1;}
+  78%{opacity:1;}
+  100%{top:calc(100% + 10px);opacity:0;}
+}
 .wizard-actions{display:flex;justify-content:space-between;margin-top:26px;padding-top:18px;border-top:1px solid var(--border);}
 
 .mini-list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
@@ -362,6 +404,7 @@ legend{font-family:var(--font-display);font-size:15px;font-weight:700;margin-bot
   padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);
 }
 .mini-list-item .name{font-size:13.5px;font-weight:600;}
+.mini-list-item .name svg{width:22px;height:22px;vertical-align:-6px;margin-right:5px;flex-shrink:0;}
 .mini-list-item .meta{font-size:11.5px;color:var(--text-faint);}
 
 /* ============================= TABLE ============================= */
@@ -391,7 +434,6 @@ table.data-table tr.is-top{background:var(--accent-soft);}
   background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;position:relative;
   transition:border-color .15s var(--ease);
 }
-.match-card.is-clickable{cursor:pointer;}
 .match-card.is-clickable:hover{border-color:var(--accent2);}
 .match-card.is-tbd{opacity:.55;}
 .match-slot{
@@ -426,7 +468,7 @@ table.data-table tr.is-top{background:var(--accent-soft);}
 .gm-row{
   display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;
   border:1px solid var(--border);border-radius:9px;font-size:12.5px;background:var(--surface-2);
-  cursor:pointer;transition:border-color .15s var(--ease);
+  transition:border-color .15s var(--ease);
 }
 .gm-row:hover{border-color:var(--accent2);}
 .gm-row .gm-teams{display:flex;flex-direction:column;gap:2px;}
@@ -443,7 +485,7 @@ table.data-table tr.is-top{background:var(--accent-soft);}
 }
 .court-col-body{border:1px solid var(--border);border-top:none;border-radius:0 0 9px 9px;min-height:120px;padding:8px;display:flex;flex-direction:column;gap:8px;}
 .sched-card{
-  border:1px solid var(--border);border-radius:9px;padding:8px 10px;font-size:12px;background:var(--surface);cursor:pointer;
+  border:1px solid var(--border);border-radius:9px;padding:8px 10px;font-size:12px;background:var(--surface);
   transition:border-color .15s var(--ease);
 }
 .sched-card:hover{border-color:var(--accent2);}
@@ -559,7 +601,10 @@ const ICONS = {
   users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
   calendar:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
   clock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
+  tennisClock:'<svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" fill="#c7f000" stroke="#789900" stroke-width="1.2"/><path d="M5.6 5.2c3 2 4.5 4.3 4.5 6.8s-1.5 4.8-4.5 6.8M18.4 5.2c-3 2-4.5 4.3-4.5 6.8s1.5 4.8 4.5 6.8" fill="none" stroke="#f8ffe0" stroke-width="1.3"/><circle cx="12" cy="12" r="5.2" fill="#f8ffe0" stroke="#456000" stroke-width="1.1"/><path class="tennis-clock-hand tennis-clock-hour" d="M12 12V8.8" stroke="#263800" stroke-width="1.7"/><path class="tennis-clock-hand" d="M12 12l2.5 1.7" stroke="#263800" stroke-width="1.7"/><circle cx="12" cy="12" r=".7" fill="#263800" stroke="none"/></svg>',
   map:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 1 1 18 0Z"/><circle cx="12" cy="10" r="3"/></svg>',
+  racket:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="9.4" cy="8.3" rx="5.5" ry="7" transform="rotate(31 9.4 8.3)"/><path d="m13.1 12.9 5.7 7.2m-2-8.5 1.6 1.3m-3.9.3 1.6 1.3"/><circle cx="7" cy="5.8" r=".45" fill="currentColor"/><circle cx="10.3" cy="6.5" r=".45" fill="currentColor"/><circle cx="7.1" cy="9.1" r=".45" fill="currentColor"/><circle cx="10.6" cy="10" r=".45" fill="currentColor"/><circle cx="12" cy="8.2" r=".45" fill="currentColor"/></svg>',
+  padelLocation:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 5.4-8 12-8 12S4 15.4 4 10a8 8 0 1 1 16 0Z"/><ellipse cx="11" cy="9.5" rx="3.1" ry="4" transform="rotate(-25 11 9.5)" fill="var(--accent-soft)"/><path d="m12.5 13 2.7 3.2"/><circle cx="10" cy="7.8" r=".4" fill="currentColor" stroke="none"/><circle cx="12" cy="9" r=".4" fill="currentColor" stroke="none"/><circle cx="9.5" cy="10" r=".4" fill="currentColor" stroke="none"/></svg>',
   court:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M12 4v16M3 12h18M7 8h.01M17 16h.01"/></svg>',
   list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
   settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>',
@@ -581,6 +626,25 @@ const ICONS = {
   dollar:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
 };
 function icon(name){ return ICONS[name] || ''; }
+function calendarEventIcon(isoDate){
+  const [year, month, day] = (isoDate||todayIso()).split('-').map(Number);
+  const selectedDate = new Date(year, month-1, day);
+  const monthLabel = selectedDate.toLocaleDateString('es-AR', {month:'short'}).replace('.','').toUpperCase();
+  const previousDay = new Date(year, month-1, day-1).getDate();
+  const nextDay = new Date(year, month-1, day+1).getDate();
+  return '<svg class="calendar-date-icon" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<rect x="3" y="4" width="22" height="22" rx="2.5"/><path d="M18.5 2.5v4M9.5 2.5v4M3 8.5h22"/>' +
+    '<text x="14" y="7" text-anchor="middle" font-size="4.8" font-weight="700" fill="currentColor" stroke="none">'+monthLabel+'</text>' +
+    '<text x="8" y="17" text-anchor="middle" font-size="6" fill="currentColor" stroke="none">'+previousDay+'</text>' +
+    '<rect x="11" y="11" width="6" height="8" rx="1" fill="var(--accent2)" stroke="none"/>' +
+    '<text x="14" y="17" text-anchor="middle" font-size="6.5" font-weight="700" fill="var(--accent-contrast)" stroke="none">'+day+'</text>' +
+    '<text x="20" y="17" text-anchor="middle" font-size="6" fill="currentColor" stroke="none">'+nextDay+'</text>' +
+    '<circle cx="8" cy="22" r=".8" fill="currentColor" stroke="none"/><circle cx="14" cy="22" r=".8" fill="currentColor" stroke="none"/><circle cx="20" cy="22" r=".8" fill="currentColor" stroke="none"/>' +
+    '</svg>';
+}
+function tournamentVenueIcon(t){
+  return icon(t.categories.some(category=>category.sport==='PADEL') ? 'padelLocation' : 'map');
+}
 
 /* ---------------------------- UTILIDADES ---------------------------- */
 function uid(prefix){ return (prefix||'id') + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
@@ -1285,7 +1349,7 @@ function renderSidebar(){
         ? '<div style="padding:8px 10px;font-size:12.5px;color:var(--text-faint);">Todavía no creaste ningún torneo.</div>'
         : state.tournaments.slice().sort((a,b)=>b.createdAt-a.createdAt).map(t=>{
             const st = tournamentComputedStatus(t);
-            return '<button class="tourn-item '+(state.activeTournamentId===t.id && state.view==='tournament'?'is-active':'')+'" data-open-tournament="'+t.id+'">'+
+            return '<button class="tourn-item tourn-item-'+st.tone+' '+(state.activeTournamentId===t.id && state.view==='tournament'?'is-active':'')+'" data-open-tournament="'+t.id+'">'+
               '<span class="t-name">'+escapeHtml(t.name)+'</span>' +
               '<span class="t-meta">'+st.label+' · '+t.categories.length+' categoría'+(t.categories.length===1?'':'s')+'</span>' +
             '</button>';
@@ -1381,13 +1445,13 @@ function renderDashboard(content){
       list.map(t=>{
         const st = tournamentComputedStatus(t);
         const teamsCount = t.categories.reduce((s,c)=>s+c.teams.length,0);
-        return '<div class="card card-hover tourn-card" data-open="'+t.id+'">' +
+        return '<div class="card card-hover tourn-card tourn-card-'+st.tone+'" data-open="'+t.id+'">' +
           '<div class="thead"><h3>'+escapeHtml(t.name)+'</h3><span class="badge badge-'+st.tone+'"><span class="badge-dot"></span>'+st.label+'</span></div>' +
           '<div class="meta-row">' +
-            '<span>'+icon('calendar')+' '+fmtDate(t.date)+'</span>' +
-            (t.venue? '<span>'+icon('map')+' '+escapeHtml(t.venue)+'</span>' : '') +
+            '<span>'+calendarEventIcon(t.date)+' '+fmtDate(t.date)+'</span>' +
+            (t.venue? '<span>'+tournamentVenueIcon(t)+' '+escapeHtml(t.venue)+'</span>' : '') +
             '<span>'+icon('court')+' '+t.courts.length+' cancha'+(t.courts.length===1?'':'s')+'</span>' +
-            '<span>'+icon('clock')+' '+(t.timeSlots?t.timeSlots.length:0)+' franjas horarias</span>' +
+            '<span>'+icon('tennisClock')+' '+(t.timeSlots?t.timeSlots.length:0)+' franjas horarias</span>' +
           '</div>' +
           '<div class="foot">' +
             '<span class="badge badge-neutral">'+t.categories.length+' categoría'+(t.categories.length===1?'':'s')+'</span>' +
@@ -1621,7 +1685,7 @@ function renderWizardStep3(panel){
   function renderSlots(){
     const list = panel.querySelector('#slots-list');
     list.innerHTML = s.timeSlots.map((st,idx)=>
-      '<div class="mini-list-item"><span class="name">'+icon('clock')+' '+escapeHtml(st.label)+'</span>' +
+      '<div class="mini-list-item"><span class="name">'+icon('tennisClock')+' '+escapeHtml(st.label)+'</span>' +
       '<button class="icon-btn" data-rm-slot="'+idx+'" aria-label="Quitar franja">'+icon('trash')+'</button></div>'
     ).join('');
     list.querySelectorAll('[data-rm-slot]').forEach(b=> b.addEventListener('click', ()=>{
@@ -1681,16 +1745,16 @@ function renderWizardStep4(panel){
     '<div class="section-title">Resumen</div>' +
     '<div class="card" style="margin-bottom:16px;">' +
       '<div class="meta-row" style="gap:8px;">' +
-        '<span>'+icon('trophy')+' <strong>'+escapeHtml(w.general.name)+'</strong></span>' +
-        (w.general.venue?'<span>'+icon('map')+' '+escapeHtml(w.general.venue)+'</span>':'') +
-        '<span>'+icon('calendar')+' '+fmtDate(w.general.date)+'</span>' +
+        '<span><span class="wizard-trophy" aria-hidden="true">'+icon('trophy')+'</span><strong>'+escapeHtml(w.general.name)+'</strong></span>' +
+        (w.general.venue?'<span>'+icon(w.categories.some(c=>c.sport==='PADEL')?'padelLocation':'map')+' '+escapeHtml(w.general.venue)+'</span>':'') +
+        '<span>'+calendarEventIcon(w.general.date)+' '+fmtDate(w.general.date)+'</span>' +
         '<span>'+icon('court')+' '+w.general.courts.length+' cancha'+(w.general.courts.length===1?'':'s')+'</span>' +
-        '<span>'+icon('clock')+' '+w.schedule.timeSlots.length+' franjas horarias configuradas</span>' +
+        '<span>'+icon('tennisClock')+' '+w.schedule.timeSlots.length+' franjas horarias configuradas</span>' +
       '</div>' +
     '</div>' +
     '<div class="section-title">Franjas horarias con fechas ('+w.schedule.timeSlots.length+')</div>' +
     '<div class="mini-list" style="margin-bottom:18px;">' +
-      w.schedule.timeSlots.map(st=> '<div class="mini-list-item"><span class="name">'+icon('clock')+' '+escapeHtml(st.label)+'</span></div>').join('') +
+      w.schedule.timeSlots.map(st=> '<div class="mini-list-item"><span class="name">'+icon('tennisClock')+' '+escapeHtml(st.label)+'</span></div>').join('') +
     '</div>' +
     '<div class="section-title">Categorías ('+w.categories.length+')</div>' +
     '<div class="mini-list">' +
@@ -1816,7 +1880,7 @@ function renderTournamentWorkspace(content){
   content.innerHTML =
     '<div class="page-head">' +
       '<div><h1>'+escapeHtml(t.name)+'</h1>' +
-        '<p class="sub">'+icon('calendar')+' '+fmtDate(t.date)+(t.venue? '  ·  '+icon('map')+' '+escapeHtml(t.venue):'')+'  ·  '+icon('clock')+' '+(t.timeSlots?t.timeSlots.length:0)+' franjas horarias</p>' +
+        '<p class="sub">'+calendarEventIcon(t.date)+' '+fmtDate(t.date)+(t.venue? '  ·  '+tournamentVenueIcon(t)+' '+escapeHtml(t.venue):'')+'  ·  '+icon('tennisClock')+' '+(t.timeSlots?t.timeSlots.length:0)+' franjas horarias</p>' +
       '</div>' +
       '<div class="head-actions">' +
         '<span class="badge badge-'+st.tone+'" style="align-self:center;"><span class="badge-dot"></span>'+st.label+'</span>' +
@@ -1906,7 +1970,7 @@ function openTournamentSettingsModal(t){
 
       function renderSlots(){
         root.querySelector('#ts-slots').innerHTML = timeSlots.map((s,idx)=>
-          '<div class="mini-list-item"><span class="name">'+icon('clock')+' '+escapeHtml(s.label)+'</span>' +
+          '<div class="mini-list-item"><span class="name">'+icon('tennisClock')+' '+escapeHtml(s.label)+'</span>' +
           '<button class="icon-btn" data-rm-slot="'+idx+'" '+(t.categories.some(cat=>[...cat.teams,...cat.waitlist].some(team=>(team.availableSlots||[]).includes(s.id)))?'disabled':'')+' aria-label="Quitar franja" title="'+(t.categories.some(cat=>[...cat.teams,...cat.waitlist].some(team=>(team.availableSlots||[]).includes(s.id)))?'No se puede quitar: hay equipos que eligieron esta franja.':'Quitar franja')+'">'+icon('trash')+'</button></div>'
         ).join('');
         root.querySelectorAll('[data-rm-slot]').forEach(b=> b.addEventListener('click', ()=>{
@@ -2046,7 +2110,7 @@ function renderTeamsTab(root, t, cat){
     const slotBadges = (team.availableSlots || []).map(sId => {
       const slotObj = (t.timeSlots || []).find(s => s.id === sId);
       const label = slotObj ? slotObj.label : sId;
-      return '<span class="badge badge-neutral" style="font-size:10.5px;padding:3px 8px;">'+icon('clock')+' '+escapeHtml(label)+'</span>';
+      return '<span class="badge badge-neutral" style="font-size:10.5px;padding:3px 8px;">'+icon('tennisClock')+' '+escapeHtml(label)+'</span>';
     }).join(' ');
 
     return '<tr>' +
@@ -2669,7 +2733,17 @@ function maybeFinishCategory(cat){
 }
 
 /* ---------------------------- INIT ---------------------------- */
+function applyRandomBallCursor(){
+  const tennisBall = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="#c7f000" stroke="#263800" stroke-width="2"/><path d="M7.5 7.2c4.2 2.7 5.8 5.6 5.8 8.8s-1.6 6.1-5.8 8.8M24.5 7.2c-4.2 2.7-5.8 5.6-5.8 8.8s1.6 6.1 5.8 8.8" fill="none" stroke="#fff" stroke-width="2"/></svg>';
+  const football = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 100 100"><defs><clipPath id="football-cursor-clip"><circle cx="50" cy="50" r="46"/></clipPath></defs><circle cx="50" cy="50" r="46" fill="#f6f6ec"/><g clip-path="url(#football-cursor-clip)" stroke="#080b14" stroke-width="2.4" stroke-linejoin="round"><path d="M31 14 40 4Q50 0 60 4L69 14 61 28H39Z" fill="#f6f6ec"/><path d="M31 14Q20 12 12 19L5 31 12 43 29 41 39 28Z" fill="#080b14"/><path d="M69 14Q80 12 88 19L95 31 88 43 71 41 61 28Z" fill="#080b14"/><path d="M39 28H61L71 42 64 57 50 62 36 57 29 42Z" fill="#f6f6ec"/><path d="M29 41 36 57 27 72 10 73 3 58 12 43Z" fill="#f0efc8"/><path d="M71 41 64 57 73 72 90 73 97 58 88 43Z" fill="#f6f6ec"/><path d="M36 57 50 62 64 57 72 72 64 88Q50 94 36 88L28 72Z" fill="#080b14"/><path d="M12 73 28 72 36 88 25 98 8 92 2 79Z" fill="#f0efc8"/><path d="M88 73 72 72 64 88 75 98 92 92 98 79Z" fill="#f0efc8"/></g><circle cx="50" cy="50" r="46" fill="none" stroke="#080b14" stroke-width="2.4"/></svg>';
+  const cursors = [tennisBall, football];
+  const svg = cursors[Math.floor(Math.random()*cursors.length)];
+  const cursor = 'url("data:image/svg+xml,'+encodeURIComponent(svg)+'") 12 12, auto';
+  document.documentElement.style.setProperty('--page-cursor', cursor);
+}
+
 function init(){
+  applyRandomBallCursor();
   const had = loadState();
   document.documentElement.setAttribute('data-theme', state.theme);
   document.getElementById('sidebar-scrim').addEventListener('click', closeSidebarMobile);
