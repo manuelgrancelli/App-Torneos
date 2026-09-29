@@ -270,8 +270,32 @@ button:disabled{cursor:not-allowed;}
 .grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;}
 
 .tourn-card{display:flex;flex-direction:column;gap:12px;}
-.tourn-card .thead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.tourn-card{position:relative;isolation:isolate;overflow:hidden;}
+.sport-watermark{
+  position:absolute;z-index:-1;right:8px;top:8px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--accent2);opacity:.11;filter:blur(1.4px);
+  pointer-events:none;transform:rotate(-12deg);
+}
+.sport-watermark svg{display:block;width:100%;height:100%;overflow:visible;}
+.sport-watermark + .sport-watermark{right:94px;top:34px;transform:rotate(10deg);}
+.tourn-card .sport-watermark{width:116px;height:116px;}
+.tournament-view{position:relative;isolation:isolate;}
+.tournament-view-content{position:relative;}
+.tournament-view .sport-watermark{width:230px;height:230px;right:12px;top:4px;}
+.tournament-view .sport-watermark + .sport-watermark{right:180px;top:80px;}
+.tourn-card .thead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+.tourn-card .title-group{display:flex;align-items:center;gap:8px;min-width:0;flex:1;}
+.tourn-card .sport-labels{display:flex;flex-direction:column;align-items:flex-start;gap:4px;flex-shrink:0;}
+.tourn-card .sport-label{
+  font-size:10px;font-weight:700;color:var(--accent2);background:var(--accent2-soft);
+  border:1px solid color-mix(in srgb,var(--accent2) 24%,transparent);
+  padding:3px 7px;border-radius:99px;white-space:nowrap;line-height:1.35;
+}
 .tourn-card h3{font-size:17px;}
+.tourn-filters{margin:-4px 0 18px;}
+.tourn-filter-empty{text-align:center;margin-top:8px;}
+.tourn-filter-empty .btn{margin-top:14px;}
 .tourn-card .sport-tag{
   font-size:11px;font-weight:600;color:var(--accent2);background:var(--accent2-soft);
   padding:3px 8px;border-radius:99px;white-space:nowrap;
@@ -736,6 +760,7 @@ const state = {
   activeTournamentId: null,
   activeCategoryId: null,
   view: 'dashboard',
+  dashboardSportFilter: 'ALL',
   wizard: null,
   sidebarOpen: false,
 };
@@ -777,6 +802,24 @@ const SPORTS = [
   {key:'FUTBOL5', label:'Fútbol 5', scoringMode:'SCORE', playersPerSide:5},
 ];
 function sportInfo(key){ return SPORTS.find(s=>s.key===key) || SPORTS[0]; }
+
+function tournamentSports(t){
+  const keys = [...new Set(t.categories.map(category=>category.sport))];
+  return keys.map(key=>sportInfo(key));
+}
+
+function tournamentSportWatermarks(t, variant){
+  const drawings = {
+    TENIS:'<svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3"><circle cx="50" cy="50" r="39"/><path d="M22 22c18 8 28 21 28 28S40 70 22 78M78 22C60 30 50 43 50 50s10 20 28 28"/></svg>',
+    PADEL:icon('racket'),
+    PICKLEBALL:'<svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3"><circle cx="50" cy="50" r="39"/><circle cx="37" cy="34" r="3"/><circle cx="57" cy="31" r="3"/><circle cx="68" cy="46" r="3"/><circle cx="43" cy="52" r="3"/><circle cx="59" cy="67" r="3"/><circle cx="34" cy="70" r="3"/></svg>',
+    FUTBOL5:'<svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><circle cx="50" cy="50" r="39"/><path d="m50 32 16 11-6 19H40l-6-19 16-11Zm0 0V12m16 31 19-6M60 62l12 16M40 62 28 78m6-35-19-6"/></svg>',
+  };
+  return tournamentSports(t).map(sport=>{
+    const drawing = drawings[sport.key];
+    return drawing ? '<div class="sport-watermark sport-watermark-'+variant+'" aria-hidden="true">'+drawing+'</div>' : '';
+  }).join('');
+}
 
 const FORMATS = [
   {key:'ELIMINATION', label:'Eliminación directa', needsGroups:false},
@@ -862,6 +905,11 @@ function createMatch(data){
     team2Source: data.team2Source || null,
     nextMatchId: null,
     nextSlot: null,
+    winnerNextMatchId: null,
+    winnerNextSlot: null,
+    loserNextMatchId: null,
+    loserNextSlot: null,
+    dependsOnMatchIds: data.dependsOnMatchIds || [],
     court: null,
     scheduledDate: null,
     scheduledStart: null,
@@ -978,6 +1026,10 @@ function propagateWinner(matches, match, winnerId){
   const next = matches.find(m=>m.id===match.nextMatchId);
   if(!next) return;
   if(match.nextSlot===1) next.team1Id = winnerId; else next.team2Id = winnerId;
+  if(next.status==='BYE'){
+    next.winnerId = next.team1Id || next.team2Id;
+    if(next.winnerId) propagateWinner(matches, next, next.winnerId);
+  }
 }
 
 /* ---------------------------- MOTOR: ZONAS (ROUND ROBIN) ---------------------------- */
@@ -1001,6 +1053,43 @@ function buildGroupMatches(category, groups){
   const matches = [];
   groups.forEach(group=>{
     const ids = group.teamIds;
+    if(category.sport==='PADEL' && ids.length===4){
+      const shuffled = ids.slice();
+      for(let i=shuffled.length-1;i>0;i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      const first = createMatch({
+        categoryId: category.id, stage:'GROUP', groupId:group.id,
+        team1Id:shuffled[0], team2Id:shuffled[1], label:group.name+' · Partido 1',
+      });
+      const second = createMatch({
+        categoryId: category.id, stage:'GROUP', groupId:group.id,
+        team1Id:shuffled[2], team2Id:shuffled[3], label:group.name+' · Partido 2',
+      });
+      const winners = createMatch({
+        categoryId: category.id, stage:'GROUP', groupId:group.id,
+        label:group.name+' · Ganadores',
+        team1Source:'Ganador del partido 1', team2Source:'Ganador del partido 2',
+        dependsOnMatchIds:[first.id, second.id],
+      });
+      const losers = createMatch({
+        categoryId: category.id, stage:'GROUP', groupId:group.id,
+        label:group.name+' · Perdedores',
+        team1Source:'Perdedor del partido 1', team2Source:'Perdedor del partido 2',
+        dependsOnMatchIds:[first.id, second.id],
+      });
+      first.winnerNextMatchId = winners.id;
+      first.winnerNextSlot = 1;
+      first.loserNextMatchId = losers.id;
+      first.loserNextSlot = 1;
+      second.winnerNextMatchId = winners.id;
+      second.winnerNextSlot = 2;
+      second.loserNextMatchId = losers.id;
+      second.loserNextSlot = 2;
+      matches.push(first, second, winners, losers);
+      return;
+    }
     for(let i=0;i<ids.length;i++){
       for(let j=i+1;j<ids.length;j++){
         matches.push(createMatch({
@@ -1046,28 +1135,147 @@ function allGroupMatchesFinished(category){
   return groupMatches.length>0 && groupMatches.every(m=> ['FINISHED','WALKOVER'].includes(m.status));
 }
 
+function qualifiersForGroup(category, group){
+  if(category.sport==='PADEL' && group.teamIds.length===4) return 3;
+  return category.qualifiersPerGroup;
+}
+
 function generatePlayoffsFromGroups(category){
   const standingsByGroup = category.groups.map(g=>({ group:g, rows: computeStandings(category, g) }));
   const qualifiers = [];
-  const per = category.qualifiersPerGroup;
-  for(let rank=0; rank<per; rank++){
+  const maxQualifiers = Math.max(...standingsByGroup.map(sg=>qualifiersForGroup(category, sg.group)));
+  for(let rank=0; rank<maxQualifiers; rank++){
     standingsByGroup.forEach(sg=>{
-      if(sg.rows[rank]){
+      if(rank<qualifiersForGroup(category, sg.group) && sg.rows[rank]){
         qualifiers.push({ teamId: sg.rows[rank].teamId, tag: (rank+1)+'°' + ' ' + sg.group.name });
       }
     });
   }
-  const entrants = qualifiers.map((q,idx)=>({ teamId:q.teamId, seed: idx+1, tag:q.tag }));
-  const bracketMatches = buildEliminationBracket(category, entrants);
-  bracketMatches.filter(m=>m.round===0).forEach(m=>{
-    const e1 = entrants.find(e=> e.teamId===m.team1Id);
-    const e2 = entrants.find(e=> e.teamId===m.team2Id);
-    if(e1) m.team1Source = e1.tag;
-    if(e2) m.team2Source = e2.tag;
-  });
+  const allGroupsHaveTwoQualifiers = standingsByGroup.length>1 &&
+    standingsByGroup.every(sg=>qualifiersForGroup(category, sg.group)===2 && sg.rows.length>=2);
+  let bracketMatches;
+  if(allGroupsHaveTwoQualifiers){
+    bracketMatches = buildCrossedPlayoffBracket(category, standingsByGroup);
+  } else {
+    const entrants = qualifiers.map((q,idx)=>({ teamId:q.teamId, seed: idx+1, tag:q.tag }));
+    bracketMatches = buildEliminationBracket(category, entrants);
+    bracketMatches.filter(m=>m.round===0).forEach(m=>{
+      const e1 = entrants.find(e=> e.teamId===m.team1Id);
+      const e2 = entrants.find(e=> e.teamId===m.team2Id);
+      if(e1) m.team1Source = e1.tag;
+      if(e2) m.team2Source = e2.tag;
+    });
+  }
   category.matches = category.matches.concat(bracketMatches);
   category.playoffGenerated = true;
   category.status = 'GROUPS_DONE';
+}
+
+function buildCrossedPlayoffBracket(category, standingsByGroup){
+  const groupCount = standingsByGroup.length;
+  const firstRound = standingsByGroup.map((entry, index)=>{
+    const opponentIndex = groupCount%2===0 ? groupCount-1-index : (index+1)%groupCount;
+    const opponent = standingsByGroup[opponentIndex];
+    const first = entry.rows[0], second = opponent.rows[1];
+    const match = createMatch({
+      categoryId:category.id,
+      stage:'BRACKET',
+      round:0,
+      slot:index,
+      label:'Ronda inicial',
+      team1Id:first.teamId,
+      team2Id:second.teamId,
+      team1Source:'1° '+entry.group.name,
+      team2Source:'2° '+opponent.group.name,
+    });
+    return match;
+  });
+  const roundSizes = [firstRound.length];
+  while(roundSizes[roundSizes.length-1]>1){
+    roundSizes.push(Math.ceil(roundSizes[roundSizes.length-1]/2));
+  }
+  const rounds = [firstRound];
+  for(let round=1;round<roundSizes.length;round++){
+    const previous = rounds[round-1];
+    const current = [];
+    for(let index=0;index<previous.length;index+=2){
+      const left = previous[index];
+      const right = previous[index+1];
+      const label = playoffRoundLabel(round, roundSizes);
+      const match = createMatch({
+        categoryId:category.id,
+        stage:'BRACKET',
+        round,
+        slot:current.length,
+        label,
+        team1Source:'Ganador '+left.label,
+        team2Source:right ? 'Ganador '+right.label : 'Pase libre',
+      });
+      left.nextMatchId = match.id;
+      left.nextSlot = 1;
+      if(right){
+        right.nextMatchId = match.id;
+        right.nextSlot = 2;
+      } else {
+        match.status = 'BYE';
+      }
+      current.push(match);
+    }
+    rounds.push(current);
+  }
+  rounds.forEach((roundMatches, round)=> roundMatches.forEach((match,index)=>{
+    match.label = playoffRoundLabel(round, roundSizes);
+    match.slot = index;
+  }));
+  return rounds.flat();
+}
+
+function playoffRoundLabel(round, roundSizes){
+  const count = roundSizes[round];
+  if(count===1) return 'Final';
+  if(count===2) return 'Semifinal';
+  if(count===4) return 'Cuartos de final';
+  if(count===8) return 'Octavos de final';
+  return 'Ronda '+(round+1);
+}
+
+function propagateGroupOutcome(category, match){
+  if(!['FINISHED','WALKOVER'].includes(match.status)) return;
+  const winnerId = match.winnerId;
+  const loserId = winnerId ? (winnerId===match.team1Id ? match.team2Id : match.team1Id) : null;
+  const outcomes = [
+    {id:match.winnerNextMatchId, slot:match.winnerNextSlot, teamId:winnerId},
+    {id:match.loserNextMatchId, slot:match.loserNextSlot, teamId:loserId},
+  ];
+  outcomes.forEach(outcome=>{
+    if(!outcome.id || !outcome.slot) return;
+    const next = getMatch(category, outcome.id);
+    if(next) next['team'+outcome.slot+'Id'] = outcome.teamId;
+  });
+  [match.winnerNextMatchId, match.loserNextMatchId].forEach(id=>{
+    const next = id && getMatch(category, id);
+    if(!next || !next.dependsOnMatchIds.every(matchId=>{
+      const dependency = getMatch(category, matchId);
+      return dependency && ['FINISHED','WALKOVER'].includes(dependency.status);
+    })) return;
+    if(next.team1Id && next.team2Id) return;
+    next.status = 'WALKOVER';
+    next.winnerId = next.team1Id || next.team2Id || null;
+    if(next.winnerId){
+      const winnerIsTeam1 = next.winnerId===next.team1Id;
+      if(category.scoringMode==='SETS'){
+        next.sets = Array.from({length:category.setsToWin},()=>({
+          t1:winnerIsTeam1?6:0,
+          t2:winnerIsTeam1?0:6,
+        }));
+      } else {
+        next.score = winnerIsTeam1 ? {a:3,b:0} : {a:0,b:3};
+      }
+    }
+    if(next.winnerId && next.winnerNextMatchId){
+      propagateGroupOutcome(category, next);
+    }
+  });
 }
 
 /* ---------------------------- STANDINGS / DESEMPATE ---------------------------- */
@@ -1080,7 +1288,25 @@ function computeStandings(category, group){
 
   groupMatches.forEach(m=>{
     const r1 = byId[m.team1Id], r2 = byId[m.team2Id];
-    if(!r1||!r2) return;
+    if(!r1 && !r2) return;
+    if(!r1 || !r2){
+      const winner = byId[m.winnerId];
+      if(!winner) return;
+      winner.pj++; winner.pg++; winner.points+=category.winPoints;
+      if(category.scoringMode==='SETS'){
+        const {setsA, setsB, gamesA, gamesB} = summarizeSets(m.sets);
+        const winnerIsTeam1 = m.winnerId===m.team1Id;
+        winner.favor += winnerIsTeam1 ? setsA : setsB;
+        winner.contra += winnerIsTeam1 ? setsB : setsA;
+        winner.gFavor = (winner.gFavor||0) + (winnerIsTeam1 ? gamesA : gamesB);
+        winner.gContra = (winner.gContra||0) + (winnerIsTeam1 ? gamesB : gamesA);
+      } else if(m.score){
+        const winnerIsTeam1 = m.winnerId===m.team1Id;
+        winner.favor += winnerIsTeam1 ? m.score.a : m.score.b;
+        winner.contra += winnerIsTeam1 ? m.score.b : m.score.a;
+      }
+      return;
+    }
     r1.pj++; r2.pj++;
     if(category.scoringMode==='SETS'){
       const {setsA, setsB, gamesA, gamesB} = summarizeSets(m.sets);
@@ -1436,17 +1662,39 @@ function renderDashboard(content){
     return;
   }
 
-  const list = state.tournaments.slice().sort((a,b)=>b.createdAt-a.createdAt);
+  const allTournaments = state.tournaments.slice().sort((a,b)=>b.createdAt-a.createdAt);
+  const selectedSport = SPORTS.find(sport=>sport.key===state.dashboardSportFilter);
+  if(state.dashboardSportFilter!=='ALL' && !selectedSport) state.dashboardSportFilter='ALL';
+  const list = state.dashboardSportFilter==='ALL' ? allTournaments : allTournaments.filter(t=>
+    tournamentSports(t).some(sport=>sport.key===state.dashboardSportFilter)
+  );
   content.innerHTML =
-    '<div class="page-head"><div><h1>Tus torneos</h1><p class="sub">'+list.length+' torneo'+(list.length===1?'':'s')+' creado'+(list.length===1?'':'s')+'.</p></div>' +
+    '<div class="page-head"><div><h1>Tus torneos</h1><p class="sub">'+
+      (state.dashboardSportFilter==='ALL'
+        ? allTournaments.length+' torneo'+(allTournaments.length===1?'':'s')+' creado'+(allTournaments.length===1?'':'s')+'.'
+        : list.length+' torneo'+(list.length===1?'':'s')+' de '+escapeHtml(selectedSport.label)+'.')+
+      '</p></div>' +
       '<div class="head-actions"><button class="btn btn-primary" id="dash-new">'+icon('plus')+' Nuevo torneo</button></div>' +
     '</div>' +
-    '<div class="grid-cards">' +
+    '<div class="chip-row tourn-filters" role="group" aria-label="Filtrar torneos por deporte">' +
+      '<button type="button" class="chip '+(state.dashboardSportFilter==='ALL'?'is-active':'')+'" data-sport-filter="ALL" aria-pressed="'+(state.dashboardSportFilter==='ALL')+'">Todo ('+allTournaments.length+')</button>' +
+      SPORTS.map(sport=>{
+        const count = allTournaments.filter(t=>tournamentSports(t).some(tournamentSport=>tournamentSport.key===sport.key)).length;
+        return '<button type="button" class="chip '+(state.dashboardSportFilter===sport.key?'is-active':'')+'" data-sport-filter="'+sport.key+'" aria-pressed="'+(state.dashboardSportFilter===sport.key)+'">'+escapeHtml(sport.label)+' ('+count+')</button>';
+      }).join('') +
+    '</div>' +
+    (list.length===0
+      ? '<div class="empty-state tourn-filter-empty"><h3>No hay torneos de '+escapeHtml(selectedSport.label)+'</h3><p>Probá con otro deporte o volvé a ver todos los torneos.</p><button type="button" class="btn btn-secondary" data-sport-filter="ALL">Ver todos</button></div>'
+      : '<div class="grid-cards">' +
       list.map(t=>{
         const st = tournamentComputedStatus(t);
         const teamsCount = t.categories.reduce((s,c)=>s+c.teams.length,0);
+        const sports = tournamentSports(t);
         return '<div class="card card-hover tourn-card tourn-card-'+st.tone+'" data-open="'+t.id+'">' +
-          '<div class="thead"><h3>'+escapeHtml(t.name)+'</h3><span class="badge badge-'+st.tone+'"><span class="badge-dot"></span>'+st.label+'</span></div>' +
+          tournamentSportWatermarks(t, 'card') +
+          '<div class="thead"><div class="title-group"><div class="sport-labels">'+
+            (sports.length ? sports.map(sport=>'<span class="sport-label">'+escapeHtml(sport.label)+'</span>').join('') : '<span class="sport-label">Sin deporte</span>')+
+          '</div><h3>'+escapeHtml(t.name)+'</h3></div><span class="badge badge-'+st.tone+'"><span class="badge-dot"></span>'+st.label+'</span></div>' +
           '<div class="meta-row">' +
             '<span>'+calendarEventIcon(t.date)+' '+fmtDate(t.date)+'</span>' +
             (t.venue? '<span>'+tournamentVenueIcon(t)+' '+escapeHtml(t.venue)+'</span>' : '') +
@@ -1459,7 +1707,13 @@ function renderDashboard(content){
           '</div>' +
         '</div>';
       }).join('') +
-    '</div>';
+    '</div>');
+  content.querySelectorAll('[data-sport-filter]').forEach(button=>{
+    button.addEventListener('click', ()=>{
+      state.dashboardSportFilter = button.getAttribute('data-sport-filter');
+      render();
+    });
+  });
   content.querySelectorAll('[data-open]').forEach(el=>{
     el.addEventListener('click', ()=> openTournament(el.getAttribute('data-open')));
   });
@@ -1829,7 +2083,8 @@ function openCategoryFormModal(existing, onSave){
           '<div class="form-row">' +
             '<div class="field"><label for="c-gsize">Equipos por zona (aprox.)</label><input class="input" type="number" min="3" max="6" id="c-gsize" value="'+data.groupSize+'"></div>' +
             (formatInfo(fmt).noPlayoffs ? '' : '<div class="field"><label for="c-qual">Clasifican por zona a playoffs</label><input class="input" type="number" min="1" max="4" id="c-qual" value="'+data.qualifiersPerGroup+'"></div>') +
-          '</div>' : '';
+          '</div>' +
+          (sport==='PADEL' && !formatInfo(fmt).noPlayoffs ? '<div class="note-box">'+icon('info')+'<span>En zonas de 4 parejas se sortea la primera ronda; luego juegan ganadores entre sí y perdedores entre sí. Clasifican 3 parejas por zona.</span></div>' : '') : '';
         const mode = sportInfo(sport).scoringMode;
         setsExtra.innerHTML = mode==='SETS' ?
           '<div class="form-row">' +
@@ -1878,6 +2133,9 @@ function renderTournamentWorkspace(content){
   const cat = activeCategory();
 
   content.innerHTML =
+    '<div class="tournament-view">' +
+    tournamentSportWatermarks(t, 'view') +
+    '<div class="tournament-view-content">' +
     '<div class="page-head">' +
       '<div><h1>'+escapeHtml(t.name)+'</h1>' +
         '<p class="sub">'+calendarEventIcon(t.date)+' '+fmtDate(t.date)+(t.venue? '  ·  '+tournamentVenueIcon(t)+' '+escapeHtml(t.venue):'')+'  ·  '+icon('tennisClock')+' '+(t.timeSlots?t.timeSlots.length:0)+' franjas horarias</p>' +
@@ -1885,11 +2143,13 @@ function renderTournamentWorkspace(content){
       '<div class="head-actions">' +
         '<span class="badge badge-'+st.tone+'" style="align-self:center;"><span class="badge-dot"></span>'+st.label+'</span>' +
         '<button class="btn btn-outline btn-sm" id="tour-settings">'+icon('settings')+' Configuración y Franjas</button>' +
+        (st.key==='FINISHED' ? '<button class="btn btn-danger btn-sm" id="tour-delete">Eliminar torneo</button>' : '') +
         (t.manualStatus!=='CANCELLED' ? '<button class="btn btn-ghost btn-sm" id="tour-cancel">Cancelar torneo</button>' : '') +
       '</div>' +
     '</div>' +
     '<div class="chip-row" id="cat-chips" style="margin-bottom:20px;"></div>' +
-    '<div id="cat-workspace"></div>';
+    '<div id="cat-workspace"></div>' +
+    '</div></div>';
 
   const chips = content.querySelector('#cat-chips');
   chips.innerHTML =
@@ -1907,6 +2167,20 @@ function renderTournamentWorkspace(content){
   }));
 
   content.querySelector('#tour-settings').addEventListener('click', ()=> openTournamentSettingsModal(t));
+  const deleteBtn = content.querySelector('#tour-delete');
+  if(deleteBtn) deleteBtn.addEventListener('click', ()=> confirmDialog({
+    title:'Eliminar torneo',
+    message:'Esta acción eliminará permanentemente el torneo y todos sus datos. No se puede deshacer.',
+    confirmLabel:'Eliminar torneo', danger:true,
+    onConfirm:()=>{
+      state.tournaments = state.tournaments.filter(tournament=>tournament.id!==t.id);
+      state.activeTournamentId = null;
+      state.activeCategoryId = null;
+      state.view = 'dashboard';
+      showToast('Torneo eliminado', 'success');
+      render();
+    }
+  }));
   const cancelBtn = content.querySelector('#tour-cancel');
   if(cancelBtn) cancelBtn.addEventListener('click', ()=> confirmDialog({
     title:'Cancelar torneo',
@@ -2305,7 +2579,7 @@ function renderGroupsTab(root, t, cat){
   grid.innerHTML = cat.groups.map(g=>{
     const standings = computeStandings(cat, g);
     const groupMatches = cat.matches.filter(m=>m.groupId===g.id);
-    const qualCount = formatInfo(cat.format).noPlayoffs ? 0 : cat.qualifiersPerGroup;
+    const qualCount = formatInfo(cat.format).noPlayoffs ? 0 : qualifiersForGroup(cat, g);
     return '<div class="card group-card">' +
       '<h4>'+escapeHtml(g.name)+'</h4>' +
       '<div class="table-wrap"><table class="data-table"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PP</th><th>Dif</th><th>Pts</th></tr></thead><tbody>' +
@@ -2342,8 +2616,8 @@ function matchGroupRowHtml(cat, m){
   const scoreTxt = finished ? matchScoreText(cat, m) : (m.status==='SCHEDULED' ? (m.scheduledDate ? fmtDate(m.scheduledDate)+' · ' : '')+fmtMinutes(m.scheduledStart)+(m.court?' · '+courtNameById(cat,m):'') : 'Sin programar');
   return '<div class="gm-row" data-match="'+m.id+'">' +
     '<div class="gm-teams">' +
-      '<span class="'+(m.winnerId===m.team1Id?'win':'')+'">'+escapeHtml(t1?t1.name:'?')+'</span>' +
-      '<span class="'+(m.winnerId===m.team2Id?'win':'')+'">'+escapeHtml(t2?t2.name:'?')+'</span>' +
+      '<span class="'+(m.winnerId===m.team1Id?'win':'')+'">'+escapeHtml(t1?t1.name:(m.team1Source||'Por definir'))+'</span>' +
+      '<span class="'+(m.winnerId===m.team2Id?'win':'')+'">'+escapeHtml(t2?t2.name:(m.team2Source||'Por definir'))+'</span>' +
     '</div>' +
     '<span class="gm-score">'+scoreTxt+'</span>' +
   '</div>';
@@ -2524,11 +2798,12 @@ function statusChipText(m){
 
 /* ---------------------------- MODAL: CARGAR RESULTADO ---------------------------- */
 function nextMatchLockInfo(cat, m){
-  if(!m.nextMatchId) return null;
-  const next = getMatch(cat, m.nextMatchId);
-  if(!next) return null;
-  if(next.status==='FINISHED' || next.status==='WALKOVER' || next.status==='LIVE'){
-    return next;
+  const nextIds = [m.nextMatchId, m.winnerNextMatchId, m.loserNextMatchId].filter(Boolean);
+  for(const nextId of nextIds){
+    const next = getMatch(cat, nextId);
+    if(next && (['SCHEDULED','LIVE','FINISHED','WALKOVER'].includes(next.status) || (next.status==='BYE' && next.winnerId))){
+      return next;
+    }
   }
   return null;
 }
@@ -2666,6 +2941,7 @@ function openResultModal(t, cat, m){
         }
         m.status = 'FINISHED';
         if(m.stage==='BRACKET' && m.nextMatchId) propagateWinner(cat.matches, m, m.winnerId);
+        if(m.groupId) propagateGroupOutcome(cat, m);
         maybeFinishCategory(cat);
         closeModal();
         showToast('Resultado guardado', 'success');
@@ -2699,6 +2975,7 @@ function openWalkoverModal(t, cat, m, t1, t2){
             const next = getMatch(cat, m.nextMatchId);
             if(next){ if(m.nextSlot===1) next.team1Id=null; else next.team2Id=null; }
           }
+          if(m.groupId) propagateGroupOutcome(cat, m);
         } else {
           const winner = val;
           m.winnerId = winner;
@@ -2709,6 +2986,7 @@ function openWalkoverModal(t, cat, m, t1, t2){
             m.score = winner===m.team1Id? {a:3,b:0} : {a:0,b:3};
           }
           if(m.stage==='BRACKET' && m.nextMatchId) propagateWinner(cat.matches, m, winner);
+          if(m.groupId) propagateGroupOutcome(cat, m);
         }
         maybeFinishCategory(cat);
         closeModal();
