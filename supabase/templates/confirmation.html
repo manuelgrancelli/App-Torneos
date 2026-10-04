@@ -1,0 +1,13 @@
+<!-- Template de confirmación de cuenta. El link va a /auth/confirm con token_hash (flujo server-side). -->
+<div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto; color: #171717;">
+  <h2 style="margin-bottom: 16px;">Confirmá tu cuenta</h2>
+  <p>Hola{{ if .Data.full_name }} {{ .Data.full_name }}{{ end }}, gracias por registrarte en Torneos.</p>
+  <p>Para activar tu cuenta, confirmá tu email:</p>
+  <p style="margin: 24px 0;">
+    <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/torneos"
+       style="background: #171717; color: #ffffff; padding: 12px 20px; border-radius: 8px; text-decoration: none; display: inline-block;">
+      Confirmar email
+    </a>
+  </p>
+  <p style="font-size: 13px; color: #525252;">Si no creaste una cuenta, ignorá este mensaje.</p>
+</div>
