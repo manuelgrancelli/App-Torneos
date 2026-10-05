@@ -222,15 +222,34 @@ isOneToOne: false
       referencedColumns: ["id","tournament_id"]
     }
                   ]
-                },"team_members": {
+                },"team_invitations": {
                   Row: {
-                    "created_at": string,"email": string,"id": string,"role": Database["public"]['Enums']["team_member_role"],"team_id": string,"tournament_id": string,"user_id": string | null
+                    "created_at": string,"expires_at": string,"sent_at": string,"team_member_id": string,"token_hash": string
                   }
                   Insert: {
-                    "created_at"?: string,"email": string,"id"?: string,"role"?: Database["public"]['Enums']["team_member_role"],"team_id": string,"tournament_id": string,"user_id"?: string | null
+                    "created_at"?: string,"expires_at": string,"sent_at"?: string,"team_member_id": string,"token_hash": string
                   }
                   Update: {
-                    "created_at"?: string,"email"?: string,"id"?: string,"role"?: Database["public"]['Enums']["team_member_role"],"team_id"?: string,"tournament_id"?: string,"user_id"?: string | null
+                    "created_at"?: string,"expires_at"?: string,"sent_at"?: string,"team_member_id"?: string,"token_hash"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "team_invitations_team_member_id_fkey"
+      columns: ["team_member_id"]
+isOneToOne: true
+      referencedRelation: "team_members"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"team_members": {
+                  Row: {
+                    "created_at": string,"display_name": string | null,"email": string | null,"id": string,"role": Database["public"]['Enums']["team_member_role"],"team_id": string,"tournament_id": string,"user_id": string | null
+                  }
+                  Insert: {
+                    "created_at"?: string,"display_name"?: string | null,"email"?: string | null,"id"?: string,"role"?: Database["public"]['Enums']["team_member_role"],"team_id": string,"tournament_id": string,"user_id"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"display_name"?: string | null,"email"?: string | null,"id"?: string,"role"?: Database["public"]['Enums']["team_member_role"],"team_id"?: string,"tournament_id"?: string,"user_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -249,13 +268,13 @@ isOneToOne: false
                   ]
                 },"teams": {
                   Row: {
-                    "captain_id": string,"created_at": string,"id": string,"name": string,"status": Database["public"]['Enums']["team_status"],"tournament_id": string,"updated_at": string
+                    "captain_id": string,"created_at": string,"id": string,"name": string,"organizer_registered": boolean,"status": Database["public"]['Enums']["team_status"],"test_generated": boolean,"tournament_id": string,"updated_at": string
                   }
                   Insert: {
-                    "captain_id": string,"created_at"?: string,"id"?: string,"name": string,"status"?: Database["public"]['Enums']["team_status"],"tournament_id": string,"updated_at"?: string
+                    "captain_id": string,"created_at"?: string,"id"?: string,"name": string,"organizer_registered"?: boolean,"status"?: Database["public"]['Enums']["team_status"],"test_generated"?: boolean,"tournament_id": string,"updated_at"?: string
                   }
                   Update: {
-                    "captain_id"?: string,"created_at"?: string,"id"?: string,"name"?: string,"status"?: Database["public"]['Enums']["team_status"],"tournament_id"?: string,"updated_at"?: string
+                    "captain_id"?: string,"created_at"?: string,"id"?: string,"name"?: string,"organizer_registered"?: boolean,"status"?: Database["public"]['Enums']["team_status"],"test_generated"?: boolean,"tournament_id"?: string,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -337,13 +356,13 @@ isOneToOne: true
                   ]
                 },"tournaments": {
                   Row: {
-                    "champion_team_id": string | null,"created_at": string,"description": string | null,"ends_on": string,"id": string,"max_teams": number,"name": string,"organizer_id": string,"playoff_config": NonNullable<Json>,"results_require_confirmation": boolean,"scoring_config": NonNullable<Json>,"slug": string,"sport_id": string,"standings_config": NonNullable<Json>,"starts_on": string,"status": Database["public"]['Enums']["tournament_status"],"timezone": string,"updated_at": string
+                    "champion_team_id": string | null,"created_at": string,"description": string | null,"ends_on": string,"id": string,"is_test": boolean,"max_teams": number,"name": string,"organizer_id": string,"playoff_config": NonNullable<Json>,"results_require_confirmation": boolean,"scoring_config": NonNullable<Json>,"slug": string,"sport_id": string,"standings_config": NonNullable<Json>,"starts_on": string,"status": Database["public"]['Enums']["tournament_status"],"timezone": string,"updated_at": string
                   }
                   Insert: {
-                    "champion_team_id"?: string | null,"created_at"?: string,"description"?: string | null,"ends_on": string,"id"?: string,"max_teams": number,"name": string,"organizer_id": string,"playoff_config"?: NonNullable<Json>,"results_require_confirmation"?: boolean,"scoring_config": NonNullable<Json>,"slug": string,"sport_id": string,"standings_config": NonNullable<Json>,"starts_on": string,"status"?: Database["public"]['Enums']["tournament_status"],"timezone"?: string,"updated_at"?: string
+                    "champion_team_id"?: string | null,"created_at"?: string,"description"?: string | null,"ends_on": string,"id"?: string,"is_test"?: boolean,"max_teams": number,"name": string,"organizer_id": string,"playoff_config"?: NonNullable<Json>,"results_require_confirmation"?: boolean,"scoring_config": NonNullable<Json>,"slug": string,"sport_id": string,"standings_config": NonNullable<Json>,"starts_on": string,"status"?: Database["public"]['Enums']["tournament_status"],"timezone"?: string,"updated_at"?: string
                   }
                   Update: {
-                    "champion_team_id"?: string | null,"created_at"?: string,"description"?: string | null,"ends_on"?: string,"id"?: string,"max_teams"?: number,"name"?: string,"organizer_id"?: string,"playoff_config"?: NonNullable<Json>,"results_require_confirmation"?: boolean,"scoring_config"?: NonNullable<Json>,"slug"?: string,"sport_id"?: string,"standings_config"?: NonNullable<Json>,"starts_on"?: string,"status"?: Database["public"]['Enums']["tournament_status"],"timezone"?: string,"updated_at"?: string
+                    "champion_team_id"?: string | null,"created_at"?: string,"description"?: string | null,"ends_on"?: string,"id"?: string,"is_test"?: boolean,"max_teams"?: number,"name"?: string,"organizer_id"?: string,"playoff_config"?: NonNullable<Json>,"results_require_confirmation"?: boolean,"scoring_config"?: NonNullable<Json>,"slug"?: string,"sport_id"?: string,"standings_config"?: NonNullable<Json>,"starts_on"?: string,"status"?: Database["public"]['Enums']["tournament_status"],"timezone"?: string,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -406,6 +425,9 @@ isOneToOne: false
             "add_team_members":
 { Args: { "p_emails": (string)[],"p_team_id": string,"p_tournament_id": string }; Returns: undefined
                            },
+"accept_team_invitation":
+{ Args: { "p_token_hash": string }; Returns: string
+                           },
 "apply_bracket":
 { Args: { "p_matches": Json,"p_tournament_id": string }; Returns: undefined
                            },
@@ -425,6 +447,22 @@ isOneToOne: false
 { Args: { "p_match_id": string }; Returns: undefined
                            },
 "create_tournament":
+{ Args: { "p_court_names": (string)[],"p_description": string,"p_ends_on": string,"p_max_teams": number,"p_name": string,"p_playoff_config"?: Json,"p_results_require_confirmation"?: boolean,"p_scoring_config"?: Json,"p_slug": string,"p_sport_id": string,"p_standings_config"?: Json,"p_starts_on": string,"p_timezone": string }; Returns: string
+                           },
+"create_team_invitation":
+{ Args: { "p_team_id": string,"p_team_member_id": string,"p_token_hash": string }; Returns: {
+              "recipient_email": string,
+              "team_name": string,
+              "tournament_name": string
+            }[]
+                           },
+"create_organizer_team":
+{ Args: { "p_player_names": (string)[],"p_slot_ids": (string)[],"p_team_name": string,"p_tournament_id": string }; Returns: string
+                           },
+"fill_test_team_slots":
+{ Args: { "p_tournament_id": string }; Returns: number
+                           },
+"create_test_tournament":
 { Args: { "p_court_names": (string)[],"p_description": string,"p_ends_on": string,"p_max_teams": number,"p_name": string,"p_playoff_config"?: Json,"p_results_require_confirmation"?: boolean,"p_scoring_config"?: Json,"p_slug": string,"p_sport_id": string,"p_standings_config"?: Json,"p_starts_on": string,"p_timezone": string }; Returns: string
                            },
 "generate_code":
@@ -644,4 +682,3 @@ export const Constants = {
           }
         }
 } as const
-

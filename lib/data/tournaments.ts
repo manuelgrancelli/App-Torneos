@@ -33,6 +33,7 @@ export type TournamentListItem = {
   maxTeams: number;
   approvedTeams: number;
   pendingTeams: number;
+  isTest: boolean;
 };
 
 /** Torneos que organiza el usuario, del más reciente al más viejo. */
@@ -41,7 +42,7 @@ export const listOrganizedTournaments = cache(async (userId: string): Promise<To
   const { data, error } = await supabase
     .from("tournaments")
     .select(
-      "id, name, slug, status, starts_on, ends_on, max_teams, sports(name, min_team_size), teams!teams_tournament_id_fkey(status)",
+      "id, name, slug, status, is_test, starts_on, ends_on, max_teams, sports(name, min_team_size), teams!teams_tournament_id_fkey(status)",
     )
     .eq("organizer_id", userId)
     .order("starts_on", { ascending: false });
@@ -59,6 +60,7 @@ export const listOrganizedTournaments = cache(async (userId: string): Promise<To
     maxTeams: t.max_teams,
     approvedTeams: t.teams.filter((team) => team.status === "approved").length,
     pendingTeams: t.teams.filter((team) => team.status === "pending").length,
+    isTest: t.is_test,
   }));
 });
 
@@ -129,6 +131,7 @@ export type OrganizerTournament = {
   championTeamId: string | null;
   sport: Sport;
   inviteCode: string | null;
+  isTest: boolean;
 };
 
 /**
@@ -164,6 +167,7 @@ export const getOrganizerTournament = cache(
       championTeamId: data.champion_team_id,
       sport: data.sports,
       inviteCode: data.tournament_invites?.code ?? null,
+      isTest: data.is_test,
     };
   },
 );

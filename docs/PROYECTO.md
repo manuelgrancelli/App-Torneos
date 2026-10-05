@@ -1,4 +1,4 @@
-# Torneos: guía del proyecto
+git add .env.example README.md app components docs lib supabase/migrations supabase/seed.sql supabase/templates/confirmation.html supabase/tests/database tests/e2e# Torneos: guía del proyecto
 
 > **Fuente de verdad del proyecto.** Tiene el plan, el estado de cada fase, las convenciones y el registro de todas las decisiones. La usan como guía las IAs de programación del equipo (Claude Code y GitHub Copilot) y cualquier persona que trabaje en el repo.
 
@@ -26,7 +26,7 @@ Web app responsive para gestionar torneos deportivos, de 360px a desktop.
 
 **Cambios de alcance pedidos por el usuario:**
 - **Deportes:** por ahora solo pádel, tenis y fútbol 11 (D-004).
-- **Compañeros:** se vinculan por email, sin invitación ni aceptación (D-005).
+- **Compañeros:** se cargan por email. D-044 reemplaza la vinculación automática: el capitán invita por correo y cada integrante acepta desde una cuenta verificada con ese mismo email antes de que el organizador apruebe la pareja.
 
 ---
 
@@ -61,7 +61,7 @@ Se trabaja por fases. Al cerrar cada una se explica qué se hizo, se reporta la 
 | Zod | 4.6 | API v4: `z.email()`, `z.url()`, `{ error }`, `z.flattenError` |
 | React Hook Form | 7.89 + @hookform/resolvers 5 | `zodResolver`, sin genéricos explícitos en `useForm` |
 | Vitest | 5.0.2 + @vitest/coverage-v8 5.0.2 | Config en `vitest.config.mts`; cobertura mínima 90 % en `lib/domain` |
-| sonner | 2 | Toasts (tema claro fijo) |
+| sonner | 2 | Toasts sincronizados con el tema (D-043) |
 | date-fns + @date-fns/tz | 4 / 1.5 | Se instalan en F4 (D-010) |
 | @dnd-kit/react | 0.5 | Se instala en F6 |
 | Supabase CLI | 2.118 | Stack local en Docker |
@@ -88,6 +88,7 @@ app/
 components/
   ui/                shadcn (se pueden editar; ver D-014)
   layout/            AppHeader, MainNav, BottomNav, UserMenu, SkipLink, nav-items
+  theme-provider.tsx | preferencia clara/oscura persistida en cookie
   auth/              formularios de auth
   shared/            EmptyState, PageHeader
 lib/
@@ -131,6 +132,7 @@ docs/PROYECTO.md     esta guía
   - `lib/supabase/client.ts` en el browser.
   - Las variables de entorno se leen desde `lib/env.ts` (validado con Zod).
 - **Estados de UI:** cada segmento tiene `loading.tsx` (skeleton), maneja errores y usa `EmptyState` cuando no hay datos. Los encabezados de página van con `PageHeader`: un solo `h1` por pantalla. Excepción: `/t/[slug]` no tiene `loading.tsx` (D-040).
+- **Tema:** el `ThemeProvider` raíz inicializa el tema desde la cookie `theme`; el selector del header privado lo cambia sin recargar y lo persiste para todas las rutas. El tema inicial es claro (D-043).
 - **Accesibilidad:** las regiones con scroll horizontal (tablas anchas, cuadro) llevan `role="region"`, `aria-label` y `tabIndex={0}`. Toda pantalla nueva se suma a `tests/e2e/a11y-security.spec.ts` (axe WCAG 2.1 AA, D-042).
 - **Scripts de terceros:** con la CSP con nonce, cualquier `<Script>` externo necesita `nonce={(await headers()).get("x-nonce")}` (lo pone `proxy.ts`) y su dominio en `lib/security/csp.ts`.
 
@@ -143,10 +145,10 @@ docs/PROYECTO.md     esta guía
 |---|---|
 | `profiles` | Nombre y avatar; se crea con un trigger sobre `auth.users`. **No guarda el email.** |
 | `sports` | Catálogo de solo lectura: `padel`, `tenis` (2 integrantes, sets) y `futbol-11` (11, goles). Cada fila trae las configs por defecto. |
-| `tournaments` | Configuración y `status`: `draft` → `registration_open` → `group_stage` → `playoffs` → `finished`. |
+| `tournaments` | Configuración y `status`: `draft` → `registration_open` → `group_stage` → `playoffs` → `finished`. `is_test` marca torneos privados de prueba, excluidos de toda lectura pública. |
 | `tournament_invites` | Código de inscripción (10 caracteres, sin O/0/I/1). Solo lo lee el organizador. |
 | `courts` / `time_slots` | Canchas/sedes y franjas horarias (`timestamptz`; una franja sin cancha sirve para cualquiera). |
-| `teams` / `team_members` / `team_availability` | La inscripción es el equipo. Los integrantes van por email, con `user_id` opcional (null = pendiente). |
+| `teams` / `team_members` / `team_availability` | La inscripción es el equipo. En inscripciones de participantes, los integrantes van por email y aceptación explícita; el organizador también puede cargar nombres sin email y su disponibilidad. `test_generated` marca parejas ficticias y `organizer_registered` inscripciones manuales. |
 | `tournament_groups` / `group_teams` | Grupos y su composición. |
 | `matches` | Partidos de grupos y playoffs: programación (`slot_id`, `court_id`, horarios copiados) y resultado. |
 | `match_confirmations` | Confirmación u objeción del resultado por parte de los equipos. |
@@ -155,7 +157,7 @@ docs/PROYECTO.md     esta guía
 **Reglas de seguridad**
 - **RLS y privilegios:** RLS está habilitado en todas las tablas y los privilegios se dan explícitamente (`revoke all` + `grant` por tabla y columna). La API de PostgREST es pública: **la barrera real es la base, no la app.**
 - **Anónimo:** solo ve torneos publicados (`status <> 'draft'`) y sus equipos aprobados. Nunca ve emails, códigos ni disponibilidad.
-- **Participantes:** escriben solo vía RPC (`register_team`, `update_team_roster`, `withdraw_team`, `leave_team`, `set_team_availability`), que validan estado, pertenencia y cupo.
+- **Participantes:** escriben solo vía RPC (`register_team`, `update_team_roster`, `withdraw_team`, `leave_team`, `set_team_availability`), que validan estado, pertenencia y cupo. El organizador inscribe sin email por `create_organizer_team`, que valida rol, torneo, plantel, franjas y cupo, y deja el equipo aprobado.
 - **Organizador:** escribe canchas, franjas, grupos y partidos por RLS. `status` y campeón se cambian solo vía `set_tournament_status`; la aprobación va por `review_registration`.
 - **Helpers de RLS** (`is_tournament_organizer`, `is_tournament_published`, `is_tournament_participant`, `is_team_member`, `can_read_tournament`, `can_view_profile`): viven en el **schema `private`**, que la API no expone. Son `SECURITY DEFINER` con `search_path = ''`.
 - **RPC:** son `SECURITY DEFINER` con `search_path = ''` y nombres completamente calificados.
@@ -278,8 +280,8 @@ La base valida solo la forma mínima (objeto y `type`). El detalle lo validan lo
 | Utilitarias internas en `public` | `require_user`, `generate_code`, `normalize_*`, etc. no se movieron a `private` (habría que recrear todas las RPC que las llaman). Tienen `EXECUTE` revocado y `07_function_privileges` lo verifica. | Aceptado (D-042) |
 | Cache de la página pública | `unstable_cache` está reemplazado por `use cache` en Next 16. Migrar cuando se habiliten Cache Components. | Futuro (D-040) |
 | Enumeración de emails | Quien tiene el código de un torneo puede saber si un email ya está inscripto en ese torneo. Es inherente a D-005. | Aceptado |
-| Vinculación sin consentimiento | Mitigado: el vinculado puede salirse (`leave_team`), el organizador aprueba y nada es público hasta la aprobación. | Aceptado (D-005) |
-| "Confirm email" en el remoto | Debe estar activo; si no, la vinculación automática por email es insegura. | Config del usuario |
+| Entrega de invitaciones | Resend exige remitente de un dominio verificado para entregar a terceros. `onboarding@resend.dev` solo permite pruebas al email dueño de la cuenta. | Configurar antes de producción (D-044) |
+| "Confirm email" en el remoto | Debe estar activo para que la app permita aceptar invitaciones solo con un email verificado. | Config del usuario |
 | Entorno local | La red es lenta y pnpm 11 se colgó bajando tarballs grandes. Postgres local fijado en `supabase/.temp/postgres-version` (17.6.1.063). | Solo local |
 
 ---
@@ -308,16 +310,17 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** el usuario quiere empezar con esos tres y ampliar después. Un modelo de N integrantes evita rehacer el esquema.
 - **Cómo aplicar:** la UI dice "pareja" si el tamaño es 2 y "equipo" en los demás casos. Un deporte nuevo = una fila en `sports` (por migración), más un validador si trae otro sistema de puntuación.
 
-### D-005 — Compañeros por email, sin invitación (2026-09-29 · F2)
+### D-005 — Compañeros por email, sin invitación (2026-09-29 · F2) *(reemplazada por D-044)*
 - **Decisión:** quien inscribe carga los emails de sus compañeros y queda como capitán.
-  - Si el email tiene una cuenta verificada, se vincula en el acto.
-  - Si no, queda pendiente y lo vincula el trigger `on_auth_user_verified` cuando esa persona verifica su email.
-  - No se manda ningún mail.
+  - Si el email tiene una cuenta verificada, se vinculaba en el acto.
+  - Si no, quedaba pendiente hasta verificar el email.
+  - No se mandaba ningún mail.
 - **Motivo:** es lo que pidió el usuario ("no invito compañeros, solo los vinculo como mi pareja por su mail").
 - **Cómo aplicar:**
   - Cualquier integrante puede salirse con `leave_team` mientras la inscripción esté abierta; el equipo vuelve a quedar pendiente.
   - El capitán da de baja la inscripción con `withdraw_team`, que borra el equipo.
   - Cambiar el plantel vuelve la inscripción a `pending`.
+  - Reemplazada por D-044: desde esa decisión cada integrante debe aceptar una invitación expresa.
 
 ### D-006 — Las migraciones las ejecuta el usuario (2026-09-29 · F2)
 - **Decisión:** se entregan archivos en `supabase/migrations/`. Nunca se conecta nada al remoto. La validación es local con Docker.
@@ -363,11 +366,11 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** son las APIs de Next 16 según la documentación incluida en el paquete.
 - **Cómo aplicar:** ante la duda, consultar `node_modules/next/dist/docs/`.
 
-### D-014 — shadcn radix-nova, paquete `cn`, solo tema claro (2026-09-30 · F1)
+### D-014 — shadcn radix-nova, paquete `cn`, solo tema claro (2026-09-30 · F1) *(reemplazada parcialmente por D-043)*
 - **Decisión:**
   - Preset `radix-nova` (Radix, Lucide, Geist).
   - `cn` viene del paquete oficial `cn` (repo `shadcn-ui/cn`, reemplaza a clsx + tailwind-merge).
-  - Se sacó `next-themes`: la app es solo tema claro y el `Toaster` usa `theme="light"`.
+  - Se sacó `next-themes`; el tema claro fijo y el `Toaster` con `theme="light"` fueron reemplazados por D-043.
   - `shadcn` va como devDependency.
   - En mobile, inputs y botones miden 40px.
 - **Motivo:** menos dependencias y touch targets cómodos en mobile.
@@ -606,8 +609,63 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Decisión:**
   - **Axe en E2E:** `@axe-core/playwright` 4.13.0 (dev; Deque, mantenido, una sola dependencia: `axe-core`). Revisa WCAG 2.1 A/AA en 360px en todas las pantallas (públicas, participante y organizador) y en los diálogos de resultado y de programación. Antes de analizar espera a que terminen las animaciones finitas (el fade de entrada alteraba el contraste medido).
   - **`robots.ts`:** solo se indexan `/` y `/t/`. El área privada además lleva `noindex`.
-  - **Funciones:** no se mueven a `private` las utilitarias que quedaron en `public`. Habría que recrear todas las RPC que las invocan por nombre calificado, con riesgo de regresión en migraciones ya aplicadas en el remoto. En su lugar, el pgTAP `07_function_privileges` fija la matriz: `anon` solo ejecuta `resolve_invite_code`; `authenticated`, exactamente las 18 RPC de la app; ninguna utilitaria interna es ejecutable; toda función `SECURITY DEFINER` tiene `search_path` fijo.
+  - **Funciones:** no se mueven a `private` las utilitarias que quedaron en `public`. Habría que recrear todas las RPC que las invocan por nombre calificado, con riesgo de regresión en migraciones ya aplicadas en el remoto. En su lugar, el pgTAP `07_function_privileges` fija la matriz: `anon` solo ejecuta `resolve_invite_code`; `authenticated`, exactamente las RPC de la app listadas en ese test; ninguna utilitaria interna es ejecutable; toda función `SECURITY DEFINER` tiene `search_path` fijo.
 - **Motivo:** detectar regresiones de accesibilidad y de exposición de funciones de forma automática, sin tocar migraciones existentes.
 - **Cómo aplicar:**
   - Una RPC nueva implica actualizar la lista de `07_function_privileges` (el test falla a propósito).
   - Una pantalla nueva se suma a `a11y-security.spec.ts`.
+
+### D-043 — Tema claro/oscuro persistido (2026-10-02 · mantenimiento)
+- **Decisión:** agregar un selector de tema en el header privado. El tema inicial es claro; la preferencia elegida se guarda en la cookie `theme` por un año y aplica a toda la web, incluidas las páginas públicas. El `ThemeProvider` sincroniza la clase `.dark` en el documento y el `Toaster`; no se agrega `next-themes`.
+- **Motivo:** las variables y utilidades CSS oscuras ya existían, pero no había control que activara `.dark` y las notificaciones estaban fijadas a claro.
+- **Cómo aplicar:** el layout raíz lee `theme` con `cookies()` de Next.js 16 antes de renderizar, evitando un destello de tema. El toggle solo cambia entre `light` y `dark`; cookies inválidas se interpretan como `light`.
+
+### D-044 — Invitaciones de compañeros con aceptación explícita (2026-10-02 · mantenimiento)
+- **Decisión:**
+  - El capitán envía una invitación por Resend a cada integrante no vinculado; el token aleatorio de 256 bits se guarda únicamente como SHA-256, vence a los 7 días y se invalida al aceptarse o reenviarse. La RPC limita reenvíos a uno por minuto.
+  - La aceptación requiere sesión y email verificado que coincida exactamente con el destinatario. No se vincula a nadie por el solo hecho de registrarse o confirmar email.
+  - El organizador no puede aprobar la pareja mientras haya integrantes sin aceptar. El capitán puede reenviar desde su inscripción.
+  - Resend se llama desde el servidor, no se agrega SDK y no se usa service role. Se configura con `RESEND_API_KEY` y `RESEND_FROM_EMAIL`; el dominio del remitente debe estar verificado. `onboarding@resend.dev` solo sirve para pruebas dirigidas al propietario de la cuenta Resend.
+  - Para que cuentas nuevas vuelvan a la aceptación aun si confirman desde otro dispositivo, el template `confirmation.html` conserva el destino de retorno validado por `/auth/confirm`.
+- **Motivo:** una inscripción de pareja debe contar con el consentimiento del compañero y avisarle de forma confiable que tiene que aceptar.
+- **Cómo aplicar:**
+  - Aplicar `20261002000100_team_invitations.sql` como migración nueva; las migraciones previas no se editan.
+  - Configurar ambas variables de Resend luego de verificar el dominio. Sin ellas se puede inscribir, pero el capitán debe completar la configuración y reenviar.
+  - Actualizar el template remoto Confirm signup copiando `supabase/templates/confirmation.html`.
+  - El pgTAP valida permisos, aceptación de un solo uso, coincidencia de email y el bloqueo de aprobación si falta una aceptación.
+
+### D-045 — Inscripción individual y relleno de pruebas local (2026-10-03 · mantenimiento) *(reemplazada por D-046)*
+- **Decisión:**
+  - En deportes de parejas, una persona puede anotarse individualmente solo después de aceptar explícitamente participar de un sorteo. Las inscripciones quedan en espera, sin crear una pareja ni vincularlas a otra persona hasta que el organizador ejecute el sorteo.
+  - El organizador sortea al azar las personas disponibles desde Inscripciones. Se crean equipos pendientes de aprobación; si queda una persona impar, no se puede cerrar la inscripción hasta que se empareje o cancele su espera.
+  - En desarrollo local, el organizador puede completar los cupos con equipos ficticios aprobados y marcados como datos de prueba. La acción exige una identidad de Supabase local en la RPC, además de la protección de la Server Action; no se habilita en producción.
+  - Los equipos ficticios reciben disponibilidad en todas las franjas para que también se puedan probar la programación automática y los partidos.
+  - Los equipos de prueba no tienen integrantes reales ni invitaciones. Los grupos, fixture y cuadro se generan con los flujos existentes.
+- **Motivo:** permitir probar el recorrido completo sin crear manualmente muchas cuentas o parejas, y conservar el consentimiento de quien se anota individualmente.
+- **Cómo aplicar:**
+  - Reemplazada por D-046 antes de aplicar la migración.
+
+### D-046 — Torneos privados de prueba con parejas ficticias (2026-10-03 · mantenimiento)
+- **Decisión:** reemplaza a D-045.
+  - Al crear un torneo, el organizador puede marcarlo como **privado de prueba**. La marca se asigna atómicamente y no puede activarse sobre un torneo real existente.
+  - Los torneos de prueba no aparecen en páginas públicas ni se pueden resolver por código de inscripción. Las RPC y el trigger también bloquean inscripciones reales aunque alguien conozca el código o invoque la API directamente.
+  - En Inscripciones, el organizador puede generar parejas ficticias hasta completar el cupo. Quedan aprobadas, tienen disponibilidad en todas las franjas, y se identifican como datos de prueba. Solo se pueden generar en torneos creados con ese modo.
+  - Se pueden usar los flujos existentes de grupos, fixture, programación, resultados y playoffs; los datos siguen ocultos a participantes y visitantes.
+- **Motivo:** probar el recorrido completo en el proyecto Supabase alojado sin agregar datos inventados a torneos reales ni exponerlos públicamente.
+- **Cómo aplicar:**
+  - Aplicar `20261003000100_private_test_tournaments.sql` luego de `20261002000100_team_invitations.sql`, que todavía debe aplicarse primero en la base alojada.
+  - Crear un torneo nuevo y activar **Crear como torneo privado de prueba**. Los torneos reales existentes no se modifican.
+  - En su página de Inscripciones, usar **Completar cupos con parejas ficticias**. Luego seguir con el sorteo de grupos y la generación del fixture/cuadro.
+  - El pgTAP `08_test_tournaments` verifica el aislamiento público, el bloqueo de inscripciones reales y la creación/disponibilidad de las parejas ficticias.
+
+### D-047 — Inscripción manual por el organizador (2026-10-03 · mantenimiento)
+- **Decisión:**
+  - Durante la inscripción abierta, el organizador puede inscribir y aprobar una pareja/equipo ingresando su nombre, los nombres del plantel y las franjas disponibles, sin emails ni cuentas.
+  - Los miembros sin cuenta se representan con `team_members.email = null` y `display_name`; el equipo queda marcado `organizer_registered`. No se los invita ni se los vincula automáticamente si luego crean una cuenta.
+  - La RPC `create_organizer_team` valida en la base el organizador, estado, tamaño del plantel, franjas del mismo torneo, nombre único y cupo. También funciona en torneos privados de prueba, que siguen excluidos de lecturas públicas.
+  - El canal normal de inscripción por código mantiene las invitaciones explícitas de D-044. Los equipos manuales guardan las franjas elegidas y no se consideran ficticios.
+- **Motivo:** permitir al organizador anotar participantes de forma presencial o asistida sin crear cuentas ni inventar emails, manteniendo la disponibilidad real para el scheduler.
+- **Cómo aplicar:**
+  - Aplicar `20261003000200_organizer_team_registration.sql` como migración nueva; no editar migraciones aplicadas.
+  - El formulario aparece en Inscripciones mientras el torneo esté abierto. Para cada pareja/equipo se cargan todos los nombres y al menos una franja.
+  - El pgTAP `09_organizer_registration` valida permisos, aprobación, nombres, ausencia de emails y persistencia de disponibilidad.

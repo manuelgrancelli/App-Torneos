@@ -9,7 +9,7 @@ import {
 } from "@/lib/supabase/errors";
 import { createClient } from "@/lib/supabase/server";
 import { getRequestOrigin } from "@/lib/utils/origin";
-import { DEFAULT_REDIRECT, getSafeRedirectPath } from "@/lib/utils/redirect";
+import { getSafeRedirectPath } from "@/lib/utils/redirect";
 import {
   loginSchema,
   oauthSchema,
@@ -31,16 +31,17 @@ export const signIn = createPublicAction(loginSchema, async ({ email, password }
  */
 export const signUp = createPublicAction(
   signUpSchema,
-  async ({ fullName, email, password }, { supabase }) => {
+  async ({ fullName, email, password, next }, { supabase }) => {
     const origin = await getRequestOrigin();
+    const safeNext = getSafeRedirectPath(next);
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { full_name: fullName },
-        // Respaldo para los templates por defecto de Supabase (flujo PKCE).
-        // Con los templates del proyecto el link va directo a /auth/confirm.
-        emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(DEFAULT_REDIRECT)}`,
+        // La plantilla custom usa .RedirectTo para volver a la invitación
+        // después de confirmar, incluso desde otro dispositivo.
+        emailRedirectTo: `${origin}${safeNext}`,
       },
     });
 

@@ -1,7 +1,7 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getSafeRedirectPath } from "@/lib/utils/redirect";
+import { DEFAULT_REDIRECT, getSafeRedirectPath } from "@/lib/utils/redirect";
 
 /** Tipos de link de email que acepta esta ruta. */
 const ALLOWED_TYPES: readonly EmailOtpType[] = ["email", "signup", "recovery", "email_change"];
@@ -20,7 +20,18 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type");
-  const next = getSafeRedirectPath(searchParams.get("next"));
+  const rawNext = searchParams.get("next");
+  let next = getSafeRedirectPath(rawNext, DEFAULT_REDIRECT);
+  if (rawNext) {
+    try {
+      const redirectUrl = new URL(rawNext, request.nextUrl.origin);
+      if (redirectUrl.origin === request.nextUrl.origin) {
+        next = getSafeRedirectPath(`${redirectUrl.pathname}${redirectUrl.search}${redirectUrl.hash}`);
+      }
+    } catch {
+      next = DEFAULT_REDIRECT;
+    }
+  }
 
   if (tokenHash && isAllowedType(type)) {
     const supabase = await createClient();

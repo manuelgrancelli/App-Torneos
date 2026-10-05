@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { CurrentUser } from "@/lib/auth";
 import { APP_NAME } from "@/lib/config";
 import { MainNav } from "./main-nav";
+import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
 
 /** Header del área privada: marca, navegación (desktop) y menú de usuario. */
@@ -18,7 +19,8 @@ export function AppHeader({ user }: { user: CurrentUser }) {
           {APP_NAME}
         </Link>
         <MainNav className="hidden md:flex" />
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <ThemeToggle />
           <UserMenu user={user} />
         </div>
       </div>

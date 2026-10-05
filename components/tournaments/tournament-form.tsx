@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { createTournament } from "@/app/(app)/torneos/actions";
@@ -87,6 +87,7 @@ function Section({ title, description, children }: { title: string; description?
 export function TournamentForm(props: TournamentFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [isTestTournament, setIsTestTournament] = useState(false);
   const locks: FormLocks = props.mode === "edit" ? props.locks : {};
   // La página garantiza al menos un deporte en el catálogo.
   const initialSport = (props.mode === "create" ? props.sports[0] : props.sport) as SportOption;
@@ -120,7 +121,7 @@ export function TournamentForm(props: TournamentFormProps) {
   const onSubmit = form.handleSubmit((values) => {
     startTransition(async () => {
       if (props.mode === "create") {
-        const result = await createTournament(values);
+        const result = await createTournament({ ...values, isTest: isTestTournament });
         if (!result.ok) {
           applyServerErrors(form.setError, result.fieldErrors);
           toast.error(result.error);
@@ -324,6 +325,22 @@ export function TournamentForm(props: TournamentFormProps) {
               </Field>
             )}
           />
+          {props.mode === "create" ? (
+            <Field orientation="horizontal">
+              <Switch
+                id="t-test-mode"
+                checked={isTestTournament}
+                onCheckedChange={setIsTestTournament}
+              />
+              <FieldContent>
+                <FieldLabel htmlFor="t-test-mode">Crear como torneo privado de prueba</FieldLabel>
+                <FieldDescription>
+                  No se muestra en páginas públicas ni acepta inscripciones reales. Vas a poder completar los cupos con
+                  parejas ficticias para probar grupos, fixture y cuadro.
+                </FieldDescription>
+              </FieldContent>
+            </Field>
+          ) : null}
         </FieldGroup>
       </Section>
 

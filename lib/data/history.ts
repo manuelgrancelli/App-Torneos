@@ -46,7 +46,10 @@ export const getMyMatches = cache(async (userId: string): Promise<MyHistory> => 
 
   const [members, playoffs, champions] = await Promise.all([
     teamIds.length
-      ? supabase.from("team_members").select("team_id, user_id, email, profiles(full_name)").in("team_id", teamIds)
+      ? supabase
+          .from("team_members")
+          .select("team_id, user_id, email, display_name, profiles(full_name)")
+          .in("team_id", teamIds)
       : Promise.resolve({ data: [], error: null }),
     tournamentIds.length
       ? supabase.from("matches").select("tournament_id, round").eq("stage", "playoff").in("tournament_id", tournamentIds)
@@ -59,11 +62,11 @@ export const getMyMatches = cache(async (userId: string): Promise<MyHistory> => 
   if (playoffs.error) throw playoffs.error;
   if (champions.error) throw champions.error;
 
-  // Compañeros por equipo (sin el usuario); los no registrados se muestran por email.
+  // Compañeros por equipo (sin el usuario); se prefiere su nombre al email.
   const partners = new Map<string, string[]>();
   for (const m of members.data ?? []) {
     if (m.user_id === userId) continue;
-    const name = (m.profiles as { full_name: string } | null)?.full_name ?? m.email;
+    const name = (m.profiles as { full_name: string } | null)?.full_name ?? m.display_name ?? m.email ?? "Integrante";
     partners.set(m.team_id, [...(partners.get(m.team_id) ?? []), name]);
   }
   const playoffRounds = new Map<string, number>();

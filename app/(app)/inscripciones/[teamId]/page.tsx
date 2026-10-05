@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { AvailabilityPicker } from "@/components/availability/availability-picker";
 import { MyMatches } from "@/components/matches/my-matches";
+import { SendTeamInvitationButton } from "@/components/registration/send-team-invitation-button";
 import { TeamActions } from "@/components/registration/team-actions";
 import { PublicPageLink } from "@/components/tournaments/public-page-link";
 import { StatusBadge, TeamStatusBadge } from "@/components/tournaments/status-badge";
@@ -67,7 +68,7 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
       {team.status === "pending" ? (
         <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">
           Tu inscripción está pendiente: el organizador tiene que aprobarla.
-          {pendingMembers > 0 ? " Hay integrantes que todavía no se registraron." : ""}
+          {pendingMembers > 0 ? " Hay integrantes que todavía no aceptaron la invitación." : ""}
         </p>
       ) : team.status === "rejected" ? (
         <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-900">
@@ -113,11 +114,20 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
                     <UserRoundX className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{member.fullName ?? member.email}</p>
+                    <p className="truncate font-medium">
+                      {member.fullName ?? member.displayName ?? member.email ?? "Sin nombre"}
+                    </p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {member.userId ? member.email : "Pendiente de registro"}
+                      {member.userId
+                        ? member.email
+                        : member.email
+                          ? "Pendiente de aceptar la invitación"
+                          : "Sin cuenta asociada"}
                     </p>
                   </div>
+                  {team.isCaptain && registrationOpen && member.role === "player" && !member.userId ? (
+                    <SendTeamInvitationButton teamId={team.id} memberId={member.id} />
+                  ) : null}
                   {member.role === "captain" ? (
                     <Badge variant="secondary">
                       <Crown aria-hidden="true" />
@@ -133,7 +143,9 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
                 teamName={team.name}
                 teamSize={tournament.minTeamSize}
                 isCaptain={team.isCaptain}
-                companionEmails={team.members.filter((m) => m.role !== "captain").map((m) => m.email)}
+                companionEmails={team.members.flatMap((member) =>
+                  member.role !== "captain" && member.email ? [member.email] : [],
+                )}
               />
             ) : (
               <p className="text-sm text-muted-foreground">

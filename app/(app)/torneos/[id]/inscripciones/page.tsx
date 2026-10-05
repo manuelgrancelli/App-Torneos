@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { OrganizerRegistrationForm } from "@/components/registration/organizer-registration-form";
 import { RegistrationsList } from "@/components/registration/registrations-list";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
 import { listTournamentTeams } from "@/lib/data/teams";
+import { getCourtsAndSlots } from "@/lib/data/tournaments";
 import { approvedTeamsLabel } from "@/lib/domain/tournament-status";
 
 export const metadata: Metadata = { title: "Inscripciones" };
@@ -13,7 +15,10 @@ export default async function RegistrationsPage({ params, searchParams }: PagePr
   const { id } = await params;
   const { estado } = await searchParams;
   const tournament = await requireOrganizerTournament(id);
-  const teams = await listTournamentTeams(tournament.id);
+  const [teams, { courts, slots }] = await Promise.all([
+    listTournamentTeams(tournament.id),
+    getCourtsAndSlots(tournament.id),
+  ]);
   const approved = teams.filter((t) => t.status === "approved").length;
 
   // Por defecto: pendientes si hay, si no todas.
@@ -22,6 +27,15 @@ export default async function RegistrationsPage({ params, searchParams }: PagePr
 
   return (
     <div className="space-y-4">
+      {tournament.status === "registration_open" ? (
+        <OrganizerRegistrationForm
+          tournamentId={tournament.id}
+          timezone={tournament.timezone}
+          teamSize={tournament.sport.min_team_size}
+          slots={slots}
+          courts={courts}
+        />
+      ) : null}
       <p className="text-sm text-muted-foreground">
         {approved} de {tournament.maxTeams} {approvedTeamsLabel(tournament.sport.min_team_size)}.
         {tournament.status === "registration_open"
@@ -33,6 +47,7 @@ export default async function RegistrationsPage({ params, searchParams }: PagePr
         teams={teams}
         teamSize={tournament.sport.min_team_size}
         maxTeams={tournament.maxTeams}
+        isTestTournament={tournament.isTest}
         canReview={tournament.status === "registration_open"}
         filter={filter}
       />

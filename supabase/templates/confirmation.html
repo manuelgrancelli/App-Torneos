@@ -4,7 +4,7 @@
   <p>Hola{{ if .Data.full_name }} {{ .Data.full_name }}{{ end }}, gracias por registrarte en Torneos.</p>
   <p>Para activar tu cuenta, confirmá tu email:</p>
   <p style="margin: 24px 0;">
-    <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/torneos"
+    <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next={{ .RedirectTo | urlquery }}"
        style="background: #171717; color: #ffffff; padding: 12px 20px; border-radius: 8px; text-decoration: none; display: inline-block;">
       Confirmar email
     </a>

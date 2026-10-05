@@ -38,6 +38,7 @@ export const signUpSchema = z
     email: emailSchema,
     password: newPasswordSchema,
     confirmPassword: z.string(),
+    next: z.string().max(2048).optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     error: "Las contraseñas no coinciden.",

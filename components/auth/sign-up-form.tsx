@@ -33,7 +33,7 @@ export function SignUpForm({ next }: { next: string }) {
 
   const onSubmit = form.handleSubmit((values) => {
     startTransition(async () => {
-      const result = await signUp(values);
+      const result = await signUp({ ...values, next });
       if (!result.ok) {
         applyServerErrors(form.setError, result.fieldErrors);
         toast.error(result.error);

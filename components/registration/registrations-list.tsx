@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { reviewRegistration } from "@/app/(app)/torneos/[id]/inscripciones/actions";
+import {
+  fillTestTeamSlots,
+  reviewRegistration,
+} from "@/app/(app)/torneos/[id]/inscripciones/actions";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TeamStatusBadge } from "@/components/tournaments/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +32,7 @@ type RegistrationsListProps = {
   teams: OrganizerTeam[];
   teamSize: number;
   maxTeams: number;
+  isTestTournament: boolean;
   /** Solo con la inscripción abierta se aprueba o rechaza (lo valida la RPC). */
   canReview: boolean;
   filter: Filter;
@@ -95,7 +99,17 @@ function ReviewButtons({
 }
 
 /** Listado de inscripciones con filtros por estado y aprobación/rechazo. */
-export function RegistrationsList({ tournamentId, teams, teamSize, maxTeams, canReview, filter }: RegistrationsListProps) {
+export function RegistrationsList({
+  tournamentId,
+  teams,
+  teamSize,
+  maxTeams,
+  isTestTournament,
+  canReview,
+  filter,
+}: RegistrationsListProps) {
+  const router = useRouter();
+  const [isToolPending, startToolTransition] = useTransition();
   const approved = teams.filter((t) => t.status === "approved").length;
   const visible = filter === "all" ? teams : teams.filter((t) => t.status === filter);
   const counts = {
@@ -105,8 +119,37 @@ export function RegistrationsList({ tournamentId, teams, teamSize, maxTeams, can
     rejected: teams.filter((t) => t.status === "rejected").length,
   };
 
+  function runRegistrationTool() {
+    startToolTransition(async () => {
+      const result = await fillTestTeamSlots({ tournamentId });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(result.message ?? "Listo.");
+      router.refresh();
+    });
+  }
+
   return (
     <div className="space-y-4">
+      {canReview && isTestTournament ? (
+        <div className="flex flex-wrap gap-2">
+          {approved < maxTeams ? (
+            <Button
+              variant="secondary"
+              onClick={runRegistrationTool}
+              disabled={isToolPending}
+            >
+              {isToolPending ? <Spinner /> : null}
+              Completar cupos con parejas ficticias
+            </Button>
+          ) : null}
+          <p className="basis-full text-xs text-muted-foreground">
+              Las parejas ficticias solo existen en este torneo privado y quedan aprobadas con disponibilidad completa.
+            </p>
+        </div>
+      ) : null}
       <nav aria-label="Filtrar inscripciones" className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <Link
@@ -133,8 +176,12 @@ export function RegistrationsList({ tournamentId, teams, teamSize, maxTeams, can
         <ul className="grid gap-3 lg:grid-cols-2">
           {visible.map((team) => {
             const complete = team.members.length >= teamSize;
+            const unaccepted =
+              !team.organizerRegistered && team.members.some((member) => !member.userId);
             const approveDisabledReason = !complete
               ? "El plantel está incompleto."
+              : unaccepted
+                ? "Falta que todos acepten la invitación."
               : approved >= maxTeams
                 ? "Se completó el cupo."
                 : undefined;
@@ -143,24 +190,38 @@ export function RegistrationsList({ tournamentId, teams, teamSize, maxTeams, can
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-medium">{team.name}</h3>
                   <TeamStatusBadge status={team.status} />
+                  {team.testGenerated ? <Badge variant="secondary">Ficticia</Badge> : null}
+                  {team.organizerRegistered ? <Badge variant="outline">Cargada por organizador</Badge> : null}
                   <Badge variant="outline">
                     {team.availabilityCount === 0 ? "Sin disponibilidad" : `${team.availabilityCount} franjas`}
                   </Badge>
                 </div>
-                <ul className="space-y-1 text-sm">
-                  {team.members.map((member) => (
-                    <li key={member.id} className="flex items-center gap-2">
-                      {member.role === "captain" ? (
-                        <Crown className="size-4 text-amber-700" aria-label="Capitán" />
-                      ) : member.userId ? null : (
-                        <UserRoundX className="size-4 text-muted-foreground" aria-label="Pendiente de registro" />
-                      )}
-                      <span className="truncate">{member.fullName ?? "Sin registrar"}</span>
-                      <span className="truncate text-muted-foreground">{member.email}</span>
-                    </li>
-                  ))}
-                </ul>
-                {canReview ? (
+                {team.testGenerated ? (
+                  <p className="text-sm text-muted-foreground">Integrantes ficticios para probar grupos, fixture y cuadro.</p>
+                ) : (
+                  <ul className="space-y-1 text-sm">
+                    {team.members.map((member) => (
+                      <li key={member.id} className="flex items-center gap-2">
+                        {member.role === "captain" ? (
+                          <Crown className="size-4 text-amber-700" aria-label="Capitán" />
+                        ) : member.userId || team.organizerRegistered ? null : (
+                          <UserRoundX className="size-4 text-muted-foreground" aria-label="Pendiente de aceptar la invitación" />
+                        )}
+                        <span className="truncate">
+                          {member.fullName ??
+                            member.displayName ??
+                            (member.userId
+                              ? "Sin registrar"
+                              : team.organizerRegistered
+                                ? "Sin cuenta"
+                                : "Invitación pendiente")}
+                        </span>
+                        {member.email ? <span className="truncate text-muted-foreground">{member.email}</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {canReview && !team.testGenerated ? (
                   <ReviewButtons tournamentId={tournamentId} team={team} approveDisabledReason={approveDisabledReason} />
                 ) : null}
               </li>

@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { expectToast, login, logout, signUpAndConfirm, unique, uniqueEmail } from "./helpers";
+import { prepareTeamInvitation } from "./fixtures";
+import { expectToast, extractConfirmLink, login, logout, signUpAndConfirm, unique, uniqueEmail, waitForMail } from "./helpers";
 
 /** Código fijo del torneo demo del seed (supabase/seed.sql). */
 const DEMO_CODE = "DEMQ2PADEL";
@@ -21,11 +22,14 @@ test.describe("inscripción y disponibilidad (F5)", () => {
     await page.getByLabel("Nombre de la pareja").fill(teamName);
     await page.getByLabel("Email de tu pareja").fill(partnerEmail);
     await page.getByRole("button", { name: "Inscribirme" }).click();
-    await expectToast(page, /Tu inscripción quedó pendiente/);
+    await expectToast(page, /La inscripción quedó pendiente|Tu inscripción quedó pendiente/);
     await page.waitForURL(/\/inscripciones\/[0-9a-f-]{36}$/);
     const teamUrl = page.url();
-    await expect(page.getByText("Pendiente de registro")).toBeVisible();
+    const teamId = teamUrl.split("/").pop();
+    expect(teamId).toBeTruthy();
+    await expect(page.getByText("Pendiente de aceptar la invitación")).toBeVisible();
     await expect(page.getByText("Tu inscripción está pendiente")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Enviar / reenviar invitación" })).toBeVisible();
 
     // 2. Marca disponibilidad: dos franjas y "todo el día".
     const firstDay = page.getByRole("checkbox").first();
@@ -40,10 +44,25 @@ test.describe("inscripción y disponibilidad (F5)", () => {
     await expect(page.getByText("Ya estás inscripto en este torneo")).toBeVisible();
     await logout(page);
 
-    // 4. El compañero se registra con ese email y queda vinculado solo.
-    await signUpAndConfirm(page, { name: "Paula Pareja", email: partnerEmail });
-    await expect(page.getByRole("link", { name: new RegExp(teamName) })).toBeVisible();
-    await page.goto(teamUrl);
+    // 4. El compañero acepta una invitación usando la cuenta del email destinatario.
+    const invitationToken = await prepareTeamInvitation({
+      captainEmail,
+      teamId: teamId!,
+      memberEmail: partnerEmail,
+    });
+    const invitationUrl = `/invitacion/aceptar?token=${encodeURIComponent(invitationToken)}`;
+    await page.goto(invitationUrl);
+    await page.getByRole("link", { name: "Crear cuenta con este email" }).click();
+    await page.getByLabel("Nombre y apellido").fill("Paula Pareja");
+    await page.getByLabel("Email").fill(partnerEmail);
+    await page.getByLabel("Contraseña", { exact: true }).fill("demo1234");
+    await page.getByLabel("Repetí la contraseña").fill("demo1234");
+    await page.getByRole("button", { name: "Crear cuenta" }).click();
+    await expect(page.getByText("Revisá tu email")).toBeVisible();
+    await page.goto(extractConfirmLink(await waitForMail(partnerEmail, "Confirmá tu cuenta")));
+    await expect(page).toHaveURL(invitationUrl);
+    await page.getByRole("button", { name: "Aceptar invitación" }).click();
+    await expect(page).toHaveURL(teamUrl);
     await expect(page.getByText("Paula Pareja")).toBeVisible();
     await logout(page);
 

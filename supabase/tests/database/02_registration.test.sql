@@ -5,7 +5,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 -- Aislamiento: sin los datos del seed (todo se revierte con el rollback final).
 delete from public.tournaments;
-select plan(39);
+select plan(50);
 
 insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data, aud, role) values
   ('aaaaaaaa-0000-4000-8000-000000000001', 'org@test.local', now(), '{"full_name": "Olga Org"}', 'authenticated', 'authenticated'),
@@ -86,8 +86,30 @@ select throws_ok($$ select public.register_team('CUPATESTAA', 'Otra', array['die
   'P0001', 'Ya estás inscripto en este torneo.', 'inscripción: una persona, un equipo');
 
 reset role;
+select is((select user_id from public.team_members where email = 'bruno@test.local'), null::uuid,
+  'inscripción: cuenta verificada sin aceptación no queda vinculada');
+create temp table bruno_invitation as
+  select tm.team_id, tm.id as member_id from public.team_members tm where tm.email = 'bruno@test.local';
+grant select on bruno_invitation to authenticated;
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "aaaaaaaa-0000-4000-8000-000000000003", "role": "authenticated"}';
+select lives_ok($$ select * from public.create_team_invitation(
+  (select team_id from bruno_invitation),
+  (select member_id from bruno_invitation),
+  encode(extensions.digest('bruno-token', 'sha256'), 'hex')
+) $$, 'invitación: el capitán crea una invitación para Bruno');
+set local request.jwt.claims = '{"sub": "aaaaaaaa-0000-4000-8000-000000000004", "role": "authenticated"}';
+select is(
+  public.accept_team_invitation(encode(extensions.digest('bruno-token', 'sha256'), 'hex')),
+  (select team_id from bruno_invitation),
+  'invitación: Bruno acepta su invitación'
+);
+select throws_ok($$ select public.accept_team_invitation(encode(extensions.digest('bruno-token', 'sha256'), 'hex')) $$,
+  'P0001', 'La invitación no es válida o venció.', 'invitación: el token se invalida después de usarlo');
+reset role;
 select is((select user_id from public.team_members where email = 'bruno@test.local'), 'aaaaaaaa-0000-4000-8000-000000000004'::uuid,
-  'inscripción: vincula al compañero con cuenta verificada');
+  'invitación: vincula al usuario que aceptó');
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub": "aaaaaaaa-0000-4000-8000-000000000005", "role": "authenticated"}';
@@ -103,14 +125,36 @@ set local request.jwt.claims = '{"sub": "aaaaaaaa-0000-4000-8000-000000000008", 
 select throws_ok($$ select public.register_team('CUPATESTAA', 'Sin / Confirmar', array['zz@test.local']) $$,
   'P0001', 'Confirmá tu email antes de inscribirte.', 'inscripción: exige email confirmado');
 
--- Hana se registra y confirma el email: queda vinculada sola.
+-- Hana se registra y confirma el email, pero debe aceptar su invitación.
 reset role;
 insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data, aud, role)
 values ('aaaaaaaa-0000-4000-8000-000000000009', 'hana@test.local', null, '{"full_name": "Hana"}', 'authenticated', 'authenticated');
 select is((select user_id from public.team_members where email = 'hana@test.local'), null, 'vinculación: no vincula sin email confirmado');
 update auth.users set email_confirmed_at = now() where id = 'aaaaaaaa-0000-4000-8000-000000000009';
+select is((select user_id from public.team_members where email = 'hana@test.local'), null::uuid,
+  'invitación: confirmar el email no acepta la invitación');
+create temp table hana_invitation as
+  select tm.team_id, tm.id as member_id from public.team_members tm where tm.email = 'hana@test.local';
+grant select on hana_invitation to authenticated;
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "aaaaaaaa-0000-4000-8000-000000000005", "role": "authenticated"}';
+select lives_ok($$ select * from public.create_team_invitation(
+  (select team_id from hana_invitation),
+  (select member_id from hana_invitation),
+  encode(extensions.digest('hana-token', 'sha256'), 'hex')
+) $$, 'invitación: la capitana crea una invitación para Hana');
+set local request.jwt.claims = '{"sub": "aaaaaaaa-0000-4000-8000-000000000006", "role": "authenticated"}';
+select throws_ok($$ select public.accept_team_invitation(encode(extensions.digest('hana-token', 'sha256'), 'hex')) $$,
+  'P0001', 'Iniciá sesión con el mismo email al que enviaron la invitación.', 'invitación: rechaza otra cuenta');
+set local request.jwt.claims = '{"sub": "aaaaaaaa-0000-4000-8000-000000000009", "role": "authenticated"}';
+select is(
+  public.accept_team_invitation(encode(extensions.digest('hana-token', 'sha256'), 'hex')),
+  (select team_id from hana_invitation),
+  'invitación: Hana acepta con el email verificado'
+);
+reset role;
 select is((select user_id from public.team_members where email = 'hana@test.local'), 'aaaaaaaa-0000-4000-8000-000000000009'::uuid,
-  'vinculación: vincula al confirmar el email');
+  'invitación: vincula a Hana después de aceptar');
 
 -- -----------------------------------------------------------------------------
 -- Disponibilidad
@@ -135,11 +179,32 @@ select throws_ok($$ select public.set_team_availability((select team_id from my_
 -- -----------------------------------------------------------------------------
 set local request.jwt.claims = '{"sub": "aaaaaaaa-0000-4000-8000-000000000006", "role": "authenticated"}';
 select lives_ok($$ select public.register_team('CUPATESTAA', 'Diego / Eva', array['eva@test.local']) $$, 'inscripción: tercera pareja');
+reset role;
+create temp table eva_invitation as
+  select tm.team_id, tm.id as member_id from public.team_members tm where tm.email = 'eva@test.local';
+grant select on eva_invitation to authenticated;
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "aaaaaaaa-0000-4000-8000-000000000006", "role": "authenticated"}';
+select lives_ok($$ select * from public.create_team_invitation(
+  (select team_id from eva_invitation),
+  (select member_id from eva_invitation),
+  encode(extensions.digest('eva-token', 'sha256'), 'hex')
+) $$, 'invitación: el capitán crea una invitación para Eva');
 
 set local request.jwt.claims = '{"sub": "aaaaaaaa-0000-4000-8000-000000000003", "role": "authenticated"}';
 select throws_ok($$ select public.review_registration((select team_id from my_team), 'approved') $$,
   '42501', null, 'aprobación: solo el organizador');
 
+set local request.jwt.claims = '{"sub": "aaaaaaaa-0000-4000-8000-000000000001", "role": "authenticated"}';
+select throws_ok($$ select public.review_registration((select team_id from eva_invitation), 'approved') $$,
+  'P0001', 'Todos los integrantes tienen que aceptar la invitación antes de aprobar.',
+  'aprobación: bloquea parejas con invitaciones pendientes');
+set local request.jwt.claims = '{"sub": "aaaaaaaa-0000-4000-8000-000000000007", "role": "authenticated"}';
+select is(
+  public.accept_team_invitation(encode(extensions.digest('eva-token', 'sha256'), 'hex')),
+  (select team_id from eva_invitation),
+  'invitación: Eva acepta su invitación'
+);
 set local request.jwt.claims = '{"sub": "aaaaaaaa-0000-4000-8000-000000000001", "role": "authenticated"}';
 select lives_ok($$ select public.review_registration(id, 'approved') from public.teams where tournament_id = (select tournament_id from ids) $$,
   'aprobación: el organizador aprueba las tres');

@@ -16,6 +16,7 @@ export function OrganizedTournamentCard({ tournament }: { tournament: Tournament
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="truncate font-medium">{tournament.name}</h3>
           <StatusBadge status={tournament.status} />
+          {tournament.isTest ? <span className="rounded-full bg-muted px-2 py-0.5 text-xs">Prueba privada</span> : null}
         </div>
         <p className="text-sm text-muted-foreground">{tournament.sportName}</p>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">

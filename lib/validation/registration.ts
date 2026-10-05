@@ -41,8 +41,25 @@ export const reviewRegistrationSchema = z.object({
   decision: z.enum(["approved", "rejected"]),
 });
 
+export const tournamentRegistrationActionSchema = z.object({ tournamentId: z.uuid() });
+
+export const organizerCreateTeamSchema = z.object({
+  tournamentId: z.uuid(),
+  teamName: teamNameSchema,
+  playerNames: z
+    .array(z.string().trim().min(1, { error: "Ingresá el nombre de cada integrante." }).max(80))
+    .min(1)
+    .max(60),
+  slotIds: z
+    .array(z.uuid())
+    .min(1, { error: "Elegí al menos una franja disponible." })
+    .max(1000)
+    .refine((slotIds) => new Set(slotIds).size === slotIds.length, { error: "Hay franjas repetidas." }),
+});
+
 export type RegisterTeamInput = z.input<typeof registerTeamSchema>;
 export type UpdateRosterInput = z.input<typeof updateRosterSchema>;
+export type OrganizerCreateTeamInput = z.input<typeof organizerCreateTeamSchema>;
 
 /** "demq2-padel " → "DEMQ2PADEL" (igual que normalize_code en la base). */
 export function normalizeInviteCode(code: string): string {

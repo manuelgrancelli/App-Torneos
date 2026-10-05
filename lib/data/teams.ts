@@ -10,7 +10,8 @@ export type TeamStatus = Tables<"teams">["status"];
 
 export type TeamMemberView = {
   id: string;
-  email: string;
+  email: string | null;
+  displayName: string | null;
   userId: string | null;
   fullName: string | null;
   role: Tables<"team_members">["role"];
@@ -44,12 +45,20 @@ export type MemberTeam = {
 
 function toMember(row: {
   id: string;
-  email: string;
+  email: string | null;
+  display_name: string | null;
   user_id: string | null;
   role: Tables<"team_members">["role"];
   profiles: { full_name: string } | null;
 }): TeamMemberView {
-  return { id: row.id, email: row.email, userId: row.user_id, fullName: row.profiles?.full_name ?? null, role: row.role };
+  return {
+    id: row.id,
+    email: row.email,
+    displayName: row.display_name,
+    userId: row.user_id,
+    fullName: row.profiles?.full_name ?? null,
+    role: row.role,
+  };
 }
 
 /**
@@ -61,7 +70,7 @@ export const getTeamForMember = cache(async (teamId: string, userId: string): Pr
   const { data: team, error } = await supabase
     .from("teams")
     .select(
-      "id, name, status, captain_id, tournament_id, team_members(id, email, user_id, role, profiles(full_name)), team_availability(slot_id), tournaments!teams_tournament_id_fkey(id, name, slug, status, timezone, starts_on, ends_on, results_require_confirmation, sports(name, min_team_size, max_team_size))",
+      "id, name, status, captain_id, tournament_id, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(slot_id), tournaments!teams_tournament_id_fkey(id, name, slug, status, timezone, starts_on, ends_on, results_require_confirmation, sports(name, min_team_size, max_team_size))",
     )
     .eq("id", teamId)
     .maybeSingle();
@@ -87,7 +96,13 @@ export const getTeamForMember = cache(async (teamId: string, userId: string): Pr
     isCaptain: team.captain_id === userId,
     members: team.team_members
       .map(toMember)
-      .sort((a, b) => (a.role === b.role ? a.email.localeCompare(b.email) : a.role === "captain" ? -1 : 1)),
+      .sort((a, b) =>
+        a.role === b.role
+          ? (a.fullName ?? a.displayName ?? a.email ?? "").localeCompare(b.fullName ?? b.displayName ?? b.email ?? "")
+          : a.role === "captain"
+            ? -1
+            : 1,
+      ),
     availability: team.team_availability.map((a) => a.slot_id),
     tournament: {
       id: t.id,
@@ -111,6 +126,8 @@ export type OrganizerTeam = {
   id: string;
   name: string;
   status: TeamStatus;
+  testGenerated: boolean;
+  organizerRegistered: boolean;
   createdAt: string;
   members: TeamMemberView[];
   availabilityCount: number;
@@ -121,7 +138,7 @@ export const listTournamentTeams = cache(async (tournamentId: string): Promise<O
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("teams")
-    .select("id, name, status, created_at, team_members(id, email, user_id, role, profiles(full_name)), team_availability(count)")
+    .select("id, name, status, test_generated, organizer_registered, created_at, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(count)")
     .eq("tournament_id", tournamentId)
     .order("created_at");
   if (error) throw error;
@@ -130,10 +147,18 @@ export const listTournamentTeams = cache(async (tournamentId: string): Promise<O
     id: team.id,
     name: team.name,
     status: team.status,
+    testGenerated: team.test_generated,
+    organizerRegistered: team.organizer_registered,
     createdAt: team.created_at,
     members: team.team_members
       .map(toMember)
-      .sort((a, b) => (a.role === b.role ? a.email.localeCompare(b.email) : a.role === "captain" ? -1 : 1)),
+      .sort((a, b) =>
+        a.role === b.role
+          ? (a.fullName ?? a.displayName ?? a.email ?? "").localeCompare(b.fullName ?? b.displayName ?? b.email ?? "")
+          : a.role === "captain"
+            ? -1
+            : 1,
+      ),
     availabilityCount: team.team_availability[0]?.count ?? 0,
   }));
 });

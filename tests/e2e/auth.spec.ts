@@ -7,6 +7,24 @@ test.describe("autenticación", () => {
     await expect(page).toHaveURL("/login?next=%2Ftorneos");
   });
 
+  test("cambia el tema y lo conserva al recargar", async ({ page }) => {
+    await login(page, "organizador@demo.test");
+
+    await page.getByRole("button", { name: "Activar tema oscuro" }).click();
+    await expect(page.locator("html")).toHaveClass(/dark/);
+    await expect(page.getByRole("button", { name: "Activar tema claro" })).toBeVisible();
+
+    await page.reload();
+    await expect(page.locator("html")).toHaveClass(/dark/);
+
+    await page.goto("/");
+    await expect(page.locator("html")).toHaveClass(/dark/);
+
+    await page.goto("/torneos");
+    await page.getByRole("button", { name: "Activar tema claro" }).click();
+    await expect(page.locator("html")).not.toHaveClass(/dark/);
+  });
+
   test("registro, confirmación, logout, login y redirects", async ({ page }) => {
     const email = uniqueEmail("auth");
     await page.goto("/registro");

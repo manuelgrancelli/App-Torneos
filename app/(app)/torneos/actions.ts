@@ -1,13 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { actionError, actionOk, createAction } from "@/lib/actions/safe-action";
 import { dbErrorMessage } from "@/lib/supabase/errors";
 import { slugWithSuffix } from "@/lib/utils/slug";
 import { createTournamentSchema } from "@/lib/validation/tournament";
 
+const createTournamentActionSchema = createTournamentSchema.extend({ isTest: z.boolean() });
+
 /** Crea el torneo con sus canchas ("Cancha 1…N"). Devuelve el id para navegar al panel. */
-export const createTournament = createAction(createTournamentSchema, async (input, { supabase }) => {
+export const createTournament = createAction(createTournamentActionSchema, async (input, { supabase }) => {
   const { data: sport, error: sportError } = await supabase
     .from("sports")
     .select("id, scoring_type")
@@ -23,7 +26,7 @@ export const createTournament = createAction(createTournamentSchema, async (inpu
 
   // El slug lleva un sufijo aleatorio; ante un choque (muy improbable) se reintenta una vez.
   for (let attempt = 0; attempt < 2; attempt++) {
-    const { data, error } = await supabase.rpc("create_tournament", {
+    const values = {
       p_sport_id: input.sportId,
       p_name: input.name,
       p_slug: slugWithSuffix(input.name),
@@ -37,10 +40,16 @@ export const createTournament = createAction(createTournamentSchema, async (inpu
       p_standings_config: input.standingsConfig,
       p_playoff_config: input.playoffConfig,
       p_results_require_confirmation: input.resultsRequireConfirmation,
-    });
+    };
+    const { data, error } = input.isTest
+      ? await supabase.rpc("create_test_tournament", values)
+      : await supabase.rpc("create_tournament", values);
     if (!error) {
       revalidatePath("/torneos");
-      return actionOk({ tournamentId: data }, "Torneo creado.");
+      return actionOk(
+        { tournamentId: data },
+        input.isTest ? "Torneo privado de prueba creado." : "Torneo creado.",
+      );
     }
     if (error.code !== "23505") return actionError(dbErrorMessage(error));
   }

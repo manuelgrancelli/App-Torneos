@@ -3,7 +3,7 @@
 -- NO ejecutar en producción. Todos los usuarios tienen la contraseña: demo1234
 -- =============================================================================
 
--- Usuarios con email confirmado (los triggers crean perfiles y vinculan pendientes).
+-- Usuarios con email confirmado (el trigger crea los perfiles).
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
@@ -41,6 +41,8 @@ declare
   v_tournament uuid;
   v_team uuid;
   v_slots uuid[];
+  v_member record;
+  v_token_hash text;
 begin
   -- Actuar como el organizador (auth.uid() lee estos claims).
   perform set_config('request.jwt.claims', json_build_object('sub', v_org, 'role', 'authenticated')::text, true);
@@ -85,6 +87,29 @@ begin
 
   perform set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-8000-000000000008", "role": "authenticated"}', true);
   v_team := public.register_team('DEMQ2PADEL', 'Torres / Paz', array['hana.paz@demo.test']);
+
+  -- Aceptar explícitamente las invitaciones de compañeros que ya tienen cuenta.
+  for v_member in
+    select tm.id as member_id, tm.team_id, tm.email, t.captain_id, u.id as invited_user_id
+    from public.team_members tm
+    join public.teams t on t.id = tm.team_id
+    join auth.users u on lower(u.email) = tm.email and u.email_confirmed_at is not null
+    where t.tournament_id = v_tournament and tm.role = 'player' and tm.user_id is null
+  loop
+    v_token_hash := encode(extensions.digest('seed-invitation:' || v_member.member_id::text, 'sha256'), 'hex');
+    perform set_config(
+      'request.jwt.claims',
+      json_build_object('sub', v_member.captain_id, 'role', 'authenticated')::text,
+      true
+    );
+    perform public.create_team_invitation(v_member.team_id, v_member.member_id, v_token_hash);
+    perform set_config(
+      'request.jwt.claims',
+      json_build_object('sub', v_member.invited_user_id, 'role', 'authenticated')::text,
+      true
+    );
+    perform public.accept_team_invitation(v_token_hash);
+  end loop;
 
   -- El organizador aprueba dos inscripciones; las otras quedan pendientes.
   perform set_config('request.jwt.claims', json_build_object('sub', v_org, 'role', 'authenticated')::text, true);

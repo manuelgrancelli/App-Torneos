@@ -22,7 +22,7 @@ cp .env.example .env.local
 
 1. En `.env.local`, completá `NEXT_PUBLIC_SUPABASE_URL` (`http://127.0.0.1:54321`) y `NEXT_PUBLIC_SUPABASE_ANON_KEY` con la clave pública que muestra `supabase status`.
 2. Corré `pnpm dev` y abrí http://localhost:3000.
-3. Los emails (confirmación de cuenta y recuperación de contraseña) no se envían de verdad: se ven en Mailpit, en http://127.0.0.1:54324.
+3. Los emails de autenticación no se envían de verdad: se ven en Mailpit, en http://127.0.0.1:54324. Las invitaciones de parejas usan Resend si configurás sus variables.
 
 ### Scripts
 
@@ -63,6 +63,19 @@ La app verifica los links de email del lado del servidor, en `/auth/confirm`. As
 
 Si no los cambiás, igual funciona con los templates por defecto (vía `/auth/callback`), pero el link solo sirve en el mismo navegador donde se pidió.
 
+### Invitaciones de parejas por Resend
+
+Para enviar invitaciones a cualquier compañero:
+
+1. Verificá un dominio propio en Resend y configurá los registros DNS que indique el dashboard.
+2. Creá una API key de Resend con permiso para enviar emails.
+3. En `.env.local` (y en las variables de entorno del hosting), configurá `RESEND_API_KEY` y `RESEND_FROM_EMAIL`, por ejemplo `Torneos <invitaciones@tudominio.com>`. El dominio del remitente tiene que estar verificado en Resend.
+4. Reiniciá el servidor local o volvé a desplegar.
+
+El remitente de prueba `onboarding@resend.dev` solo puede enviar al email dueño de la cuenta Resend: no sirve para invitar compañeros externos. Sin un remitente verificado, la inscripción se guarda igualmente y el capitán puede reenviar la invitación desde la pantalla del equipo después de configurar Resend.
+
+El destinatario abre el link, crea o usa una cuenta con ese mismo email y acepta. La aceptación es de un solo uso, vence a los 7 días y el organizador no puede aprobar la pareja antes de que acepten todos sus integrantes.
+
 ### Login con Google
 
 1. En [Google Cloud Console](https://console.cloud.google.com/), configurá la pantalla de consentimiento OAuth y creá un **OAuth client ID** de tipo *Web application*.
@@ -89,6 +102,7 @@ Van en `supabase/migrations` y se aplican **en orden**:
 | 8 | `20261001000100_tournament_edit_rules.sql` | Reglas de edición según el estado del torneo y borrado de canchas |
 | 9 | `20261001000200_group_stage_rpc.sql` | RPC de grupos, programación, resultados y confirmaciones |
 | 10 | `20261001000300_playoffs_rpc.sql` | RPC del cuadro de playoffs (`apply_bracket`) |
+| 11 | `20261002000100_team_invitations.sql` | Invitación por email, aceptación del integrante y aprobación solo con el plantel confirmado |
 
 Si ya corriste las 7 primeras, aplicá solo de la 8 en adelante.
 
@@ -130,6 +144,8 @@ Con el seed quedan un torneo de pádel con inscripción abierta (código `DEMQ2P
 2. En **Settings → Environment Variables**, cargá para Production (y Preview si lo usás):
    - `NEXT_PUBLIC_SUPABASE_URL`: `https://<project-ref>.supabase.co`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: la clave pública (anon o `sb_publishable_...`). **Nunca** la service role.
+   - `RESEND_API_KEY`: API key de Resend con permiso de envío.
+   - `RESEND_FROM_EMAIL`: remitente de un dominio verificado en Resend, por ejemplo `Torneos <invitaciones@tu-dominio.com>`.
 3. Deploy. Después, con la URL definitiva (`https://tu-dominio.com` o `https://<proyecto>.vercel.app`):
    - En Supabase → Authentication → URL Configuration, poné esa URL como **Site URL** y agregá `https://tu-dominio.com/**` en **Redirect URLs**. Si usás previews, sumá también `https://*-<tu-equipo>.vercel.app/**`.
    - En Google Cloud Console no hay que cambiar nada: el redirect URI es el de Supabase.

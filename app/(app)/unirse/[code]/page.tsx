@@ -77,27 +77,29 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
           description={`Ya hay ${tournament.approved_teams} ${approvedTeamsLabel(tournament.min_team_size)}.`}
         />
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              <h2 className="text-base font-semibold">Inscribí tu {noun}</h2>
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              {tournament.min_team_size === 2
-                ? "Vos quedás como capitán. Cargá el email de tu pareja."
-                : `Vos quedás como capitán. Cargá los emails de los otros ${tournament.min_team_size - 1} integrantes.`}{" "}
-              El organizador aprueba cada inscripción.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <TeamForm
-              mode="register"
-              code={code}
-              teamSize={tournament.min_team_size}
-              defaultName={suggestedName(user.fullName, tournament.min_team_size)}
-            />
-          </CardContent>
-        </Card>
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <h2 className="text-base font-semibold">Inscribí tu {noun}</h2>
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {tournament.min_team_size === 2
+                  ? "Vos quedás como capitán. Cargá el email de tu pareja y le mandamos una invitación para que acepte."
+                  : `Vos quedás como capitán. Cargá los emails de los otros ${tournament.min_team_size - 1} integrantes; les mandamos una invitación para que acepten.`}{" "}
+                El organizador aprueba la inscripción cuando todos aceptan.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <TeamForm
+                mode="register"
+                code={code}
+                teamSize={tournament.min_team_size}
+                defaultName={suggestedName(user.fullName, tournament.min_team_size)}
+              />
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );

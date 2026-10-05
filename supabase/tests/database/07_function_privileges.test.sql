@@ -22,8 +22,9 @@ select is(
     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'execute')
   ),
   array[
-    'apply_bracket', 'apply_groups', 'apply_schedule', 'assign_match_slot', 'clear_match_result',
-    'confirm_match_result', 'create_tournament', 'leave_team', 'record_match_result', 'register_team',
+    'accept_team_invitation', 'apply_bracket', 'apply_groups', 'apply_schedule', 'assign_match_slot',
+    'clear_match_result', 'confirm_match_result', 'create_organizer_team', 'create_team_invitation',
+    'create_test_tournament', 'create_tournament', 'fill_test_team_slots', 'leave_team', 'record_match_result', 'register_team',
     'resolve_invite_code', 'respond_result', 'review_registration', 'rotate_invite_code',
     'set_team_availability', 'set_tournament_status', 'update_team_roster', 'withdraw_team'
   ]::text[] collate "C",

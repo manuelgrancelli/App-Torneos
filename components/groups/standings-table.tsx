@@ -77,12 +77,21 @@ export function StandingsTable({ title, rows, teamNames, scoringType, qualifiers
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.teamId} className={cn("border-t", row.position <= qualifiers && "bg-emerald-50")}>
+              <tr
+                key={row.teamId}
+                className={cn(
+                  "border-t",
+                  row.position <= qualifiers &&
+                    "bg-emerald-200 text-emerald-950 dark:bg-emerald-950/50 dark:text-emerald-100",
+                )}
+              >
                 <th
                   scope="row"
                   className={cn(
                     "sticky left-0 z-10 max-w-44 px-3 py-2 text-left font-medium",
-                    row.position <= qualifiers ? "bg-emerald-50" : "bg-background",
+                    row.position <= qualifiers
+                      ? "bg-emerald-200 dark:bg-emerald-950"
+                      : "bg-background",
                   )}
                 >
                   <span className="flex items-center gap-2">

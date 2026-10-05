@@ -1,12 +1,16 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { actionError, actionOk, createAction } from "@/lib/actions/safe-action";
+import { createAndSendTeamInvitation } from "@/lib/email/send-team-invitation";
 import { refreshPublicTournament } from "@/lib/public-cache";
 import { dbErrorMessage } from "@/lib/supabase/errors";
 import type { SupabaseServerClient } from "@/lib/supabase/server";
+import { getRequestOrigin } from "@/lib/utils/origin";
 import { respondResultSchema } from "@/lib/validation/competition";
 import { availabilitySchema, teamIdSchema, updateRosterSchema } from "@/lib/validation/registration";
+import { z } from "zod";
 
 function revalidateTeam(teamId: string) {
   revalidatePath(`/inscripciones/${teamId}`);
@@ -21,6 +25,33 @@ async function teamTournamentId(supabase: SupabaseServerClient, teamId: string):
   const { data } = await supabase.from("teams").select("tournament_id").eq("id", teamId).maybeSingle();
   return data?.tournament_id ?? null;
 }
+
+const sendInvitationSchema = z.object({ teamId: z.uuid(), memberId: z.uuid() });
+const invitationTokenSchema = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{43}$/) });
+
+/** Envía o reenvía una invitación solo a un integrante pendiente del equipo del capitán. */
+export const sendTeamInvitation = createAction(sendInvitationSchema, async ({ teamId, memberId }, { supabase }) => {
+  const result = await createAndSendTeamInvitation({
+    supabase,
+    teamId,
+    memberId,
+    origin: await getRequestOrigin(),
+  });
+  if (!result.ok) return actionError(result.error);
+
+  return actionOk(undefined, `Enviamos la invitación a ${result.email}.`);
+});
+
+/** El invitado acepta solo con una cuenta verificada que coincida con el email destinatario. */
+export const acceptTeamInvitation = createAction(invitationTokenSchema, async ({ token }, { supabase }) => {
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+  const { data, error } = await supabase.rpc("accept_team_invitation", { p_token_hash: tokenHash });
+  if (error) return actionError(dbErrorMessage(error));
+
+  revalidatePath("/torneos");
+  revalidatePath(`/inscripciones/${data}`);
+  return actionOk({ teamId: data }, "Aceptaste la invitación. Ya formás parte del equipo.");
+});
 
 /** El capitán cambia nombre o integrantes; si cambia el plantel vuelve a "pendiente". */
 export const updateRoster = createAction(updateRosterSchema, async (input, { supabase }) => {

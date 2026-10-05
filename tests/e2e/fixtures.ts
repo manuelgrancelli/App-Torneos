@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from "node:crypto";
 import { type SupabaseClient, createClient } from "@supabase/supabase-js";
 import { DEMO_PASSWORD, unique } from "./helpers";
 
@@ -17,6 +18,36 @@ async function signIn(email: string): Promise<SupabaseClient> {
   const { error } = await client.auth.signInWithPassword({ email, password: DEMO_PASSWORD });
   if (error) throw new Error(`No se pudo iniciar sesión como ${email}: ${error.message}`);
   return client;
+}
+
+export async function prepareTeamInvitation({
+  captainEmail,
+  teamId,
+  memberEmail,
+}: {
+  captainEmail: string;
+  teamId: string;
+  memberEmail: string;
+}): Promise<string> {
+  const captain = await signIn(captainEmail);
+  const { data: member, error: memberError } = await captain
+    .from("team_members")
+    .select("id")
+    .eq("team_id", teamId)
+    .eq("email", memberEmail)
+    .single();
+  if (memberError) throw new Error(`No se encontró al integrante invitado: ${memberError.code}`);
+
+  const token = randomBytes(32).toString("base64url");
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+  const { error } = await captain.rpc("create_team_invitation", {
+    p_team_id: teamId,
+    p_team_member_id: member.id,
+    p_token_hash: tokenHash,
+  });
+  if (error) throw new Error(`No se pudo preparar la invitación de prueba: ${error.code}`);
+  await captain.auth.signOut();
+  return token;
 }
 
 function must<T>(result: { data: T; error: { message: string } | null }, what: string): T {
@@ -96,6 +127,28 @@ export async function groupStageScenario({
       await captain.rpc("register_team", { p_code: code, p_team_name: pair.name, p_member_emails: [pair.partner] }),
       `register_team ${pair.name}`,
     ) as string;
+    const member = must(
+      await captain.from("team_members").select("id").eq("team_id", teamId).eq("email", pair.partner).single(),
+      `integrante ${pair.partner}`,
+    ) as { id: string };
+    const invitationToken = randomBytes(32).toString("base64url");
+    const invitationTokenHash = createHash("sha256").update(invitationToken).digest("hex");
+    must(
+      await captain.rpc("create_team_invitation", {
+        p_team_id: teamId,
+        p_team_member_id: member.id,
+        p_token_hash: invitationTokenHash,
+      }),
+      `create_team_invitation ${pair.name}`,
+    );
+    const partner = await signIn(pair.partner);
+    must(
+      await partner.rpc("accept_team_invitation", {
+        p_token_hash: invitationTokenHash,
+      }),
+      `accept_team_invitation ${pair.name}`,
+    );
+    await partner.auth.signOut();
     must(await captain.rpc("set_team_availability", { p_team_id: teamId, p_slot_ids: slots.map((s) => s.id) }), "disponibilidad");
     must(await organizer.rpc("review_registration", { p_team_id: teamId, p_decision: "approved" }), "aprobar");
     teams.push({ id: teamId, name: pair.name, captain: pair.captain });
