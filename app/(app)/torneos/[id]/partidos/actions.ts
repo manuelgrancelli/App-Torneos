@@ -60,7 +60,7 @@ export const recordResult = createAction(recordResultSchema, async (input, { sup
   const { data: match, error: matchError } = await supabase
     .from("matches")
     .select(
-      "id, stage, home_team_id, away_team_id, next_match_id, loser_next_match_id, tournaments!matches_tournament_id_fkey(scoring_config)",
+      "id, stage, round, is_third_place, home_team_id, away_team_id, next_match_id, loser_next_match_id, tournaments!matches_tournament_id_fkey(scoring_config)",
     )
     .eq("id", input.matchId)
     .eq("tournament_id", input.tournamentId)
@@ -78,7 +78,25 @@ export const recordResult = createAction(recordResultSchema, async (input, { sup
     result = walkoverResult(config, input.winner);
     winnerSide = input.winner;
   } else {
-    const evaluation = evaluateResult(config, input.result, match.stage);
+    let totalRounds: number | undefined;
+    if (match.stage === "playoff") {
+      const { data: maxRoundMatch } = await supabase
+        .from("matches")
+        .select("round")
+        .eq("tournament_id", input.tournamentId)
+        .eq("stage", "playoff")
+        .order("round", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      totalRounds = maxRoundMatch?.round ?? match.round;
+    }
+    const matchContext = {
+      stage: match.stage,
+      round: match.round,
+      totalRounds,
+      isThirdPlace: Boolean(match.is_third_place),
+    };
+    const evaluation = evaluateResult(config, input.result, matchContext);
     if (!evaluation.ok) return actionError(evaluation.errors.join(" "));
     result = input.result;
     winnerSide = evaluation.winner;

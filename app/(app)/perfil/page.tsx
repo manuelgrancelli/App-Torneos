@@ -1,11 +1,12 @@
-import { KeyRound, LogOut } from "lucide-react";
+import { KeyRound, LogOut, Palette } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { signOut } from "@/app/(auth)/actions";
 import { PageHeader } from "@/components/shared/page-header";
+import { ThemeSelector } from "@/components/theme/theme-selector";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth";
 import { getInitials } from "@/lib/utils/text";
 
@@ -17,7 +18,7 @@ export default async function ProfilePage() {
   if (!user) return null;
 
   return (
-    <>
+    <div className="space-y-6">
       <PageHeader title="Mi perfil" />
       <Card>
         <CardContent className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
@@ -47,6 +48,21 @@ export default async function ProfilePage() {
           </div>
         </CardContent>
       </Card>
-    </>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Palette className="size-5" aria-hidden="true" />
+            Apariencia
+          </CardTitle>
+          <CardDescription>
+            Personalizá cómo ves la aplicación: tema claro, oscuro o sincronizado con tu sistema.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ThemeSelector />
+        </CardContent>
+      </Card>
+    </div>
   );
 }

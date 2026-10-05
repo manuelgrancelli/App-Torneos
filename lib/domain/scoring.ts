@@ -9,6 +9,21 @@ import { z } from "zod";
 // Configuración
 // -----------------------------------------------------------------------------
 
+export const superTiebreakUntilSchema = z.enum([
+  "all",
+  "semifinals",
+  "quarterfinals",
+  "groups",
+]);
+export type SuperTiebreakUntil = z.infer<typeof superTiebreakUntilSchema>;
+
+export const SUPER_TIEBREAK_UNTIL_LABELS: Record<SuperTiebreakUntil, string> = {
+  quarterfinals: "Hasta cuartos de final (semis y final con set completo)",
+  semifinals: "Hasta semifinales (final con set completo)",
+  groups: "Solo en fase de grupos (playoffs con set completo)",
+  all: "Todo el torneo (todas las fases a super tie-break)",
+};
+
 export const setsScoringConfigSchema = z.object({
   type: z.literal("sets"),
   /** Partido al mejor de N sets. */
@@ -19,7 +34,10 @@ export const setsScoringConfigSchema = z.object({
   tiebreak: z.boolean(),
   /** El set decisivo puede ser un set normal o un super tie-break a puntos. */
   decidingSet: z.enum(["full", "super_tiebreak"]),
-  superTiebreakPoints: z.union([z.literal(7), z.literal(10)]),
+  /** Puntos para ganar el super tie-break (por defecto 11). */
+  superTiebreakPoints: z.number().int().min(5).max(30).default(11),
+  /** Hasta qué fase se juega super tie-break (por defecto hasta cuartos de final en pádel). */
+  superTiebreakUntil: superTiebreakUntilSchema.default("quarterfinals"),
 });
 
 export const goalsScoringConfigSchema = z.object({
@@ -66,6 +84,13 @@ export type MatchResult = z.infer<typeof matchResultSchema>;
 export type Side = "home" | "away";
 export type MatchStage = "group" | "playoff";
 
+export type MatchStageContext = {
+  stage?: MatchStage;
+  round?: number;
+  totalRounds?: number;
+  isThirdPlace?: boolean;
+};
+
 export type ResultEvaluation =
   | { ok: true; winner: Side | null }
   | { ok: false; errors: string[] };
@@ -79,9 +104,68 @@ export function setsToWin(config: SetsScoringConfig): number {
   return Math.ceil(config.bestOf / 2);
 }
 
+/**
+ * ¿El partido se juega con super tie-break en su set decisivo?
+ * Tiene en cuenta hasta qué fase aplica (superTiebreakUntil).
+ */
+export function isSuperTiebreakMatch(
+  config: SetsScoringConfig,
+  context?: MatchStageContext,
+): boolean {
+  if (config.decidingSet !== "super_tiebreak" || config.bestOf <= 1) return false;
+  if (!context || !context.stage) return true;
+
+  const until = config.superTiebreakUntil ?? "quarterfinals";
+
+  if (context.stage === "group") {
+    // La fase de grupos siempre juega super tie-break si decidingSet === "super_tiebreak"
+    return true;
+  }
+
+  // Playoffs:
+  if (until === "groups") {
+    // Solo en grupos: todos los playoffs son a set completo
+    return false;
+  }
+
+  if (until === "all") {
+    // Todo el torneo: todos los playoffs son a super tie-break
+    return true;
+  }
+
+  if (context.round === undefined || context.totalRounds === undefined) return true;
+
+  if (context.isThirdPlace) {
+    // 3er puesto se define igual que la final
+    return false;
+  }
+
+  const fromEnd = context.totalRounds - context.round;
+  // fromEnd === 0: Final
+  // fromEnd === 1: Semifinal
+  // fromEnd === 2: Cuartos de final
+  // fromEnd === 3: Octavos de final
+
+  if (until === "quarterfinals") {
+    // Cuartos u octavos (fromEnd >= 2) es a super tie-break; semis (1) y final (0) son a set completo
+    return fromEnd >= 2;
+  }
+
+  if (until === "semifinals") {
+    // Semis o antes (fromEnd >= 1) es a super tie-break; final (0) es a set completo
+    return fromEnd >= 1;
+  }
+
+  return true;
+}
+
 /** ¿El set número `index` (base 0) es el decisivo y se juega como super tie-break? */
-export function isSuperTiebreakSet(config: SetsScoringConfig, index: number): boolean {
-  return config.decidingSet === "super_tiebreak" && config.bestOf > 1 && index === config.bestOf - 1;
+export function isSuperTiebreakSet(
+  config: SetsScoringConfig,
+  index: number,
+  context?: MatchStageContext,
+): boolean {
+  return isSuperTiebreakMatch(config, context) && index === config.bestOf - 1;
 }
 
 /** Valida un set de games. Devuelve el ganador o null si el marcador es imposible. */
@@ -118,19 +202,24 @@ function formatSet(set: SetScore): string {
   return `${set.home}-${set.away}`;
 }
 
-export function evaluateSetsResult(config: SetsScoringConfig, result: SetsResult): ResultEvaluation {
+export function evaluateSetsResult(
+  config: SetsScoringConfig,
+  result: SetsResult,
+  context?: MatchStageContext,
+): ResultEvaluation {
   const errors: string[] = [];
   const needed = setsToWin(config);
   let home = 0;
   let away = 0;
 
   result.sets.forEach((set, index) => {
-    const label = isSuperTiebreakSet(config, index) ? "Super tie-break" : `Set ${index + 1}`;
+    const isStb = isSuperTiebreakSet(config, index, context);
+    const label = isStb ? "Super tie-break" : `Set ${index + 1}`;
     if (home === needed || away === needed) {
       errors.push(`${label}: el partido ya estaba definido, sobra este set.`);
       return;
     }
-    const winner = isSuperTiebreakSet(config, index)
+    const winner = isStb
       ? superTiebreakWinner(config.superTiebreakPoints, set)
       : gameSetWinner(config, set);
     if (!winner) {
@@ -183,12 +272,18 @@ export function evaluateGoalsResult(result: GoalsResult, stage: MatchStage): Res
  * Valida un resultado contra la configuración del torneo y devuelve el
  * ganador (`null` = empate, solo posible en grupos con goles).
  */
-export function evaluateResult(config: ScoringConfig, result: MatchResult, stage: MatchStage): ResultEvaluation {
+export function evaluateResult(
+  config: ScoringConfig,
+  result: MatchResult,
+  stageOrContext: MatchStage | MatchStageContext,
+): ResultEvaluation {
+  const context: MatchStageContext =
+    typeof stageOrContext === "string" ? { stage: stageOrContext } : stageOrContext;
   if (config.type !== result.type) {
     return { ok: false, errors: ["El tipo de resultado no corresponde al deporte del torneo."] };
   }
-  if (config.type === "sets" && result.type === "sets") return evaluateSetsResult(config, result);
-  if (result.type === "goals") return evaluateGoalsResult(result, stage);
+  if (config.type === "sets" && result.type === "sets") return evaluateSetsResult(config, result, context);
+  if (result.type === "goals") return evaluateGoalsResult(result, context.stage ?? "group");
   return { ok: false, errors: ["Resultado inválido."] };
 }
 
@@ -227,7 +322,11 @@ export type ResultTotals = {
  * como un set ganado y como un único game (1-0), no por sus puntos. Los
  * penales no suman goles.
  */
-export function resultTotals(config: ScoringConfig, result: MatchResult): ResultTotals {
+export function resultTotals(
+  config: ScoringConfig,
+  result: MatchResult,
+  context?: MatchStageContext,
+): ResultTotals {
   const totals: ResultTotals = { setsHome: 0, setsAway: 0, gamesHome: 0, gamesAway: 0, goalsHome: 0, goalsAway: 0 };
 
   if (result.type === "goals") {
@@ -241,7 +340,7 @@ export function resultTotals(config: ScoringConfig, result: MatchResult): Result
     if (homeWon) totals.setsHome++;
     else totals.setsAway++;
 
-    if (config.type === "sets" && isSuperTiebreakSet(config, index)) {
+    if (config.type === "sets" && isSuperTiebreakSet(config, index, context)) {
       if (homeWon) totals.gamesHome++;
       else totals.gamesAway++;
     } else {

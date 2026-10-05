@@ -12,8 +12,9 @@ import {
 } from "@/components/ui/field";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
+import type { z } from "zod";
 import type { PlayoffConfig } from "@/lib/domain/bracket";
-import type { ScoringConfig, SetsScoringConfig } from "@/lib/domain/scoring";
+import type { ScoringConfig, SetsScoringConfig, SuperTiebreakUntil, scoringConfigSchema } from "@/lib/domain/scoring";
 import {
   type StandingsConfig,
   TIEBREAKER_LABELS,
@@ -26,7 +27,7 @@ import {
 // -----------------------------------------------------------------------------
 
 type ScoringFieldsProps = {
-  value: ScoringConfig;
+  value: ScoringConfig | z.input<typeof scoringConfigSchema>;
   onChange: (value: ScoringConfig) => void;
   disabled?: boolean;
 };
@@ -41,7 +42,18 @@ export function ScoringFields({ value, onChange, disabled }: ScoringFieldsProps)
     );
   }
 
-  const set = (patch: Partial<SetsScoringConfig>) => onChange({ ...value, ...patch });
+  const currentPoints = value.superTiebreakPoints ?? 11;
+  const currentUntil = value.superTiebreakUntil ?? "quarterfinals";
+
+  const set = (patch: Partial<SetsScoringConfig>) => {
+    if (value.type !== "sets") return;
+    onChange({
+      ...value,
+      superTiebreakPoints: currentPoints,
+      superTiebreakUntil: currentUntil,
+      ...patch,
+    });
+  };
   const showSuperTiebreak = value.bestOf > 1 && value.decidingSet === "super_tiebreak";
 
   return (
@@ -92,19 +104,47 @@ export function ScoringFields({ value, onChange, disabled }: ScoringFieldsProps)
         </Field>
       ) : null}
       {showSuperTiebreak ? (
-        <Field>
-          <FieldLabel htmlFor="scoring-stb">Super tie-break a</FieldLabel>
-          <NativeSelect
-            id="scoring-stb"
-            className="w-full"
-            value={String(value.superTiebreakPoints)}
-            disabled={disabled}
-            onChange={(e) => set({ superTiebreakPoints: Number(e.target.value) as 7 | 10 })}
-          >
-            <NativeSelectOption value="10">10 puntos</NativeSelectOption>
-            <NativeSelectOption value="7">7 puntos</NativeSelectOption>
-          </NativeSelect>
-        </Field>
+        <>
+          <Field>
+            <FieldLabel htmlFor="scoring-stb">Puntos del super tie-break</FieldLabel>
+            <NumberInput
+              id="scoring-stb"
+              min={5}
+              max={30}
+              value={currentPoints}
+              disabled={disabled}
+              onChange={(v) => set({ superTiebreakPoints: v ?? 11 })}
+            />
+            <FieldDescription>Por defecto 11 puntos (con 2 de diferencia).</FieldDescription>
+          </Field>
+
+          <Field>
+            <FieldLabel htmlFor="scoring-stb-until">Super tie-break hasta</FieldLabel>
+            <NativeSelect
+              id="scoring-stb-until"
+              className="w-full"
+              value={currentUntil}
+              disabled={disabled}
+              onChange={(e) => set({ superTiebreakUntil: e.target.value as SuperTiebreakUntil })}
+            >
+              <NativeSelectOption value="quarterfinals">
+                Hasta cuartos de final (semis y final con set completo)
+              </NativeSelectOption>
+              <NativeSelectOption value="semifinals">
+                Hasta semifinales (final con set completo)
+              </NativeSelectOption>
+              <NativeSelectOption value="groups">
+                Solo en fase de grupos (todos los playoffs con set completo)
+              </NativeSelectOption>
+              <NativeSelectOption value="all">
+                Todo el torneo (todas las fases a super tie-break)
+              </NativeSelectOption>
+            </NativeSelect>
+            <FieldDescription>
+              A partir de la fase siguiente, el partido se define al mejor de 3 sets completos.
+            </FieldDescription>
+          </Field>
+        </>
       ) : null}
       <Field orientation="horizontal" className="sm:col-span-2">
         <Switch

@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { connection } from "next/server";
-import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { APP_DESCRIPTION, APP_NAME } from "@/lib/config";
 import "./globals.css";
@@ -37,15 +37,26 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   await connection();
   const cookieStore = await cookies();
-  const initialTheme = cookieStore.get("theme")?.value === "dark" ? "dark" : "light";
+  const themeCookie = (cookieStore.get("theme")?.value as "light" | "dark" | "system") || "system";
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const isDarkInitial = themeCookie === "dark";
 
   return (
     <html
       lang="es"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased${initialTheme === "dark" ? " dark" : ""}`}
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${geistMono.variable} ${isDarkInitial ? "dark " : ""}h-full antialiased`}
     >
+      <head>
+        <script
+          nonce={nonce}
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=document.cookie.match(/(?:^|; )theme=([^;]*)/);var v=t?decodeURIComponent(t[1]):(localStorage.getItem('theme')||'system');var d=v==='dark'||(v==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d){document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark'}else{document.documentElement.classList.remove('dark');document.documentElement.style.colorScheme='light'}}catch(e){}})()`,
+          }}
+        />
+      </head>
       <body className="flex min-h-full flex-col">
-        <ThemeProvider initialTheme={initialTheme}>
+        <ThemeProvider defaultTheme={themeCookie}>
           {children}
           <Toaster position="top-center" richColors closeButton />
         </ThemeProvider>

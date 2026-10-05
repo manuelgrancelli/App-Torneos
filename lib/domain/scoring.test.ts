@@ -11,7 +11,7 @@ import {
 } from "./scoring";
 
 const padel: SetsScoringConfig = {
-  type: "sets", bestOf: 3, gamesPerSet: 6, tiebreak: true, decidingSet: "super_tiebreak", superTiebreakPoints: 10,
+  type: "sets", bestOf: 3, gamesPerSet: 6, tiebreak: true, decidingSet: "super_tiebreak", superTiebreakPoints: 10, superTiebreakUntil: "quarterfinals",
 };
 const tennisFull: SetsScoringConfig = { ...padel, decidingSet: "full" };
 const noTiebreak: SetsScoringConfig = { ...padel, tiebreak: false, decidingSet: "full" };
@@ -93,6 +93,82 @@ describe("sets", () => {
     expect(evaluateResult({ ...padel, bestOf: 1 }, sets([6, 2]), "group")).toEqual({ ok: true, winner: "home" });
     const bestOf5 = { ...tennisFull, bestOf: 5 as const };
     expect(evaluateResult(bestOf5, sets([6, 4], [4, 6], [6, 3], [3, 6], [7, 5]), "playoff")).toEqual({ ok: true, winner: "home" });
+  });
+
+  it("super tie-break a 11 puntos por defecto", () => {
+    const padel11: SetsScoringConfig = { ...padel, superTiebreakPoints: 11 };
+    expect(evaluateResult(padel11, sets([6, 4], [4, 6], [11, 9]), "group")).toEqual({ ok: true, winner: "home" });
+    expect(evaluateResult(padel11, sets([6, 4], [4, 6], [11, 10]), "group").ok).toBe(false);
+    expect(evaluateResult(padel11, sets([6, 4], [4, 6], [13, 11]), "group")).toEqual({ ok: true, winner: "home" });
+  });
+
+  describe("fases donde aplica super tie-break (superTiebreakUntil)", () => {
+    const padelUntilQF: SetsScoringConfig = {
+      ...padel,
+      superTiebreakPoints: 11,
+      superTiebreakUntil: "quarterfinals",
+    };
+
+    it("aplica super tie-break en grupos y en cuartos", () => {
+      // Fase de grupos
+      expect(evaluateResult(padelUntilQF, sets([6, 4], [4, 6], [11, 8]), { stage: "group" })).toEqual({
+        ok: true,
+        winner: "home",
+      });
+
+      // Cuartos de final (totalRounds = 3: R1 cuartos, R2 semis, R3 final)
+      const qfContext = { stage: "playoff" as const, round: 1, totalRounds: 3, isThirdPlace: false };
+      expect(evaluateResult(padelUntilQF, sets([6, 4], [4, 6], [11, 8]), qfContext)).toEqual({
+        ok: true,
+        winner: "home",
+      });
+    });
+
+    it("en semifinales, final y 3er puesto exige 3er set completo y rechaza super tie-break", () => {
+      const semiContext = { stage: "playoff" as const, round: 2, totalRounds: 3, isThirdPlace: false };
+      const finalContext = { stage: "playoff" as const, round: 3, totalRounds: 3, isThirdPlace: false };
+      const thirdPlaceContext = { stage: "playoff" as const, round: 2, totalRounds: 3, isThirdPlace: true };
+
+      // Semifinales: set normal válido, super tie-break inválido
+      expect(evaluateResult(padelUntilQF, sets([6, 4], [4, 6], [6, 3]), semiContext)).toEqual({
+        ok: true,
+        winner: "home",
+      });
+      expect(evaluateResult(padelUntilQF, sets([6, 4], [4, 6], [11, 8]), semiContext).ok).toBe(false);
+
+      // Final
+      expect(evaluateResult(padelUntilQF, sets([6, 4], [4, 6], [7, 5]), finalContext)).toEqual({
+        ok: true,
+        winner: "home",
+      });
+      expect(evaluateResult(padelUntilQF, sets([6, 4], [4, 6], [11, 8]), finalContext).ok).toBe(false);
+
+      // 3er puesto
+      expect(evaluateResult(padelUntilQF, sets([6, 4], [4, 6], [6, 2]), thirdPlaceContext)).toEqual({
+        ok: true,
+        winner: "home",
+      });
+      expect(evaluateResult(padelUntilQF, sets([6, 4], [4, 6], [11, 8]), thirdPlaceContext).ok).toBe(false);
+    });
+
+    it("superTiebreakUntil: 'all' mantiene super tie-break en la final", () => {
+      const padelAll: SetsScoringConfig = { ...padel, superTiebreakPoints: 11, superTiebreakUntil: "all" };
+      const finalContext = { stage: "playoff" as const, round: 3, totalRounds: 3, isThirdPlace: false };
+      expect(evaluateResult(padelAll, sets([6, 4], [4, 6], [11, 7]), finalContext)).toEqual({
+        ok: true,
+        winner: "home",
+      });
+    });
+
+    it("superTiebreakUntil: 'groups' solo aplica en grupos; cuartos ya es set completo", () => {
+      const padelGroupsOnly: SetsScoringConfig = { ...padel, superTiebreakPoints: 11, superTiebreakUntil: "groups" };
+      const qfContext = { stage: "playoff" as const, round: 1, totalRounds: 3, isThirdPlace: false };
+      expect(evaluateResult(padelGroupsOnly, sets([6, 4], [4, 6], [11, 7]), qfContext).ok).toBe(false);
+      expect(evaluateResult(padelGroupsOnly, sets([6, 4], [4, 6], [6, 4]), qfContext)).toEqual({
+        ok: true,
+        winner: "home",
+      });
+    });
   });
 
   it("rechaza un resultado de goles en un torneo de sets", () => {
