@@ -46,7 +46,7 @@ export function matchStageLabel(match: MatchView, groups: GroupView[], playoffRo
 }
 
 /** Cantidad de rondas del cuadro (la final es la ronda mayor sin partido siguiente). */
-export function playoffRoundCount(matches: MatchView[]): number {
+export function playoffRoundCount(matches: Pick<MatchView, "stage" | "round">[]): number {
   return matches.filter((m) => m.stage === "playoff").reduce((max, m) => Math.max(max, m.round), 0);
 }
 
@@ -66,6 +66,8 @@ export function disputeComments(matchId: string, confirmations: ConfirmationView
 export type BoardMatch = {
   id: string;
   stage: "group" | "playoff";
+  round: number;
+  isThirdPlace: boolean;
   section: string;
   homeTeamId: string | null;
   awayTeamId: string | null;
@@ -99,6 +101,8 @@ export function buildBoardMatches(
     .map((m) => ({
       id: m.id,
       stage: m.stage,
+      round: m.round,
+      isThirdPlace: m.isThirdPlace,
       section: matchStageLabel(m, groups, rounds),
       homeTeamId: m.homeTeamId,
       awayTeamId: m.awayTeamId,

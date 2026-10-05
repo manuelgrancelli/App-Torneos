@@ -114,6 +114,8 @@ export function TournamentForm(props: TournamentFormProps) {
 
   const sportId = useWatch({ control: form.control, name: "sportId" });
   const scoringConfig = useWatch({ control: form.control, name: "scoringConfig" });
+  const startsOn = useWatch({ control: form.control, name: "startsOn" });
+  const endsOn = useWatch({ control: form.control, name: "endsOn" });
   const sport =
     props.mode === "create" ? (props.sports.find((s) => s.id === sportId) ?? initialSport) : props.sport;
 
@@ -222,20 +224,53 @@ export function TournamentForm(props: TournamentFormProps) {
           />
 
           <div className="grid gap-4 sm:grid-cols-2">
-            {(["startsOn", "endsOn"] as const).map((name) => (
-              <Controller
-                key={name}
-                name={name}
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor={`t-${name}`}>{name === "startsOn" ? "Empieza" : "Termina"}</FieldLabel>
-                    <Input {...field} id={`t-${name}`} type="date" aria-invalid={fieldState.invalid} />
-                    {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
-                  </Field>
-                )}
-              />
-            ))}
+            <Controller
+              name="startsOn"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="t-startsOn">Empieza</FieldLabel>
+                  <Input
+                    {...field}
+                    id="t-startsOn"
+                    type="date"
+                    max={endsOn || undefined}
+                    aria-invalid={fieldState.invalid}
+                    onChange={(e) => {
+                      field.onChange(e);
+                      const newStartsOn = e.target.value;
+                      if (endsOn && newStartsOn && newStartsOn > endsOn) {
+                        form.setValue("endsOn", newStartsOn, { shouldValidate: true });
+                      }
+                      form.trigger(["startsOn", "endsOn"]);
+                    }}
+                  />
+                  {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                </Field>
+              )}
+            />
+
+            <Controller
+              name="endsOn"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="t-endsOn">Termina</FieldLabel>
+                  <Input
+                    {...field}
+                    id="t-endsOn"
+                    type="date"
+                    min={startsOn || undefined}
+                    aria-invalid={fieldState.invalid}
+                    onChange={(e) => {
+                      field.onChange(e);
+                      form.trigger(["startsOn", "endsOn"]);
+                    }}
+                  />
+                  {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                </Field>
+              )}
+            />
           </div>
 
           <Controller

@@ -2,6 +2,7 @@ import { Trophy } from "lucide-react";
 import Link from "next/link";
 import type { CurrentUser } from "@/lib/auth";
 import { APP_NAME } from "@/lib/config";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { MainNav } from "./main-nav";
 import { UserMenu } from "./user-menu";
 
@@ -18,7 +19,8 @@ export function AppHeader({ user }: { user: CurrentUser }) {
           {APP_NAME}
         </Link>
         <MainNav className="hidden md:flex" />
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <ThemeToggle />
           <UserMenu user={user} />
         </div>
       </div>

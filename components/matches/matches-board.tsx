@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { formatInTimeZone, formatTimeRange } from "@/lib/dates";
 import type { FixedAssignment } from "@/lib/domain/scheduler";
-import type { BoardMatch } from "@/lib/competition-view";
+import { type BoardMatch, playoffRoundCount } from "@/lib/competition-view";
 import type { ScoringConfig } from "@/lib/domain/scoring";
 import { cn } from "@/lib/utils";
 import { AssignSlotDialog } from "./assign-slot-dialog";
@@ -186,6 +186,7 @@ export function MatchesBoard(props: MatchesBoardProps) {
   const visible = props.matches.filter((m) => matchesFilter(m, filter));
   const sections = [...new Set(visible.map((m) => m.section))];
   const counts = Object.fromEntries(FILTERS.map((f) => [f.value, props.matches.filter((m) => matchesFilter(m, f.value)).length]));
+  const playoffRounds = playoffRoundCount(props.matches);
 
   const scheduled: FixedAssignment[] = props.matches
     .filter((m) => m.startsAt && m.endsAt)
@@ -292,6 +293,9 @@ export function MatchesBoard(props: MatchesBoardProps) {
           tournamentId={props.tournamentId}
           matchId={editing.id}
           stage={editing.stage}
+          round={editing.round}
+          totalRounds={playoffRounds}
+          isThirdPlace={editing.isThirdPlace}
           scoring={props.scoring}
           homeName={editing.homeName}
           awayName={editing.awayName}

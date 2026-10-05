@@ -31,6 +31,9 @@ type ResultDialogProps = {
   tournamentId: string;
   matchId: string;
   stage: "group" | "playoff";
+  round?: number;
+  totalRounds?: number;
+  isThirdPlace?: boolean;
   scoring: ScoringConfig;
   homeName: string;
   awayName: string;
@@ -79,8 +82,13 @@ export function ResultDialog(props: ResultDialogProps) {
     current?.type === "goals" && current.penalties ? [current.penalties.home, current.penalties.away] : [undefined, undefined],
   );
 
+  const matchContext = useMemo(
+    () => ({ stage, round: props.round, totalRounds: props.totalRounds, isThirdPlace: props.isThirdPlace }),
+    [stage, props.round, props.totalRounds, props.isThirdPlace],
+  );
+
   const result = useMemo(() => buildResult(scoring, sets, goals, penalties), [scoring, sets, goals, penalties]);
-  const evaluation = result ? evaluateResult(scoring, result, stage) : null;
+  const evaluation = result ? evaluateResult(scoring, result, matchContext) : null;
   const winnerText =
     evaluation?.ok && evaluation.winner
       ? `Gana ${evaluation.winner === "home" ? homeName : awayName}`
@@ -154,7 +162,8 @@ export function ResultDialog(props: ResultDialogProps) {
                 <span className="truncate text-center" title={awayName}>{awayName}</span>
               </div>
               {sets.map(([home, away], index) => {
-                const label = isSuperTiebreakSet(scoring, index) ? "Super tie-break" : `Set ${index + 1}`;
+                const isStb = isSuperTiebreakSet(scoring, index, matchContext);
+                const label = isStb ? `Super tie-break (${scoring.superTiebreakPoints} pts)` : `Set ${index + 1}`;
                 return (
                   <div key={index} className="grid grid-cols-[1fr_4.5rem_4.5rem] items-center gap-2">
                     <span className="text-sm">{label}</span>
@@ -177,7 +186,14 @@ export function ResultDialog(props: ResultDialogProps) {
                   </div>
                 );
               })}
-              <p className="text-xs text-muted-foreground">Dejá vacíos los sets que no se jugaron.</p>
+              <p className="text-xs text-muted-foreground">
+                {scoring.decidingSet === "super_tiebreak" && isSuperTiebreakSet(scoring, totalSets - 1, matchContext)
+                  ? `El set decisivo es a super tie-break a ${scoring.superTiebreakPoints} puntos (con 2 de diferencia).`
+                  : scoring.decidingSet === "super_tiebreak"
+                    ? `En esta fase el partido se juega al mejor de ${scoring.bestOf} sets completos.`
+                    : `Al mejor de ${scoring.bestOf} sets completos de ${scoring.gamesPerSet} games.`}
+                {" "}Dejá vacíos los sets que no se jugaron.
+              </p>
             </div>
           ) : (
             <div className="space-y-3">

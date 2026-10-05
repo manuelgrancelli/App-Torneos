@@ -1,6 +1,7 @@
 import { CalendarCheck, Network, Trophy, Users } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth";
 import { APP_DESCRIPTION, APP_NAME } from "@/lib/config";
@@ -20,10 +21,13 @@ export default async function HomePage() {
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center gap-12 px-4 py-12">
       <section className="space-y-6">
-        <p className="inline-flex items-center gap-2 font-semibold">
-          <Trophy className="size-5" aria-hidden="true" />
-          {APP_NAME}
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="inline-flex items-center gap-2 font-semibold">
+            <Trophy className="size-5" aria-hidden="true" />
+            {APP_NAME}
+          </p>
+          <ThemeToggle />
+        </div>
         <h1 className="max-w-2xl text-3xl font-bold tracking-tight sm:text-5xl">
           Tus torneos, de la inscripción a la final.
         </h1>

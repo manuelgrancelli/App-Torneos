@@ -3,7 +3,7 @@ import type { GoalsScoringConfig, SetsScoringConfig } from "./scoring";
 import { type StandingsConfig, type StandingsMatch, computeStandings, validateStandingsConfig } from "./standings";
 
 const padel: SetsScoringConfig = {
-  type: "sets", bestOf: 3, gamesPerSet: 6, tiebreak: true, decidingSet: "super_tiebreak", superTiebreakPoints: 10,
+  type: "sets", bestOf: 3, gamesPerSet: 6, tiebreak: true, decidingSet: "super_tiebreak", superTiebreakPoints: 10, superTiebreakUntil: "quarterfinals",
 };
 const football: GoalsScoringConfig = { type: "goals", playoffTiebreak: "penalties" };
 const setsConfig: StandingsConfig = {

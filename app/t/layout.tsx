@@ -1,6 +1,7 @@
 import { Trophy } from "lucide-react";
 import Link from "next/link";
 import { SkipLink } from "@/components/layout/skip-link";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { APP_NAME } from "@/lib/config";
 
@@ -18,9 +19,12 @@ export default function PublicLayout({ children }: LayoutProps<"/t">) {
             <Trophy className="size-5" aria-hidden="true" />
             {APP_NAME}
           </Link>
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/login">Ingresar</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/login">Ingresar</Link>
+            </Button>
+          </div>
         </div>
       </header>
       <main id="contenido" className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">

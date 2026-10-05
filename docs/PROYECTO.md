@@ -177,8 +177,8 @@ La base valida solo la forma mínima (objeto y `type`). El detalle lo validan lo
 ```jsonc
 // tournaments.scoring_config: sets (pádel, tenis)
 { "type": "sets", "bestOf": 3, "gamesPerSet": 6, "tiebreak": true,
-  "decidingSet": "super_tiebreak", "superTiebreakPoints": 10 }
-// bestOf: 1|3|5 · decidingSet: "full" | "super_tiebreak"
+  "decidingSet": "super_tiebreak", "superTiebreakPoints": 11, "superTiebreakUntil": "quarterfinals" }
+// bestOf: 1|3|5 · decidingSet: "full" | "super_tiebreak" · superTiebreakUntil: "all"|"semifinals"|"quarterfinals"|"groups"
 
 // tournaments.scoring_config: goals (fútbol)
 { "type": "goals", "playoffTiebreak": "penalties" }
@@ -367,7 +367,7 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Decisión:**
   - Preset `radix-nova` (Radix, Lucide, Geist).
   - `cn` viene del paquete oficial `cn` (repo `shadcn-ui/cn`, reemplaza a clsx + tailwind-merge).
-  - Se sacó `next-themes`: la app es solo tema claro y el `Toaster` usa `theme="light"`.
+  - Se sacó `next-themes`: la app era solo tema claro *(reemplazada por D-043: se incorporó soporte para tema claro, oscuro y sistema)*.
   - `shadcn` va como devDependency.
   - En mobile, inputs y botones miden 40px.
 - **Motivo:** menos dependencias y touch targets cómodos en mobile.
@@ -611,3 +611,36 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Cómo aplicar:**
   - Una RPC nueva implica actualizar la lista de `07_function_privileges` (el test falla a propósito).
   - Una pantalla nueva se suma a `a11y-security.spec.ts`.
+
+### D-043 — Soporte para tema claro, oscuro y del sistema (2026-10-05)
+- **Decisión:**
+  - Soporte completo para alternar entre tema `"light"` (claro), `"dark"` (oscuro) y `"system"` (según el sistema operativo).
+  - Proveedor `ThemeProvider` (`components/theme/theme-provider.tsx`) con sincronización bidireccional en cookie `theme` (1 año) y `localStorage`.
+  - Script en `<head>` con `nonce` (compatible con CSP / D-041) para evitar parpadeos (FOUC) antes de la hidratación.
+  - Componentes de interfaz:
+    - `ThemeToggle` (`components/theme/theme-toggle.tsx`): botón desplegable con menú para elegir Claro, Oscuro o Sistema. Se sumó a `AppHeader`, al header de torneos públicos (`/t/[slug]`), al header de autenticación y a la portada (`/`).
+    - `ThemeSelector` (`components/theme/theme-selector.tsx`): botones de selección de tema en `/perfil` (Mi perfil) dentro de una tarjeta dedicada a Apariencia.
+  - `Toaster` (`components/ui/sonner.tsx`) adaptado para que las notificaciones respeten el tema activo.
+- **Motivo:** pedido explícito del usuario para poder visualizar la app en modo oscuro o claro según su preferencia.
+- **Cómo aplicar:** todos los componentes usan las variables de color semánticas de Tailwind / Radix Nova (`globals.css`), cuyas definiciones para `.dark` ya están configuradas. Reemplaza la restricción previa de solo tema claro de D-014.
+
+### D-044 — Super tie-break configurable en puntos y por fase (2026-10-05)
+- **Decisión:**
+  - **Puntos configurables (`superTiebreakPoints`):** pasa de estar restringido a 7 o 10 a ser un número configurable entre 5 y 30 (`z.number().int().min(5).max(30)`), con **11 como valor predeterminado** para pádel y tenis.
+  - **Fase hasta donde aplica (`superTiebreakUntil`):** nuevo enum `["all", "semifinals", "quarterfinals", "groups"]` con etiqueta legible y valor predeterminado `"quarterfinals"` (hasta cuartos de final, estándar en torneos de pádel).
+  - **Evaluación contextual de partidos (`evaluateResult`, `isSuperTiebreakMatch`, `isSuperTiebreakSet`):**
+    - Admite `MatchStageContext` (`{ stage, round?, totalRounds?, isThirdPlace? }`) o simplemente `MatchStage` conservando retrocompatibilidad.
+    - Si `superTiebreakUntil === "quarterfinals"`: en fase de grupos y en playoffs hasta cuartos (`totalRounds - round >= 2`) el 3er set es super tie-break; a partir de semifinales (`totalRounds - round <= 1`) o en partido de 3er puesto se exige 3er set normal completo al mejor de 6 games.
+    - Si `superTiebreakUntil === "semifinals"`: semifinales y rondas previas usan super tie-break; la final y el 3er puesto son set completo.
+    - Si `superTiebreakUntil === "groups"`: playoffs completos se juegan a sets normales.
+    - Si `superTiebreakUntil === "all"`: todo el torneo usa super tie-break como 3er set.
+  - **Componentes y acciones actualizadas:**
+    - `components/tournaments/config-fields.tsx`: input numérico para puntos y selector descriptivo para la fase límite.
+    - `components/matches/result-dialog.tsx`: calcula si el partido/set en cuestión es super tie-break o set regular y ajusta títulos y badges de ayuda contextuales.
+    - `components/matches/matches-board.tsx`: pasa la información de ronda, cantidad de rondas de playoff y 3er puesto al diálogo de resultado.
+    - `app/(app)/torneos/[id]/partidos/actions.ts`: consulta la ronda y total de rondas al cargar resultados para evaluar correctamente el formato según la fase.
+  - **Migración de base de datos:** `supabase/migrations/20261005000100_supertiebreak_config.sql` actualiza los deportes del catálogo (`public.sports`) con los nuevos defaults.
+- **Motivo:** requerimiento de torneos reales de pádel donde habitualmente se juega a super tie-break a 11 puntos hasta cuartos de final, pasando a 3 sets normales a partir de semifinales.
+- **Cómo aplicar:** siempre pasar el contexto de etapa (`round`, `totalRounds`, `isThirdPlace`) al evaluar resultados o renderizar campos de sets en torneos con formato `super_tiebreak`.
+
+

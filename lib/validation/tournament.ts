@@ -49,8 +49,9 @@ type ConfigFields = {
 
 /** Reglas que cruzan campos: fechas y desempates acordes al deporte. */
 function crossFieldChecks(data: ConfigFields, ctx: z.RefinementCtx) {
-  if (data.endsOn < data.startsOn) {
+  if (data.startsOn && data.endsOn && data.endsOn < data.startsOn) {
     ctx.addIssue({ code: "custom", path: ["endsOn"], message: "La fecha de fin no puede ser anterior a la de inicio." });
+    ctx.addIssue({ code: "custom", path: ["startsOn"], message: "La fecha de inicio no puede ser posterior a la de fin." });
   }
   const allowed = tiebreakersFor(data.scoringConfig.type);
   for (const criterion of data.standingsConfig.tiebreakers) {
