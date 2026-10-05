@@ -4,7 +4,6 @@ import type { CurrentUser } from "@/lib/auth";
 import { APP_NAME } from "@/lib/config";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { MainNav } from "./main-nav";
-import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
 
 /** Header del área privada: marca, navegación (desktop) y menú de usuario. */
