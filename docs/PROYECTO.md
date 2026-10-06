@@ -90,7 +90,7 @@ components/
   layout/            AppHeader, MainNav, BottomNav, UserMenu, SkipLink, nav-items
   theme-provider.tsx | preferencia clara/oscura persistida en cookie
   auth/              formularios de auth
-  shared/            EmptyState, PageHeader
+  shared/            EmptyState, PageHeader, CollapsibleSection (D-052)
 lib/
   actions/safe-action.ts   helper de Server Actions
   supabase/                server.ts · client.ts · proxy.ts · public.ts (anónimo, sin cookies) · errors.ts ·
@@ -725,7 +725,57 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** agilizar enormemente las pruebas del organizador (fixture, clasificaciones a playoffs, cuadro y acumulación de rankings en circuitos) sin necesidad de cargar decenas de resultados a mano.
 - **Cómo aplicar:** en la pantalla de Partidos o Cuadro de un torneo privado de prueba, usar el botón **Simular resultados** / **Simular playoffs completos**.
 
-### D-052 — Identidad visual: logo de la copa con fondo dorado, silueta negra y destello brillante (2026-10-06)
+### D-052 — Panel del organizador con secciones plegables (2026-10-06 · mantenimiento, piloto)
+- **Decisión:**
+  - Se suma `CollapsibleSection` (`components/shared/collapsible-section.tsx`), basada en `<details>` nativo, sin dependencias nuevas. Plegada muestra título y un resumen de una línea; el contenido sigue montado, así que los formularios no pierden valores. `forceOpen` la abre si un campo de adentro tiene error.
+  - **Resumen del torneo:** el estado y los pasos que faltan (`NextSteps`, que solo informa; las reglas siguen en `checkTransition` y en la base) van siempre visibles. Las cuatro tarjetas de números pasan a una línea. El link y código de inscripción va plegado salvo con la inscripción abierta, y "Eliminar torneo" queda en "Más opciones".
+  - **Configuración (solo edición):** "Datos del torneo" queda abierto; "Puntuación", "Tabla de posiciones" y "Playoffs" van plegados con su resumen (`config-summary.ts`). En el alta siguen abiertos.
+  - `InviteCard` ya no dibuja su propia tarjeta ni título: los aporta la sección que la contiene. `StatusCard` acepta `children`.
+  - No cambia ninguna ruta, regla de negocio, Server Action ni la base.
+- **Motivo:** la pantalla mostraba demasiada información a la vez. El objetivo es una app visualmente simple sin perder funciones: todo sigue accesible, solo que hay que desplegarlo.
+- **Cómo aplicar:**
+  - Un campo dentro de una sección plegada no es visible: los E2E deben abrirla antes (`page.locator("summary", { hasText: "..." }).click()`).
+  - Los links de `NextSteps` no se usan a propósito: un link con "Canchas y franjas" en su nombre chocaría con la pestaña homónima en los locators de Playwright.
+  - Pendiente (siguientes tandas): Canchas y franjas, Disponibilidad, Inscripciones, Cuadro y agrupar las pestañas por etapa.
+
+### D-053 — Progreso del torneo y navegación agrupada (2026-10-06 · mantenimiento, tanda 1)
+- **Decisión:**
+  - `TournamentProgress` (`components/tournaments/tournament-progress.tsx`): stepper de 5 etapas (Preparación, Inscripción, Grupos, Playoffs, Final) en el encabezado del panel. Es solo de presentación; el estado lo sigue cambiando `set_tournament_status`. En 360px solo la etapa actual muestra texto; las demás lo conservan para lectores de pantalla.
+  - `TournamentNav` pasa de 8 pestañas planas a 5 principales: Resumen, Configuración, Canchas y franjas, **Inscripciones** (sub-secciones Equipos y Disponibilidad) y **Competencia** (Grupos, Partidos y Cuadro). Las rutas no cambian. Las sub-secciones se ven como una segunda barra cuando el grupo está activo.
+  - Las pestañas llevan un contador de pendientes (inscripciones pendientes con la inscripción abierta; partidos de grupo sin resultado en `group_stage`).
+- **Motivo:** menos elementos a la vista y una sensación clara de avance, sin quitar funciones (continúa D-052).
+- **Cómo aplicar:**
+  - El primer sub-link de "Inscripciones" se llama "Equipos" para no repetir el nombre del grupo en los locators de Playwright.
+  - Desde el Resumen, para llegar a Grupos, Partidos o Cuadro hay que pasar por "Competencia"; los E2E que busquen esos links por nombre deben entrar antes al grupo.
+  - Pendiente: tandas 2 a 4 (Canchas y franjas, Disponibilidad, Inscripciones, Competencia y pulido visual).
+
+### D-054 — Asistente de creación de torneos en 4 pasos (2026-10-06 · mantenimiento)
+- **Decisión:**
+  - El alta (`/torneos/nuevo`) pasa a `TournamentWizard`: **Lo básico** (nombre, deporte, descripción) → **Fechas y cupo** (fechas, zona horaria, cupo, canchas) → **Reglas** (confirmación de resultados, puntuación, tabla y playoffs) → **Revisar y crear** (resumen con "Editar" por fila y el switch de torneo privado de prueba).
+  - Un solo formulario de React Hook Form con el mismo esquema Zod y la misma Server Action (`createTournament`). Cada paso valida solo sus campos (`form.trigger`); Enter equivale a "Continuar"; si el envío final falla por un campo de un paso anterior, se vuelve a ese paso.
+  - En "Reglas" se dejan los valores recomendados del deporte y los tres bloques van plegados con su resumen (D-052): quien no quiere tocar nada avanza con un clic.
+  - Navegación: Cancelar (paso 1), Volver, Continuar y Crear torneo; los pasos completados del indicador (`WizardSteps`, en `components/shared`) son clicables. Al cambiar de paso el foco va al título.
+  - Se extrajeron `tournament-fields.tsx` (campos comunes) y `rules-sections.tsx` (puntuación, tabla, playoffs) para compartirlos con la edición; `TournamentForm` queda solo para editar.
+- **Motivo:** el alta mostraba ~20 campos juntos. Guiar por pasos, con progreso y revisión final, evita que el usuario se pierda sin quitar ninguna opción.
+- **Cómo aplicar:**
+  - Los E2E que crean torneos avanzan con "Continuar" (la puntuación se abre con `summary` antes de editarla).
+  - No hay borrador a medio crear: si se abandona el asistente, se pierde lo cargado; el torneo se crea recién al final.
+
+### D-055 — Guía de fase en el Resumen del torneo (2026-10-06 · mantenimiento, tanda 2)
+- **Decisión:**
+  - `PhaseGuide` reemplaza a `StatusCard` y `NextSteps` (se eliminaron) en el Resumen. Una sola tarjeta muestra "Fase N de 5", el título de la fase, una **barra de progreso** (`role="progressbar"`), la checklist de pasos y la acción que hace avanzar el torneo con sus diálogos de confirmación y motivos de bloqueo de siempre.
+  - Cada paso pendiente lleva un botón "Ir a…" a la pantalla donde se resuelve; los hechos se marcan con check. No se duplican acciones del torneo en el Resumen: solo se navega a la pestaña correspondiente.
+  - El modelo es puro (`phase-guide-model.ts`, `buildPhaseGuide`): pasos por fase y progreso. El progreso es lo más concreto disponible: aprobadas/cupo en inscripción, partidos jugados/total en grupos y playoffs, y pasos hechos en preparación. Las reglas de cada transición siguen en `checkTransition` y en la base.
+  - `getTournamentCounts` suma `unscheduledGroupMatches`, `playoffMatches` y `pendingPlayoffMatches`.
+  - El stepper del encabezado muestra el progreso junto a la fase actual ("Grupos 12/24") y la pestaña de la fase actual lleva un punto de "recomendada". Ninguna pestaña se oculta.
+  - La línea de números del Resumen se eliminó: cada dato vive en el detalle de su paso.
+- **Motivo:** el seguimiento tiene que ser tan guiado como la creación (D-054): dónde estoy, qué completé, qué falta y cuál es el siguiente paso.
+- **Cómo aplicar:**
+  - Los textos de acción de los pasos no repiten el nombre de ninguna pestaña ("Ir a equipos", "Ir a franjas"): Playwright busca links por subcadena y chocaría con las pestañas.
+  - Un paso nuevo en una fase se agrega en `stepsFor`; lo demás se arma solo.
+  - Pendiente: tandas de Canchas y franjas, Disponibilidad, Inscripciones y Competencia (D-052/D-053), y el pulido visual.
+
+### D-056 — Identidad visual: logo de la copa con fondo dorado, silueta negra y destello brillante (2026-10-06)
 - **Decisión:**
   - Se crea el componente reutilizable `TrophyLogo` (`components/brand/trophy-logo.tsx`) para la identidad visual de la marca junto al texto "Torneos".
   - Fondo: placa dorada con gradiente metálico pulido (`#FDE68A` -> `#F59E0B` -> `#D97706`), anillo exterior ámbar y sombra suave.
@@ -733,5 +783,3 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
   - Animación: haz de luz blanco diagonal (`animate-trophy-shine`) que recorre la copa periódicamente cada 3.2s, con soporte para `prefers-reduced-motion`.
   - Integrado de forma unificada en `AppHeader`, `AuthLayout`, `PublicLayout` y `HomePage`.
 - **Motivo:** elevar la presencia visual y estética premium del logotipo en toda la plataforma.
-
-

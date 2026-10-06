@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/shared/page-header";
-import { type SportOption, TournamentForm } from "@/components/tournaments/tournament-form";
+import type { SportOption } from "@/components/tournaments/tournament-form";
+import { TournamentWizard } from "@/components/tournaments/tournament-wizard";
 import { getSports } from "@/lib/data/tournaments";
 import type { ScoringConfig } from "@/lib/domain/scoring";
 import type { StandingsConfig } from "@/lib/domain/standings";
@@ -30,9 +31,9 @@ export default async function NewTournamentPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <PageHeader title="Crear torneo" description="Podés cambiar todo esto después, mientras el torneo no empiece." />
+      <PageHeader title="Crear torneo" description="Te guiamos paso a paso. Son 4 pasos y podés volver cuando quieras." />
       {options.length > 0 ? (
-        <TournamentForm mode="create" sports={options} />
+        <TournamentWizard sports={options} />
       ) : (
         <p className="text-muted-foreground">No hay deportes configurados.</p>
       )}

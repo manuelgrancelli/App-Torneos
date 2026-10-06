@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { rotateInviteCode } from "@/app/(app)/torneos/[id]/actions";
 import { ConfirmActionButton } from "@/components/shared/confirm-action-button";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 /** "DEMQ2PADEL" → "DEMQ2-PADEL" (más fácil de dictar). */
 export function formatInviteCode(code: string): string {
@@ -22,7 +21,10 @@ type InviteCardProps = {
   registrationOpen: boolean;
 };
 
-/** Link y código de inscripción: copiar, compartir y regenerar. */
+/**
+ * Link y código de inscripción: copiar, compartir y regenerar. Va dentro de una
+ * sección plegable (D-052), que aporta el título y el marco.
+ */
 export function InviteCard({ tournamentId, tournamentName, code, inviteUrl, registrationOpen }: InviteCardProps) {
   const router = useRouter();
   const message = `Inscribite en "${tournamentName}": ${inviteUrl} (código ${formatInviteCode(code)})`;
@@ -60,18 +62,13 @@ export function InviteCard({ tournamentId, tournamentName, code, inviteUrl, regi
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          <h2 className="text-base font-semibold">Inscripción</h2>
-        </CardTitle>
-        <CardDescription>
-          {registrationOpen
-            ? "Compartí el link o el código: con eso se anotan las parejas o equipos."
-            : "Cuando abras la inscripción, con este link o código se anotan las parejas o equipos."}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        {registrationOpen
+          ? "Compartí el link o el código: con eso se anotan las parejas o equipos."
+          : "Cuando abras la inscripción, con este link o código se anotan las parejas o equipos."}
+      </p>
+      <div className="space-y-4">
         <div className="space-y-1">
           <p className="text-sm text-muted-foreground">Código</p>
           <p className="font-mono text-2xl font-semibold tracking-wider" data-testid="invite-code">
@@ -104,7 +101,7 @@ export function InviteCard({ tournamentId, tournamentName, code, inviteUrl, regi
             Regenerar
           </ConfirmActionButton>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

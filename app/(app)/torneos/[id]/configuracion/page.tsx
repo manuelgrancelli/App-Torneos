@@ -25,7 +25,6 @@ export default async function TournamentSettingsPage({ params }: PageProps<"/tor
   return (
     <div className="max-w-2xl">
       <TournamentForm
-        mode="edit"
         tournamentId={tournament.id}
         sport={{
           id: tournament.sport.id,
