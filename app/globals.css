@@ -134,3 +134,25 @@
     @apply font-sans;
   }
 }
+
+@keyframes trophy-shine {
+  0% {
+    transform: translateX(-160%) skewX(-20deg);
+  }
+  25% {
+    transform: translateX(260%) skewX(-20deg);
+  }
+  100% {
+    transform: translateX(260%) skewX(-20deg);
+  }
+}
+
+.animate-trophy-shine {
+  animation: trophy-shine 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-trophy-shine {
+    animation: none;
+  }
+}

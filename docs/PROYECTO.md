@@ -725,3 +725,13 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** agilizar enormemente las pruebas del organizador (fixture, clasificaciones a playoffs, cuadro y acumulación de rankings en circuitos) sin necesidad de cargar decenas de resultados a mano.
 - **Cómo aplicar:** en la pantalla de Partidos o Cuadro de un torneo privado de prueba, usar el botón **Simular resultados** / **Simular playoffs completos**.
 
+### D-052 — Identidad visual: logo de la copa con fondo dorado, silueta negra y destello brillante (2026-10-06)
+- **Decisión:**
+  - Se crea el componente reutilizable `TrophyLogo` (`components/brand/trophy-logo.tsx`) para la identidad visual de la marca junto al texto "Torneos".
+  - Fondo: placa dorada con gradiente metálico pulido (`#FDE68A` -> `#F59E0B` -> `#D97706`), anillo exterior ámbar y sombra suave.
+  - Copa: silueta negra contrastante (`text-zinc-950`).
+  - Animación: haz de luz blanco diagonal (`animate-trophy-shine`) que recorre la copa periódicamente cada 3.2s, con soporte para `prefers-reduced-motion`.
+  - Integrado de forma unificada en `AppHeader`, `AuthLayout`, `PublicLayout` y `HomePage`.
+- **Motivo:** elevar la presencia visual y estética premium del logotipo en toda la plataforma.
+
+

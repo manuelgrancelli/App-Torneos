@@ -1,6 +1,7 @@
-import { CalendarCheck, Network, Trophy, Users } from "lucide-react";
+import { CalendarCheck, Network, Users } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { TrophyLogo } from "@/components/brand/trophy-logo";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth";
@@ -22,9 +23,9 @@ export default async function HomePage() {
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center gap-12 px-4 py-12">
       <section className="space-y-6">
         <div className="flex items-center justify-between">
-          <p className="inline-flex items-center gap-2 font-semibold">
-            <Trophy className="size-5" aria-hidden="true" />
-            {APP_NAME}
+          <p className="inline-flex items-center gap-2.5 font-semibold text-lg">
+            <TrophyLogo size="md" />
+            <span>{APP_NAME}</span>
           </p>
           <ThemeToggle />
         </div>

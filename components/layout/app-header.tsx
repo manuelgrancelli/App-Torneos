@@ -1,7 +1,7 @@
-import { Trophy } from "lucide-react";
 import Link from "next/link";
 import type { CurrentUser } from "@/lib/auth";
 import { APP_NAME } from "@/lib/config";
+import { TrophyLogo } from "@/components/brand/trophy-logo";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { MainNav } from "./main-nav";
 import { UserMenu } from "./user-menu";
@@ -13,10 +13,10 @@ export function AppHeader({ user }: { user: CurrentUser }) {
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-4 px-4">
         <Link
           href="/torneos"
-          className="flex items-center gap-2 rounded-md font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="group flex items-center gap-2.5 rounded-md font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Trophy className="size-5" aria-hidden="true" />
-          {APP_NAME}
+          <TrophyLogo />
+          <span>{APP_NAME}</span>
         </Link>
         <MainNav className="hidden md:flex" />
         <div className="ml-auto flex items-center gap-2">

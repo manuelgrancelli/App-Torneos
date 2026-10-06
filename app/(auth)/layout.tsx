@@ -1,5 +1,5 @@
-import { Trophy } from "lucide-react";
 import Link from "next/link";
+import { TrophyLogo } from "@/components/brand/trophy-logo";
 import { SkipLink } from "@/components/layout/skip-link";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { APP_NAME } from "@/lib/config";
@@ -12,10 +12,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <header className="flex items-center justify-between px-4 py-4">
         <Link
           href="/"
-          className="inline-flex items-center gap-2 rounded-md font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="group inline-flex items-center gap-2.5 rounded-md font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Trophy className="size-5" aria-hidden="true" />
-          {APP_NAME}
+          <TrophyLogo />
+          <span>{APP_NAME}</span>
         </Link>
         <ThemeToggle />
       </header>
