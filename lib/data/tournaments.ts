@@ -181,6 +181,10 @@ export type TournamentCounts = {
   rejectedTeams: number;
   groupMatches: number;
   pendingGroupMatches: number;
+  /** Partidos de grupo sin franja asignada. */
+  unscheduledGroupMatches: number;
+  playoffMatches: number;
+  pendingPlayoffMatches: number;
   finalDecided: boolean;
 };
 
@@ -193,7 +197,7 @@ export const getTournamentCounts = cache(async (tournamentId: string): Promise<T
     supabase.from("teams").select("status").eq("tournament_id", tournamentId),
     supabase
       .from("matches")
-      .select("stage, result_status, is_third_place, next_match_id, winner_team_id")
+      .select("stage, result_status, is_third_place, next_match_id, winner_team_id, slot_id")
       .eq("tournament_id", tournamentId),
   ]);
   for (const result of [courts, slots, teams, matches]) {
@@ -203,6 +207,7 @@ export const getTournamentCounts = cache(async (tournamentId: string): Promise<T
   const teamRows = teams.data ?? [];
   const matchRows = matches.data ?? [];
   const groupMatches = matchRows.filter((m) => m.stage === "group");
+  const playoffMatches = matchRows.filter((m) => m.stage === "playoff");
 
   return {
     courts: courts.count ?? 0,
@@ -213,6 +218,9 @@ export const getTournamentCounts = cache(async (tournamentId: string): Promise<T
     rejectedTeams: teamRows.filter((t) => t.status === "rejected").length,
     groupMatches: groupMatches.length,
     pendingGroupMatches: groupMatches.filter((m) => m.result_status === null).length,
+    unscheduledGroupMatches: groupMatches.filter((m) => m.slot_id === null).length,
+    playoffMatches: playoffMatches.length,
+    pendingPlayoffMatches: playoffMatches.filter((m) => m.result_status === null).length,
     finalDecided: matchRows.some(
       (m) => m.stage === "playoff" && !m.is_third_place && m.next_match_id === null && m.winner_team_id !== null,
     ),

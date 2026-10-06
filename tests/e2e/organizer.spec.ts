@@ -12,11 +12,17 @@ test.describe("organizador: torneos (F4)", () => {
     await page.getByRole("link", { name: "Crear torneo" }).first().click();
     await page.getByLabel("Nombre").fill(name);
     await page.getByLabel("Deporte").selectOption("padel");
+    await page.getByRole("button", { name: "Continuar" }).click();
     await page.getByLabel("Empieza").fill("2026-11-14");
     await page.getByLabel("Termina").fill("2026-11-15");
     await page.getByLabel(/Cupo de parejas/).fill("8");
     await page.getByLabel("Canchas / sedes").fill("2");
+    await page.getByRole("button", { name: "Continuar" }).click();
+    // Reglas (D-054): vienen con valores recomendados; la puntuación está plegada.
+    await page.locator("summary", { hasText: "Puntuación" }).click();
     await page.getByLabel("Set decisivo").selectOption("full");
+    await page.getByRole("button", { name: "Continuar" }).click();
+    await expect(page.getByRole("heading", { name: "Revisá y creá el torneo" })).toBeVisible();
     await page.getByRole("button", { name: "Crear torneo" }).click();
     await expectToast(page, "Torneo creado.");
     await page.waitForURL(/\/torneos\/[0-9a-f-]{36}$/);
@@ -28,6 +34,8 @@ test.describe("organizador: torneos (F4)", () => {
 
     // Configuración: cambiar la tabla y guardar.
     await page.getByRole("link", { name: "Configuración" }).click();
+    // En edición la tabla de posiciones viene plegada (D-052): se abre antes de editarla.
+    await page.locator("summary", { hasText: "Tabla de posiciones" }).click();
     await page.getByLabel("Perdido").fill("1");
     await page.getByRole("button", { name: "Guardar cambios" }).click();
     await expectToast(page, "Guardamos los cambios.");
@@ -90,8 +98,11 @@ test.describe("organizador: torneos (F4)", () => {
     await page.goto("/torneos/nuevo");
     await page.getByLabel("Nombre").fill(name);
     await page.getByLabel("Deporte").selectOption("futbol-11");
+    await page.getByRole("button", { name: "Continuar" }).click();
     await page.getByLabel("Empieza").fill("2026-12-05");
     await page.getByLabel("Termina").fill("2026-12-05");
+    await page.getByRole("button", { name: "Continuar" }).click();
+    await page.getByRole("button", { name: "Continuar" }).click();
     await page.getByRole("button", { name: "Crear torneo" }).click();
     await expectToast(page, "Torneo creado.");
     await page.waitForURL(/\/torneos\/[0-9a-f-]{36}$/);
@@ -105,6 +116,8 @@ test.describe("organizador: torneos (F4)", () => {
     await expect(other.getByText(name)).toHaveCount(0);
     await other.close();
 
+    // "Eliminar torneo" está en la sección plegada "Más opciones" (D-052).
+    await page.locator("summary", { hasText: "Más opciones" }).click();
     await page.getByRole("button", { name: "Eliminar torneo" }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Eliminar torneo" }).click();
     await expect(page).toHaveURL("/torneos");
