@@ -22,6 +22,7 @@ type OrganizerSlot = { id: string; startsAt: string; endsAt: string; courtId: st
 
 type OrganizerRegistrationFormProps = {
   tournamentId: string;
+  sportId?: string;
   timezone: string;
   teamSize: number;
   slots: OrganizerSlot[];
@@ -30,6 +31,7 @@ type OrganizerRegistrationFormProps = {
 
 export function OrganizerRegistrationForm({
   tournamentId,
+  sportId,
   timezone,
   teamSize,
   slots,
@@ -37,6 +39,8 @@ export function OrganizerRegistrationForm({
 }: OrganizerRegistrationFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const isPadel = sportId === "padel";
+
   const form = useForm<OrganizerCreateTeamInput>({
     resolver: zodResolver(organizerCreateTeamSchema),
     defaultValues: { tournamentId, teamName: "", playerNames: Array(teamSize).fill(""), slotIds: [] },
@@ -66,15 +70,27 @@ export function OrganizerRegistrationForm({
     form.setValue("slotIds", [...next], { shouldDirty: true, shouldValidate: true });
   }
 
+  function toggleAllSlots() {
+    const allSlotIds = slots.map((s) => s.id);
+    const allSelected = allSlotIds.length > 0 && allSlotIds.every((id) => selected.has(id));
+    form.setValue("slotIds", allSelected ? [] : allSlotIds, { shouldDirty: true, shouldValidate: true });
+  }
+
   const onSubmit = form.handleSubmit((values) => {
     startTransition(async () => {
-      const result = await createOrganizerTeam(values);
+      const payload: OrganizerCreateTeamInput = {
+        ...values,
+        teamName: isPadel
+          ? values.playerNames.map((p) => p.trim()).filter(Boolean).join(" / ")
+          : values.teamName,
+      };
+      const result = await createOrganizerTeam(payload);
       if (!result.ok) {
         applyServerErrors(form.setError, result.fieldErrors);
         toast.error(result.error);
         return;
       }
-      toast.success(result.message ?? "Inscribimos el equipo.");
+      toast.success(result.message ?? (isPadel ? "Inscribimos la pareja." : "Inscribimos el equipo."));
       form.reset({ tournamentId, teamName: "", playerNames: Array(teamSize).fill(""), slotIds: [] });
       router.refresh();
     });
@@ -84,11 +100,14 @@ export function OrganizerRegistrationForm({
     <Card>
       <CardHeader>
         <CardTitle>
-          <h2 className="text-base font-semibold">Inscribir desde el panel</h2>
+          <h2 className="text-base font-semibold">
+            {isPadel ? "Inscribir pareja manualmente" : "Inscribir desde el panel"}
+          </h2>
         </CardTitle>
         <CardDescription>
-          Cargá el nombre del equipo, sus integrantes y las franjas en las que pueden jugar. No hace falta ingresar emails.
-          La inscripción queda aprobada automáticamente.
+          {isPadel
+            ? "Cargá los nombres de los dos integrantes de la pareja (Jugador 1 y Jugador 2) y las franjas horarias en las que pueden jugar. La inscripción queda aprobada automáticamente sin mails ni cuentas."
+            : "Cargá el nombre del equipo, sus integrantes y las franjas en las que pueden jugar. No hace falta ingresar emails. La inscripción queda aprobada automáticamente."}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -96,39 +115,55 @@ export function OrganizerRegistrationForm({
           <p className="text-sm text-muted-foreground">Primero cargá franjas en Canchas y franjas.</p>
         ) : (
           <form onSubmit={onSubmit} noValidate className="space-y-5">
-            <Field data-invalid={Boolean(form.formState.errors.teamName)}>
-              <FieldLabel htmlFor="organizer-team-name">Nombre del equipo o la pareja</FieldLabel>
-              <Input
-                id="organizer-team-name"
-                autoComplete="off"
-                aria-invalid={Boolean(form.formState.errors.teamName)}
-                {...form.register("teamName")}
-              />
-              {form.formState.errors.teamName ? <FieldError errors={[form.formState.errors.teamName]} /> : null}
-            </Field>
+            {!isPadel ? (
+              <Field data-invalid={Boolean(form.formState.errors.teamName)}>
+                <FieldLabel htmlFor="organizer-team-name">Nombre del equipo o la pareja</FieldLabel>
+                <Input
+                  id="organizer-team-name"
+                  autoComplete="off"
+                  aria-invalid={Boolean(form.formState.errors.teamName)}
+                  {...form.register("teamName")}
+                />
+                {form.formState.errors.teamName ? <FieldError errors={[form.formState.errors.teamName]} /> : null}
+              </Field>
+            ) : null}
 
             <fieldset className="space-y-3">
-              <legend className="text-sm font-medium">Integrantes</legend>
+              <legend className="text-sm font-medium">
+                {isPadel ? "Integrantes de la pareja" : "Integrantes"}
+              </legend>
               <div className="grid gap-3 sm:grid-cols-2">
-                {Array.from({ length: teamSize }, (_, index) => (
-                  <Field key={index} data-invalid={Boolean(form.formState.errors.playerNames?.[index])}>
-                    <FieldLabel htmlFor={`organizer-player-${index}`}>Integrante {index + 1}</FieldLabel>
-                    <Input
-                      id={`organizer-player-${index}`}
-                      autoComplete="off"
-                      aria-invalid={Boolean(form.formState.errors.playerNames?.[index])}
-                      {...form.register(`playerNames.${index}`)}
-                    />
-                    {form.formState.errors.playerNames?.[index] ? (
-                      <FieldError errors={[form.formState.errors.playerNames[index]]} />
-                    ) : null}
-                  </Field>
-                ))}
+                {Array.from({ length: teamSize }, (_, index) => {
+                  const label = isPadel ? `Jugador ${index + 1}` : `Integrante ${index + 1}`;
+                  const placeholder = isPadel ? `Nombre del Jugador ${index + 1}` : undefined;
+                  return (
+                    <Field key={index} data-invalid={Boolean(form.formState.errors.playerNames?.[index])}>
+                      <FieldLabel htmlFor={`organizer-player-${index}`}>{label}</FieldLabel>
+                      <Input
+                        id={`organizer-player-${index}`}
+                        autoComplete="off"
+                        placeholder={placeholder}
+                        aria-invalid={Boolean(form.formState.errors.playerNames?.[index])}
+                        {...form.register(`playerNames.${index}`)}
+                      />
+                      {form.formState.errors.playerNames?.[index] ? (
+                        <FieldError errors={[form.formState.errors.playerNames[index]]} />
+                      ) : null}
+                    </Field>
+                  );
+                })}
               </div>
             </fieldset>
 
             <fieldset className="space-y-3">
-              <legend className="text-sm font-medium">Franjas en las que pueden jugar</legend>
+              <div className="flex items-center justify-between gap-2">
+                <legend className="text-sm font-medium">Franjas en las que pueden jugar</legend>
+                {slots.length > 0 ? (
+                  <Button type="button" variant="outline" size="sm" onClick={toggleAllSlots}>
+                    {slots.every((slot) => selected.has(slot.id)) ? "Deseleccionar todas" : "Seleccionar todas"}
+                  </Button>
+                ) : null}
+              </div>
               {form.formState.errors.slotIds ? (
                 <p className="text-sm text-destructive" role="alert">
                   {form.formState.errors.slotIds.message ?? "Elegí al menos una franja disponible."}
@@ -182,7 +217,7 @@ export function OrganizerRegistrationForm({
 
             <Button type="submit" disabled={isPending}>
               {isPending ? <Spinner /> : null}
-              Inscribir y aprobar
+              {isPadel ? "Inscribir pareja" : "Inscribir y aprobar"}
             </Button>
           </form>
         )}

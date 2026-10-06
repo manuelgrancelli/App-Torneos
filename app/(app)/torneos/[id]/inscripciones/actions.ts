@@ -45,9 +45,14 @@ export const fillTestTeamSlots = createAction(
 export const createOrganizerTeam = createAction(
   organizerCreateTeamSchema,
   async ({ tournamentId, teamName, playerNames, slotIds }, { supabase }) => {
+    const finalTeamName =
+      teamName && teamName.trim().length > 0
+        ? teamName.trim()
+        : playerNames.map((p) => p.trim()).filter(Boolean).join(" / ");
+
     const { error } = await supabase.rpc("create_organizer_team", {
       p_tournament_id: tournamentId,
-      p_team_name: teamName,
+      p_team_name: finalTeamName,
       p_player_names: playerNames,
       p_slot_ids: slotIds,
     });
@@ -55,6 +60,6 @@ export const createOrganizerTeam = createAction(
 
     revalidatePath(`/torneos/${tournamentId}`, "layout");
     refreshPublicTournament(tournamentId);
-    return actionOk(undefined, "Inscribimos y aprobamos el equipo.");
+    return actionOk(undefined, "Inscripción cargada y aprobada.");
   },
 );

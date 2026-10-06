@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { BracketGenerator } from "@/components/bracket/bracket-generator";
 import { BracketView } from "@/components/bracket/bracket-view";
 import { MatchesBoard } from "@/components/matches/matches-board";
+import { SimulateResultsButton } from "@/components/matches/simulate-results-button";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
   buildBoardMatches,
@@ -67,6 +68,17 @@ export default async function BracketPage({ params }: PageProps<"/torneos/[id]/c
 
       {playoffMatches.length > 0 ? (
         <>
+          {tournament.isTest && tournament.status === "playoffs" && !champion ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-primary/40 bg-muted/30 p-3.5">
+              <p className="text-xs text-muted-foreground">
+                <strong className="text-foreground">Modo prueba:</strong> podés simular automáticamente los cruces de playoffs hasta la final para coronar al campeón.
+              </p>
+              <SimulateResultsButton
+                tournamentId={tournament.id}
+                label="Simular playoffs completos"
+              />
+            </div>
+          ) : null}
           <section aria-labelledby="cuadro" className="space-y-3">
             <h2 id="cuadro" className="text-lg font-semibold">
               Cuadro

@@ -6,6 +6,8 @@ import { listTournamentTeams } from "@/lib/data/teams";
 import { getCourtsAndSlots } from "@/lib/data/tournaments";
 import { approvedTeamsLabel } from "@/lib/domain/tournament-status";
 
+import Link from "next/link";
+
 export const metadata: Metadata = { title: "Inscripciones" };
 
 const FILTERS = ["all", "pending", "approved", "rejected"] as const;
@@ -30,11 +32,19 @@ export default async function RegistrationsPage({ params, searchParams }: PagePr
       {tournament.status === "registration_open" ? (
         <OrganizerRegistrationForm
           tournamentId={tournament.id}
+          sportId={tournament.sport.id}
           timezone={tournament.timezone}
           teamSize={tournament.sport.min_team_size}
           slots={slots}
           courts={courts}
         />
+      ) : tournament.status === "draft" ? (
+        <div className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+          Este torneo está en <strong>Borrador</strong>. Para poder inscribir parejas y recibir participantes, primero abrí la inscripción desde el{" "}
+          <Link href={`/torneos/${tournament.id}`} className="font-medium underline text-foreground">
+            Resumen
+          </Link>.
+        </div>
       ) : null}
       <p className="text-sm text-muted-foreground">
         {approved} de {tournament.maxTeams} {approvedTeamsLabel(tournament.sport.min_team_size)}.

@@ -43,19 +43,40 @@ export const reviewRegistrationSchema = z.object({
 
 export const tournamentRegistrationActionSchema = z.object({ tournamentId: z.uuid() });
 
-export const organizerCreateTeamSchema = z.object({
-  tournamentId: z.uuid(),
-  teamName: teamNameSchema,
-  playerNames: z
-    .array(z.string().trim().min(1, { error: "Ingresá el nombre de cada integrante." }).max(80))
-    .min(1)
-    .max(60),
-  slotIds: z
-    .array(z.uuid())
-    .min(1, { error: "Elegí al menos una franja disponible." })
-    .max(1000)
-    .refine((slotIds) => new Set(slotIds).size === slotIds.length, { error: "Hay franjas repetidas." }),
-});
+export const organizerCreateTeamSchema = z
+  .object({
+    tournamentId: z.uuid(),
+    teamName: z.string().trim().max(60, { error: "Usá como máximo 60 caracteres." }).optional(),
+    playerNames: z
+      .array(z.string().trim().min(1, { error: "Ingresá el nombre de cada jugador." }).max(80))
+      .min(1)
+      .max(60),
+    slotIds: z
+      .array(z.uuid())
+      .min(1, { error: "Elegí al menos una franja disponible." })
+      .max(1000)
+      .refine((slotIds) => new Set(slotIds).size === slotIds.length, { error: "Hay franjas repetidas." }),
+  })
+  .superRefine((data, ctx) => {
+    const effectiveTeamName =
+      data.teamName && data.teamName.trim().length > 0
+        ? data.teamName.trim()
+        : data.playerNames.map((p) => p.trim()).filter(Boolean).join(" / ");
+
+    if (effectiveTeamName.length < 2) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "El nombre debe tener al menos 2 caracteres.",
+        path: data.teamName !== undefined && data.teamName.trim().length > 0 ? ["teamName"] : ["playerNames"],
+      });
+    } else if (effectiveTeamName.length > 60) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "El nombre no puede superar los 60 caracteres.",
+        path: data.teamName !== undefined && data.teamName.trim().length > 0 ? ["teamName"] : ["playerNames"],
+      });
+    }
+  });
 
 export type RegisterTeamInput = z.input<typeof registerTeamSchema>;
 export type UpdateRosterInput = z.input<typeof updateRosterSchema>;

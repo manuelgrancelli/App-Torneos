@@ -2,6 +2,7 @@ import { CalendarRange } from "lucide-react";
 import type { Metadata } from "next";
 import { AutoScheduleDialog } from "@/components/matches/auto-schedule-dialog";
 import { MatchesBoard } from "@/components/matches/matches-board";
+import { SimulateResultsButton } from "@/components/matches/simulate-results-button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { buildBoardMatches } from "@/lib/competition-view";
 import { getCompetition, getSchedulingData } from "@/lib/data/competition";
@@ -47,10 +48,18 @@ export default async function MatchesPage({ params }: PageProps<"/torneos/[id]/p
             : `${pending.length} partidos sin resultado · ${unscheduled.length} sin horario.`}
         </p>
         {canEdit && pending.length > 0 ? (
-          <AutoScheduleDialog
-            tournamentId={tournament.id}
-            matchLabels={Object.fromEntries(board.map((m) => [m.id, `${m.homeName} vs ${m.awayName}`]))}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            {tournament.isTest ? (
+              <SimulateResultsButton
+                tournamentId={tournament.id}
+                label={tournament.status === "group_stage" ? "Simular fase de grupos" : "Simular resultados"}
+              />
+            ) : null}
+            <AutoScheduleDialog
+              tournamentId={tournament.id}
+              matchLabels={Object.fromEntries(board.map((m) => [m.id, `${m.homeName} vs ${m.awayName}`]))}
+            />
+          </div>
         ) : null}
       </div>
       <MatchesBoard

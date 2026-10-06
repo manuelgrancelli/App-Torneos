@@ -5,7 +5,26 @@ export type Database = {
   
   "public": {
           Tables: {
-            "courts": {
+            "circuits": {
+                  Row: {
+                    "created_at": string,"description": string | null,"id": string,"name": string,"organizer_id": string,"points_config": NonNullable<Json>,"slug": string,"sport_id": string,"updated_at": string,"year": number
+                  }
+                  Insert: {
+                    "created_at"?: string,"description"?: string | null,"id"?: string,"name": string,"organizer_id": string,"points_config": NonNullable<Json>,"slug": string,"sport_id": string,"updated_at"?: string,"year"?: number
+                  }
+                  Update: {
+                    "created_at"?: string,"description"?: string | null,"id"?: string,"name"?: string,"organizer_id"?: string,"points_config"?: NonNullable<Json>,"slug"?: string,"sport_id"?: string,"updated_at"?: string,"year"?: number
+                  }
+                  Relationships: [
+                    {
+                      foreignKeyName: "circuits_sport_id_fkey"
+                      columns: ["sport_id"]
+                      isOneToOne: false
+                      referencedRelation: "sports"
+                      referencedColumns: ["id"]
+                    }
+                  ]
+                },"courts": {
                   Row: {
                     "created_at": string,"id": string,"name": string,"position": number,"tournament_id": string,"venue": string | null
                   }
@@ -356,13 +375,13 @@ isOneToOne: true
                   ]
                 },"tournaments": {
                   Row: {
-                    "champion_team_id": string | null,"created_at": string,"description": string | null,"ends_on": string,"id": string,"is_test": boolean,"max_teams": number,"name": string,"organizer_id": string,"playoff_config": NonNullable<Json>,"results_require_confirmation": boolean,"scoring_config": NonNullable<Json>,"slug": string,"sport_id": string,"standings_config": NonNullable<Json>,"starts_on": string,"status": Database["public"]['Enums']["tournament_status"],"timezone": string,"updated_at": string
+                    "champion_team_id": string | null,"circuit_id": string | null,"circuit_order": number | null,"created_at": string,"description": string | null,"ends_on": string,"id": string,"is_test": boolean,"max_teams": number,"name": string,"organizer_id": string,"playoff_config": NonNullable<Json>,"results_require_confirmation": boolean,"scoring_config": NonNullable<Json>,"slug": string,"sport_id": string,"standings_config": NonNullable<Json>,"starts_on": string,"status": Database["public"]['Enums']["tournament_status"],"timezone": string,"updated_at": string
                   }
                   Insert: {
-                    "champion_team_id"?: string | null,"created_at"?: string,"description"?: string | null,"ends_on": string,"id"?: string,"is_test"?: boolean,"max_teams": number,"name": string,"organizer_id": string,"playoff_config"?: NonNullable<Json>,"results_require_confirmation"?: boolean,"scoring_config": NonNullable<Json>,"slug": string,"sport_id": string,"standings_config": NonNullable<Json>,"starts_on": string,"status"?: Database["public"]['Enums']["tournament_status"],"timezone"?: string,"updated_at"?: string
+                    "champion_team_id"?: string | null,"circuit_id"?: string | null,"circuit_order"?: number | null,"created_at"?: string,"description"?: string | null,"ends_on": string,"id"?: string,"is_test"?: boolean,"max_teams": number,"name": string,"organizer_id": string,"playoff_config"?: NonNullable<Json>,"results_require_confirmation"?: boolean,"scoring_config": NonNullable<Json>,"slug": string,"sport_id": string,"standings_config": NonNullable<Json>,"starts_on": string,"status"?: Database["public"]['Enums']["tournament_status"],"timezone"?: string,"updated_at"?: string
                   }
                   Update: {
-                    "champion_team_id"?: string | null,"created_at"?: string,"description"?: string | null,"ends_on"?: string,"id"?: string,"is_test"?: boolean,"max_teams"?: number,"name"?: string,"organizer_id"?: string,"playoff_config"?: NonNullable<Json>,"results_require_confirmation"?: boolean,"scoring_config"?: NonNullable<Json>,"slug"?: string,"sport_id"?: string,"standings_config"?: NonNullable<Json>,"starts_on"?: string,"status"?: Database["public"]['Enums']["tournament_status"],"timezone"?: string,"updated_at"?: string
+                    "champion_team_id"?: string | null,"circuit_id"?: string | null,"circuit_order"?: number | null,"created_at"?: string,"description"?: string | null,"ends_on"?: string,"id"?: string,"is_test"?: boolean,"max_teams"?: number,"name"?: string,"organizer_id"?: string,"playoff_config"?: NonNullable<Json>,"results_require_confirmation"?: boolean,"scoring_config"?: NonNullable<Json>,"slug"?: string,"sport_id"?: string,"standings_config"?: NonNullable<Json>,"starts_on"?: string,"status"?: Database["public"]['Enums']["tournament_status"],"timezone"?: string,"updated_at"?: string
                   }
                   Relationships: [
                     {

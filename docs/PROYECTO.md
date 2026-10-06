@@ -701,3 +701,27 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
   - **Migración de base de datos:** `supabase/migrations/20261005000100_supertiebreak_config.sql` actualiza los deportes del catálogo (`public.sports`) con los nuevos defaults.
 - **Motivo:** requerimiento de torneos reales de pádel donde habitualmente se juega a super tie-break a 11 puntos hasta cuartos de final, pasando a 3 sets normales a partir de semifinales.
 - **Cómo aplicar:** siempre pasar el contexto de etapa (`round`, `totalRounds`, `isThirdPlace`) al evaluar resultados o renderizar campos de sets en torneos con formato `super_tiebreak`.
+
+### D-050 — Circuitos y torneos por fechas con ranking individual acumulado (2026-10-06)
+- **Decisión:**
+  - Nueva entidad `public.circuits` que permite agrupar torneos ("fechas") en un circuito o torneo anual y consolidar un ranking individual acumulado.
+  - El organizador define una escala de puntuación personalizable por ronda alcanzada (`points_config`: Campeón, Subcampeón, Semifinales, Cuartos, Octavos, 16avos y Grupos).
+  - Cada fecha es un torneo con fixture, grupos y playoffs que se vincula al circuito mediante `circuit_id` y `circuit_order`.
+  - El ranking general consolida los puntos individuales de cada jugador (identificado por usuario o nombre), permitiendo que compitan con parejas distintas en cada fecha.
+  - Los puntos se calculan automáticamente a partir de la fase eliminatoria máxima alcanzada por su equipo en cada fecha.
+  - La tabla general ordena por puntos totales, títulos ganados, fechas jugadas y orden alfabético.
+- **Motivo:** soporte para circuitos anuales y ligas multifecha donde los jugadores rotan de compañero pero acumulan puntos en una tabla general.
+- **Cómo aplicar:**
+  - Aplicar `20261006000100_circuits.sql` en la base de datos Supabase.
+  - El organizador gestiona sus circuitos desde la nueva sección **Circuitos** o desde el acceso directo en **Mis torneos**.
+
+### D-051 — Simulación de resultados para torneos privados de prueba (2026-10-06)
+- **Decisión:**
+  - En torneos creados con el modo privado de prueba (`is_test = true`), el organizador puede simular resultados automáticamente con un solo clic.
+  - La función `generateSimulatedMatchResult` (`lib/domain/scoring.ts`) genera marcadores válidos y realistas según el sistema de puntuación del torneo (sets con games o super tie-break; o goles de fútbol).
+  - En fase de grupos: la acción `simulateTournamentResults` simula los partidos pendientes y actualiza la tabla de posiciones del grupo.
+  - En playoffs: simula iterativamente ronda por ronda, propagando los ganadores en el cuadro hasta completar la final y coronar al campeón.
+  - Se restringe estrictamente a torneos privados de prueba en el backend; en torneos reales no se permite simulación para preservar la integridad de los resultados oficiales.
+- **Motivo:** agilizar enormemente las pruebas del organizador (fixture, clasificaciones a playoffs, cuadro y acumulación de rankings en circuitos) sin necesidad de cargar decenas de resultados a mano.
+- **Cómo aplicar:** en la pantalla de Partidos o Cuadro de un torneo privado de prueba, usar el botón **Simular resultados** / **Simular playoffs completos**.
+

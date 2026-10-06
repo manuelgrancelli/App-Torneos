@@ -8,6 +8,7 @@ import type { Database } from "./database.types";
 /** Rutas que requieren sesión. El layout de (app) vuelve a chequearlo (defensa en profundidad). */
 const PROTECTED_PREFIXES = [
   "/torneos",
+  "/circuitos",
   "/unirse",
   "/inscripciones",
   "/historial",

@@ -229,3 +229,18 @@ describe("resultTotals y formatResult", () => {
     expect(formatResult({ type: "goals", home: 1, away: 0 })).toBe("1-0");
   });
 });
+
+describe("generateSimulatedMatchResult", () => {
+  it("genera resultados válidos evaluables por evaluateResult", async () => {
+    const { generateSimulatedMatchResult } = await import("./scoring");
+    for (let i = 0; i < 20; i++) {
+      const { result, winner } = generateSimulatedMatchResult(padel, { stage: "group" });
+      const evaluation = evaluateResult(padel, result, { stage: "group" });
+      expect(evaluation.ok).toBe(true);
+      if (evaluation.ok) {
+        expect(evaluation.winner).toBe(winner);
+      }
+    }
+  });
+});
+

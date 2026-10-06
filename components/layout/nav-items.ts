@@ -1,4 +1,4 @@
-import { CalendarClock, History, Trophy, UserRound, type LucideIcon } from "lucide-react";
+import { CalendarClock, History, Layers, Trophy, UserRound, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -9,6 +9,7 @@ export type NavItem = {
 /** Secciones principales del área privada (header en desktop, barra inferior en mobile). */
 export const NAV_ITEMS: NavItem[] = [
   { href: "/torneos", label: "Torneos", icon: Trophy },
+  { href: "/circuitos", label: "Circuitos", icon: Layers },
   { href: "/proximos", label: "Próximos", icon: CalendarClock },
   { href: "/historial", label: "Historial", icon: History },
   { href: "/perfil", label: "Perfil", icon: UserRound },

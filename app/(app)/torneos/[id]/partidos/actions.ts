@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { actionError, actionOk, createAction } from "@/lib/actions/safe-action";
 import { refreshPublicTournament } from "@/lib/public-cache";
+import { z } from "zod";
 import {
   type MatchResult,
   type ScoringConfig,
   evaluateResult,
+  generateSimulatedMatchResult,
   scoringConfigSchema,
   walkoverResult,
 } from "@/lib/domain/scoring";
@@ -154,3 +156,127 @@ export const confirmResult = createAction(matchActionSchema, async ({ tournament
   revalidate(tournamentId);
   return actionOk(undefined, "Resultado confirmado.");
 });
+
+/**
+ * Simula resultados automáticos válidos para todos los partidos pendientes.
+ * Disponible exclusivamente para torneos privados de prueba (is_test: true).
+ */
+export const simulateTournamentResults = createAction(
+  z.object({ tournamentId: z.uuid() }),
+  async ({ tournamentId }, { supabase, userId }) => {
+    const { data: tournament, error: tourError } = await supabase
+      .from("tournaments")
+      .select("id, status, is_test, scoring_config")
+      .eq("id", tournamentId)
+      .eq("organizer_id", userId)
+      .maybeSingle();
+
+    if (tourError) return actionError(dbErrorMessage(tourError));
+    if (!tournament) return actionError("No encontramos el torneo.");
+    if (!tournament.is_test) {
+      return actionError("La simulación de resultados solo está disponible en torneos privados de prueba.");
+    }
+    if (tournament.status !== "group_stage" && tournament.status !== "playoffs") {
+      return actionError("Solo se pueden simular resultados en fase de grupos o playoffs.");
+    }
+
+    const parsedConfig = scoringConfigSchema.safeParse(tournament.scoring_config);
+    if (!parsedConfig.success) return actionError("Configuración de puntuación inválida.");
+    const scoringConfig = parsedConfig.data;
+
+    let simulatedCount = 0;
+
+    if (tournament.status === "group_stage") {
+      const { data: matches, error: matchError } = await supabase
+        .from("matches")
+        .select("id, stage, round, home_team_id, away_team_id")
+        .eq("tournament_id", tournamentId)
+        .eq("stage", "group")
+        .is("result_status", null);
+
+      if (matchError) return actionError(dbErrorMessage(matchError));
+
+      const pending = (matches ?? []).filter((m) => m.home_team_id && m.away_team_id);
+      for (const match of pending) {
+        const { result, winner } = generateSimulatedMatchResult(scoringConfig, { stage: "group" });
+        const winnerTeamId = winner === "home" ? match.home_team_id : match.away_team_id;
+
+        const { error } = await supabase.rpc("record_match_result", {
+          p_match_id: match.id,
+          p_result: result,
+          p_winner_team_id: winnerTeamId as string,
+          p_is_draw: false,
+          p_is_walkover: false,
+        });
+        if (error) return actionError(dbErrorMessage(error));
+        simulatedCount++;
+      }
+
+      revalidate(tournamentId);
+      return actionOk(
+        { count: simulatedCount },
+        `Simulamos los resultados de ${simulatedCount} ${simulatedCount === 1 ? "partido" : "partidos"} de la fase de grupos.`,
+      );
+    }
+
+    if (tournament.status === "playoffs") {
+      const { data: maxRoundMatch } = await supabase
+        .from("matches")
+        .select("round")
+        .eq("tournament_id", tournamentId)
+        .eq("stage", "playoff")
+        .order("round", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const totalRounds = maxRoundMatch?.round ?? 1;
+
+      for (let iteration = 0; iteration < 10; iteration++) {
+        const { data: matches, error: matchError } = await supabase
+          .from("matches")
+          .select("id, stage, round, is_third_place, is_bye, home_team_id, away_team_id")
+          .eq("tournament_id", tournamentId)
+          .eq("stage", "playoff")
+          .is("result_status", null);
+
+        if (matchError) return actionError(dbErrorMessage(matchError));
+
+        const playable = (matches ?? []).filter(
+          (m) => !m.is_bye && m.home_team_id && m.away_team_id,
+        );
+
+        if (playable.length === 0) break;
+
+        for (const match of playable) {
+          const matchContext = {
+            stage: "playoff" as const,
+            round: match.round,
+            totalRounds,
+            isThirdPlace: Boolean(match.is_third_place),
+          };
+          const { result, winner } = generateSimulatedMatchResult(scoringConfig, matchContext);
+          const winnerTeamId = winner === "home" ? match.home_team_id : match.away_team_id;
+
+          const { error } = await supabase.rpc("record_match_result", {
+            p_match_id: match.id,
+            p_result: result,
+            p_winner_team_id: winnerTeamId as string,
+            p_is_draw: false,
+            p_is_walkover: false,
+          });
+          if (error) return actionError(dbErrorMessage(error));
+          simulatedCount++;
+        }
+      }
+
+      revalidate(tournamentId);
+      return actionOk(
+        { count: simulatedCount },
+        `Simulamos los resultados de los playoffs (${simulatedCount} ${simulatedCount === 1 ? "partido" : "partidos"}).`,
+      );
+    }
+
+    return actionOk({ count: 0 }, "No había partidos pendientes para simular.");
+  },
+);
+

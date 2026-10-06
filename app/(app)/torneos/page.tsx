@@ -27,12 +27,19 @@ export default async function TournamentsPage() {
         title="Mis torneos"
         description="Los torneos que organizás y en los que jugás."
         actions={
-          <Button asChild>
-            <Link href="/torneos/nuevo">
-              <Plus aria-hidden="true" />
-              Crear torneo
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="outline">
+              <Link href="/circuitos">
+                Circuitos anuales
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/torneos/nuevo">
+                <Plus aria-hidden="true" />
+                Crear torneo
+              </Link>
+            </Button>
+          </div>
         }
       />
 

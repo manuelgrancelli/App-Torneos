@@ -359,3 +359,87 @@ export function formatResult(result: MatchResult): string {
   }
   return result.sets.map(formatSet).join(" ");
 }
+
+/**
+ * Genera un resultado aleatorio válido y realista según la configuración
+ * del deporte y el contexto del partido (fase de grupos o playoffs).
+ * Usado exclusivamente para simulaciones en torneos privados de prueba.
+ */
+export function generateSimulatedMatchResult(
+  config: ScoringConfig,
+  context?: MatchStageContext,
+): { result: MatchResult; winner: Side } {
+  const winner: Side = Math.random() < 0.5 ? "home" : "away";
+
+  if (config.type === "goals") {
+    let home = Math.floor(Math.random() * 3);
+    let away = Math.floor(Math.random() * 3);
+
+    if (context?.stage === "playoff") {
+      if (home === away) {
+        if (winner === "home") home += 1;
+        else away += 1;
+      }
+    } else {
+      if (winner === "home" && home <= away) home = away + 1;
+      else if (winner === "away" && away <= home) away = home + 1;
+    }
+
+    return {
+      result: { type: "goals", home, away },
+      winner: home > away ? "home" : "away",
+    };
+  }
+
+  const targetSets = setsToWin(config);
+  const sets: SetScore[] = [];
+  const needsThirdSet = config.bestOf >= 3 && Math.random() < 0.35;
+
+  const g = config.gamesPerSet;
+  const standardLosingGames = [g - 2, g - 3, g - 4].filter((x) => x >= 0);
+  const randomLosing = () =>
+    standardLosingGames[Math.floor(Math.random() * standardLosingGames.length)] ?? 2;
+
+  if (needsThirdSet && targetSets === 2) {
+    sets.push(
+      winner === "home"
+        ? { home: g, away: randomLosing() }
+        : { home: randomLosing(), away: g },
+    );
+    sets.push(
+      winner === "home"
+        ? { home: randomLosing(), away: g }
+        : { home: g, away: randomLosing() },
+    );
+
+    if (isSuperTiebreakMatch(config, context)) {
+      const tbPoints = config.superTiebreakPoints ?? 11;
+      const losingTbPoints = Math.max(0, tbPoints - Math.floor(Math.random() * 4 + 2));
+      sets.push(
+        winner === "home"
+          ? { home: tbPoints, away: losingTbPoints }
+          : { home: losingTbPoints, away: tbPoints },
+      );
+    } else {
+      sets.push(
+        winner === "home"
+          ? { home: g, away: randomLosing() }
+          : { home: randomLosing(), away: g },
+      );
+    }
+  } else {
+    for (let i = 0; i < targetSets; i++) {
+      sets.push(
+        winner === "home"
+          ? { home: g, away: randomLosing() }
+          : { home: randomLosing(), away: g },
+      );
+    }
+  }
+
+  return {
+    result: { type: "sets", sets },
+    winner,
+  };
+}
+
