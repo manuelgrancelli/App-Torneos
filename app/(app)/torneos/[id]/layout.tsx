@@ -1,6 +1,6 @@
 import { CalendarDays } from "lucide-react";
 import { PublicPageLink } from "@/components/tournaments/public-page-link";
-import { StatusBadge } from "@/components/tournaments/status-badge";
+import { StatusBadge, SportBadge } from "@/components/tournaments/status-badge";
 import { buildPhaseGuide } from "@/components/tournaments/phase-guide-model";
 import { type NavGroupKey, TournamentNav } from "@/components/tournaments/tournament-nav";
 import { TournamentProgress } from "@/components/tournaments/tournament-progress";
@@ -36,10 +36,10 @@ export default async function TournamentPanelLayout({ children, params }: Layout
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{tournament.name}</h1>
+            <SportBadge sport={tournament.sport.name} />
             <StatusBadge status={tournament.status} />
           </div>
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-            <span>{tournament.sport.name}</span>
             <span className="inline-flex items-center gap-1">
               <CalendarDays className="size-4" aria-hidden="true" />
               {formatDateRange(tournament.startsOn, tournament.endsOn)}

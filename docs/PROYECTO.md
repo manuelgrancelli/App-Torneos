@@ -783,3 +783,11 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
   - Animación: haz de luz blanco diagonal (`animate-trophy-shine`) que recorre la copa periódicamente cada 3.2s, con soporte para `prefers-reduced-motion`.
   - Integrado de forma unificada en `AppHeader`, `AuthLayout`, `PublicLayout` y `HomePage`.
 - **Motivo:** elevar la presencia visual y estética premium del logotipo en toda la plataforma.
+
+### D-057 — Etiquetas visuales de deporte con emoji identificatorio (2026-10-06)
+- **Decisión:**
+  - Se crea el componente `SportBadge` (`components/tournaments/sport-badge.tsx`) para mostrar el deporte como una insignia destacada con su emoji correspondiente (🎾 para pádel y tenis, ⚽ para fútbol, 🏀 para básquetbol, 🏐 para vóley, 🏑 para hockey, etc.).
+  - Estilos temáticos sutiles por deporte con buen contraste tanto en tema claro como oscuro (dark mode).
+  - Integrado en las tarjetas de torneos del organizador y del jugador (`OrganizedTournamentCard`, `ParticipationCard`), encabezado del panel de administración (`/torneos/[id]`), vista pública del torneo (`/t/[slug]`), detalle de inscripción (`/inscripciones/[teamId]`) y tarjetas/detalle de circuitos.
+- **Motivo:** reemplazar el texto plano secundario por una etiqueta visual distintiva análoga a las etiquetas de estado del torneo.
+

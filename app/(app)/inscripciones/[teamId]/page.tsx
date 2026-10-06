@@ -7,7 +7,7 @@ import { MyMatches } from "@/components/matches/my-matches";
 import { SendTeamInvitationButton } from "@/components/registration/send-team-invitation-button";
 import { TeamActions } from "@/components/registration/team-actions";
 import { PublicPageLink } from "@/components/tournaments/public-page-link";
-import { StatusBadge, TeamStatusBadge } from "@/components/tournaments/status-badge";
+import { StatusBadge, TeamStatusBadge, SportBadge } from "@/components/tournaments/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth";
@@ -48,9 +48,10 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <p className="text-sm text-muted-foreground">
-          {tournament.name} · {tournament.sportName}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-foreground">{tournament.name}</span>
+          <SportBadge sport={tournament.sportName} />
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">{team.name}</h1>
           <TeamStatusBadge status={team.status} />

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { CircuitTabsView } from "@/components/circuits/circuit-tabs-view";
 import { DeleteCircuitButton } from "@/components/circuits/delete-circuit-button";
 import { PageHeader } from "@/components/shared/page-header";
+import { SportBadge } from "@/components/tournaments/sport-badge";
 import { Badge } from "@/components/ui/badge";
 import { getCurrentUser } from "@/lib/auth";
 import {
@@ -40,8 +41,9 @@ export default async function CircuitDetailPage({ params }: PageProps<"/circuito
         description={circuit.description ?? "Circuito deportivo por fechas con ranking individual consolidado."}
         actions={
           <div className="flex items-center gap-2">
+            <SportBadge sport={circuit.sportName} />
             <Badge variant="outline" className="text-xs">
-              {circuit.sportName} • {circuit.year}
+              Año {circuit.year}
             </Badge>
             <DeleteCircuitButton circuitId={circuit.id} circuitName={circuit.name} />
           </div>

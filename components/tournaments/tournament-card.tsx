@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { ParticipationItem, TournamentListItem } from "@/lib/data/tournaments";
 import { formatDateRange } from "@/lib/dates";
 import { approvedTeamsLabel } from "@/lib/domain/tournament-status";
-import { StatusBadge, TeamStatusBadge } from "./status-badge";
+import { StatusBadge, TeamStatusBadge, SportBadge } from "./status-badge";
 
 const cardClass =
   "group flex items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -15,10 +15,10 @@ export function OrganizedTournamentCard({ tournament }: { tournament: Tournament
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="truncate font-medium">{tournament.name}</h3>
+          <SportBadge sport={tournament.sportName} />
           <StatusBadge status={tournament.status} />
           {tournament.isTest ? <span className="rounded-full bg-muted px-2 py-0.5 text-xs">Prueba privada</span> : null}
         </div>
-        <p className="text-sm text-muted-foreground">{tournament.sportName}</p>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <CalendarDays className="size-4" aria-hidden="true" />
@@ -44,10 +44,11 @@ export function ParticipationCard({ participation }: { participation: Participat
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="truncate font-medium">{tournament.name}</h3>
+          <SportBadge sport={tournament.sportName} />
           <StatusBadge status={tournament.status} />
         </div>
         <p className="text-sm text-muted-foreground">
-          {tournament.sportName} · {participation.teamName}
+          Equipo: <span className="font-medium text-foreground">{participation.teamName}</span>
         </p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-1">

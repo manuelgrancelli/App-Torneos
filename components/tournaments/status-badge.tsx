@@ -32,3 +32,6 @@ export function TeamStatusBadge({ status }: { status: "pending" | "approved" | "
     </Badge>
   );
 }
+
+export { SportBadge, getSportEmoji } from "./sport-badge";
+

@@ -6,7 +6,7 @@ import { StandingsTable } from "@/components/groups/standings-table";
 import { type FixtureItem, PublicFixture } from "@/components/public/public-fixture";
 import { ViewTabs } from "@/components/public/view-tabs";
 import { EmptyState } from "@/components/shared/empty-state";
-import { StatusBadge } from "@/components/tournaments/status-badge";
+import { StatusBadge, SportBadge } from "@/components/tournaments/status-badge";
 import { cardsFromMatches, groupStandings, matchStageLabel, playoffRoundCount, resultLabel } from "@/lib/competition-view";
 import { type PublicTournament, getPublicTournament, getPublicTournamentId } from "@/lib/data/public";
 import { formatDateRange, groupByLocalDay } from "@/lib/dates";
@@ -78,8 +78,8 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
     <article className="space-y-6">
       <header className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
+          <SportBadge sport={tournament.sportName} />
           <StatusBadge status={tournament.status} />
-          <span className="text-sm text-muted-foreground">{tournament.sportName}</span>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{tournament.name}</h1>
         <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">

@@ -1,7 +1,7 @@
 import { Calendar, Layers, Trophy } from "lucide-react";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SportBadge } from "@/components/tournaments/sport-badge";
 import type { CircuitListItem } from "@/lib/data/circuits";
 
 export function CircuitCard({ circuit }: { circuit: CircuitListItem }) {
@@ -9,9 +9,7 @@ export function CircuitCard({ circuit }: { circuit: CircuitListItem }) {
     <Card className="transition-all hover:border-foreground/30 hover:shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Badge variant="secondary" className="font-medium">
-            {circuit.sportName}
-          </Badge>
+          <SportBadge sport={circuit.sportName} />
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <Calendar className="size-3.5" aria-hidden="true" />
             Año {circuit.year}
