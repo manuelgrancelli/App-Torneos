@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { isNavItemActive, NAV_ITEMS } from "./nav-items";
+import { isNavItemActive, MAIN_NAV_ITEMS } from "./nav-items";
 
 /** Navegación principal en el header (solo desktop). */
 export function MainNav({ className }: { className?: string }) {
@@ -11,7 +11,7 @@ export function MainNav({ className }: { className?: string }) {
 
   return (
     <nav aria-label="Secciones" className={cn("items-center gap-1", className)}>
-      {NAV_ITEMS.map((item) => {
+      {MAIN_NAV_ITEMS.map((item) => {
         const active = isNavItemActive(pathname, item.href);
         return (
           <Link

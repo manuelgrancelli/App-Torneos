@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { isNavItemActive, NAV_ITEMS } from "./nav-items";
+import { BOTTOM_NAV_ITEMS, isNavItemActive } from "./nav-items";
 
 /**
  * Barra de navegación inferior para mobile. Respeta el área segura de iOS
@@ -18,7 +18,7 @@ export function BottomNav() {
       className="fixed inset-x-0 bottom-0 z-40 border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
     >
       <ul className="grid grid-cols-4">
-        {NAV_ITEMS.map((item) => {
+        {BOTTOM_NAV_ITEMS.map((item) => {
           const active = isNavItemActive(pathname, item.href);
           const Icon = item.icon;
           return (

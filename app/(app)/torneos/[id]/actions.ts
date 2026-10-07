@@ -13,6 +13,7 @@ import {
   tournamentIdSchema,
   updateTournamentSchema,
 } from "@/lib/validation/tournament";
+import { ensurePlayoffBracket } from "./cuadro/actions";
 
 const NOT_FOUND = "No encontramos el torneo o no tenés permiso para modificarlo.";
 
@@ -92,6 +93,11 @@ export const changeTournamentStatus = createAction(changeStatusSchema, async (in
     p_champion_team_id: championTeamId,
   });
   if (error) return actionError(dbErrorMessage(error));
+
+  if (input.status === "playoffs") {
+    await ensurePlayoffBracket(supabase, input.tournamentId);
+  }
+
   revalidateTournament(input.tournamentId);
   return actionOk(undefined, "Actualizamos el estado del torneo.");
 });

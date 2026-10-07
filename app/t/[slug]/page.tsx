@@ -7,7 +7,15 @@ import { type FixtureItem, PublicFixture } from "@/components/public/public-fixt
 import { ViewTabs } from "@/components/public/view-tabs";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge, SportBadge } from "@/components/tournaments/status-badge";
-import { cardsFromMatches, groupStandings, matchStageLabel, playoffRoundCount, resultLabel } from "@/lib/competition-view";
+import {
+  buildProjectedBracket,
+  buildTeamSeedMap,
+  cardsFromMatches,
+  groupStandings,
+  matchStageLabel,
+  playoffRoundCount,
+  resultLabel,
+} from "@/lib/competition-view";
 import { type PublicTournament, getPublicTournament, getPublicTournamentId } from "@/lib/data/public";
 import { formatDateRange, groupByLocalDay } from "@/lib/dates";
 import { approvedTeamsLabel, teamNoun } from "@/lib/domain/tournament-status";
@@ -135,7 +143,44 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
           ) : null}
 
           {view === "cuadro" ? (
-            <BracketView cards={cardsFromMatches(playoffMatches, teamNames, courtNames)} timezone={timezone} />
+            playoffMatches.length > 0 ? (
+              <BracketView
+                cards={cardsFromMatches(
+                  playoffMatches,
+                  teamNames,
+                  courtNames,
+                  buildTeamSeedMap(
+                    tournament.competition.groups,
+                    tournament.competition.matches,
+                    tournament.scoringConfig,
+                    tournament.standingsConfig,
+                    tournament.playoffConfig.qualifiersPerGroup,
+                  ),
+                )}
+                timezone={timezone}
+              />
+            ) : tournament.competition.groups.length >= 2 ? (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Cuadro proyectado según las posiciones actuales de la fase de grupos.
+                </p>
+                <BracketView
+                  cards={
+                    buildProjectedBracket(
+                      tournament.competition.groups,
+                      tournament.competition.matches,
+                      tournament.scoringConfig,
+                      tournament.standingsConfig,
+                      tournament.playoffConfig,
+                      teamNames,
+                    ) ?? []
+                  }
+                  timezone={timezone}
+                />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">El cuadro de playoffs se definirá al armar los grupos.</p>
+            )
           ) : null}
         </div>
       )}

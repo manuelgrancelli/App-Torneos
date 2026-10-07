@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarPlus, Clock, Plus, Trash2 } from "lucide-react";
+import { CalendarPlus, ChevronDown, ChevronUp, Clock, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { CourtRow, SlotRow } from "@/lib/data/tournaments";
 import { formatDayHeading, formatInTimeZone, formatTimeRange, localDateKey } from "@/lib/dates";
+import { groupSlotsIntoDayWindows, type AvailabilityWindow } from "@/lib/domain/availability";
 import { generateSlots } from "@/lib/domain/slots";
 import { applyServerErrors } from "@/lib/forms";
 import { createSlotSchema, generateSlotsSchema } from "@/lib/validation/tournament";
@@ -185,7 +186,7 @@ function SlotGenerator({ tournamentId, days, courts }: Omit<SlotsManagerProps, "
             control={form.control}
             render={({ field }) => (
               <Field>
-                <FieldLabel htmlFor="gen-break">Pausa entre franjas</FieldLabel>
+                <FieldLabel htmlFor="gen-break">Pausa entre partidos</FieldLabel>
                 <NativeSelect
                   id="gen-break"
                   className="w-full"
@@ -215,9 +216,12 @@ function SlotGenerator({ tournamentId, days, courts }: Omit<SlotsManagerProps, "
             </Field>
           )}
         />
+        <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+          Definí el horario de la franja (ej. <strong>09:00 a 15:00</strong>) y la duración de cada partido. Las parejas elegirán la franja completa para indicar su disponibilidad, y el sistema dividirá el intervalo en turnos para programar los partidos.
+        </div>
         <Button type="submit" disabled={isPending || preview === 0}>
           {isPending ? <Spinner /> : <CalendarPlus aria-hidden="true" />}
-          {preview === 0 ? "Revisá el horario" : `Crear ${preview} ${preview === 1 ? "franja" : "franjas"}`}
+          {preview === 0 ? "Revisá el horario" : `Generar franja (${preview} ${preview === 1 ? "turno" : "turnos"})`}
         </Button>
       </FieldGroup>
     </form>
@@ -296,15 +300,25 @@ function SingleSlotForm({ tournamentId, days, courts }: Omit<SlotsManagerProps, 
 
 function SlotList({ tournamentId, timezone, courts, slots }: Omit<SlotsManagerProps, "days">) {
   const router = useRouter();
-  const courtName = new Map(courts.map((court) => [court.id, court.name]));
-  const byDay = new Map<string, SlotRow[]>();
-  for (const slot of slots) {
-    const key = localDateKey(slot.startsAt, timezone);
-    byDay.set(key, [...(byDay.get(key) ?? []), slot]);
+  const [expandedWindows, setExpandedWindows] = useState<Set<string>>(new Set());
+  const courtName = useMemo(() => new Map(courts.map((court) => [court.id, court.name])), [courts]);
+
+  const dayWindows = useMemo(
+    () => groupSlotsIntoDayWindows(slots, (slot) => localDateKey(slot.startsAt, timezone)),
+    [slots, timezone],
+  );
+
+  function toggleExpand(windowId: string) {
+    setExpandedWindows((prev) => {
+      const next = new Set(prev);
+      if (next.has(windowId)) next.delete(windowId);
+      else next.add(windowId);
+      return next;
+    });
   }
 
-  async function remove(slot: SlotRow) {
-    const result = await deleteTimeSlots({ tournamentId, slotIds: [slot.id] });
+  async function removeWindow(window: AvailabilityWindow<SlotRow>) {
+    const result = await deleteTimeSlots({ tournamentId, slotIds: window.slotIds });
     if (!result.ok) {
       toast.error(result.error);
       return false;
@@ -313,76 +327,180 @@ function SlotList({ tournamentId, timezone, courts, slots }: Omit<SlotsManagerPr
     router.refresh();
   }
 
+  async function removeSingleSlot(slot: SlotRow) {
+    const result = await deleteTimeSlots({ tournamentId, slotIds: [slot.id] });
+    if (!result.ok) {
+      toast.error(result.error);
+      return false;
+    }
+    toast.success(result.message ?? "Borramos el turno.");
+    router.refresh();
+  }
+
   if (slots.length === 0) {
     return (
       <EmptyState
         icon={Clock}
         title="Todavía no hay franjas"
-        description="Generalas en lote o agregalas de a una. Las parejas eligen en cuáles pueden jugar."
+        description="Generalas en lote indicando el horario (ej. 09:00 a 15:00). Las parejas eligen la franja completa en la que pueden jugar."
       />
     );
   }
 
   return (
-    <div className="space-y-5">
-      {[...byDay.entries()].map(([day, daySlots]) => (
-        <section key={day} aria-labelledby={`day-${day}`} className="space-y-2">
+    <div className="space-y-6">
+      {dayWindows.map(({ day, windows }) => (
+        <section key={day} aria-labelledby={`day-${day}`} className="space-y-3">
           <h3 id={`day-${day}`} className="text-sm font-semibold first-letter:uppercase">
-            {formatDayHeading(day)} <span className="font-normal text-muted-foreground">· {daySlots.length}</span>
+            {formatDayHeading(day)}{" "}
+            <span className="font-normal text-muted-foreground">
+              · {windows.length} {windows.length === 1 ? "franja" : "franjas"}
+            </span>
           </h3>
-          <ul className="divide-y rounded-lg border">
-            {daySlots.map((slot) => {
-              const time = formatTimeRange(slot.startsAt, slot.endsAt, timezone);
-              const inUse = slot.availableTeams > 0 || slot.assignedMatches > 0;
+          <div className="space-y-2">
+            {windows.map((window, index) => {
+              const time = formatTimeRange(window.startsAt, window.endsAt, timezone);
+              const label = windows.length > 1 ? `Franja ${index + 1}` : "Franja completa";
+              const isExpanded = expandedWindows.has(window.id);
+
+              const availableTeams = Math.max(...window.slots.map((s) => s.availableTeams), 0);
+              const assignedMatches = window.slots.reduce((acc, s) => acc + s.assignedMatches, 0);
+              const inUse = availableTeams > 0 || assignedMatches > 0;
+
+              const courtIds = new Set(window.slots.map((s) => s.courtId));
+              const courtLabel =
+                courtIds.size === 1
+                  ? [...courtIds][0]
+                    ? (courtName.get([...courtIds][0]!) ?? "Cancha")
+                    : "Cualquier cancha"
+                  : "Múltiples canchas";
+
               return (
-                <li key={slot.id} className="flex items-center gap-2 px-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium tabular-nums">{time}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {slot.courtId ? (courtName.get(slot.courtId) ?? "Cancha") : "Cualquier cancha"}
-                    </p>
+                <div key={window.id} className="rounded-lg border bg-card text-card-foreground shadow-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-3 sm:p-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs font-medium">
+                          {label}
+                        </Badge>
+                        <span className="text-base font-semibold tabular-nums">{time}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {courtLabel} · {window.slots.length} {window.slots.length === 1 ? "turno de partido" : "turnos de partido"}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div className="hidden flex-wrap justify-end gap-1 sm:flex">
+                        {availableTeams > 0 ? (
+                          <Badge variant="secondary">
+                            {availableTeams} {availableTeams === 1 ? "disponible" : "disponibles"}
+                          </Badge>
+                        ) : null}
+                        {assignedMatches > 0 ? (
+                          <Badge variant="secondary">
+                            {assignedMatches} {assignedMatches === 1 ? "partido" : "partidos"}
+                          </Badge>
+                        ) : null}
+                      </div>
+
+                      {window.slots.length > 1 ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleExpand(window.id)}
+                          className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                          aria-label={isExpanded ? "Ocultar turnos individuales" : "Ver turnos individuales"}
+                        >
+                          {isExpanded ? "Ocultar turnos" : `Ver turnos (${window.slots.length})`}
+                          {isExpanded ? (
+                            <ChevronUp className="ml-1 size-3.5" aria-hidden="true" />
+                          ) : (
+                            <ChevronDown className="ml-1 size-3.5" aria-hidden="true" />
+                          )}
+                        </Button>
+                      ) : null}
+
+                      <ConfirmActionButton
+                        variant="ghost"
+                        size="icon"
+                        destructive
+                        aria-label={`Borrar franja ${time}`}
+                        title="¿Borrar esta franja completa?"
+                        description={
+                          inUse ? (
+                            <>
+                              <p>
+                                {availableTeams > 0
+                                  ? `${availableTeams} inscripciones la marcaron como disponible y perderán esa marca.`
+                                  : null}
+                              </p>
+                              <p>{assignedMatches > 0 ? "Los partidos asignados quedan sin horario." : null}</p>
+                            </>
+                          ) : (
+                            <p>Se borrarán los {window.slots.length} turnos de este intervalo.</p>
+                          )
+                        }
+                        confirmLabel="Borrar franja completa"
+                        onConfirm={() => removeWindow(window)}
+                      >
+                        <Trash2 aria-hidden="true" />
+                      </ConfirmActionButton>
+                    </div>
                   </div>
-                  <div className="hidden flex-wrap justify-end gap-1 sm:flex">
-                    {slot.availableTeams > 0 ? (
-                      <Badge variant="secondary">
-                        {slot.availableTeams} {slot.availableTeams === 1 ? "disponible" : "disponibles"}
-                      </Badge>
-                    ) : null}
-                    {slot.assignedMatches > 0 ? (
-                      <Badge variant="secondary">
-                        {slot.assignedMatches} {slot.assignedMatches === 1 ? "partido" : "partidos"}
-                      </Badge>
-                    ) : null}
-                  </div>
-                  <ConfirmActionButton
-                    variant="ghost"
-                    size="icon"
-                    destructive
-                    aria-label={`Borrar franja ${time}`}
-                    title="¿Borrar esta franja?"
-                    description={
-                      inUse ? (
-                        <>
-                          <p>
-                            {slot.availableTeams > 0
-                              ? `${slot.availableTeams} inscripciones la marcaron como disponible y van a perder esa marca.`
-                              : null}
-                          </p>
-                          <p>{slot.assignedMatches > 0 ? "Los partidos asignados quedan sin horario." : null}</p>
-                        </>
-                      ) : (
-                        <p>Nadie la usa todavía.</p>
-                      )
-                    }
-                    confirmLabel="Borrar franja"
-                    onConfirm={() => remove(slot)}
-                  >
-                    <Trash2 aria-hidden="true" />
-                  </ConfirmActionButton>
-                </li>
+
+                  {isExpanded && window.slots.length > 1 ? (
+                    <div className="border-t bg-muted/30 px-3 py-2 sm:px-4">
+                      <p className="mb-2 text-xs font-medium text-muted-foreground">
+                        Turnos de partido generados dentro de la franja:
+                      </p>
+                      <ul className="divide-y rounded-md border bg-background text-xs">
+                        {window.slots.map((slot) => {
+                          const slotTime = formatTimeRange(slot.startsAt, slot.endsAt, timezone);
+                          const slotInUse = slot.availableTeams > 0 || slot.assignedMatches > 0;
+                          return (
+                            <li key={slot.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                              <div>
+                                <span className="font-medium tabular-nums">{slotTime}</span>
+                                <span className="ml-2 text-muted-foreground">
+                                  {slot.courtId ? (courtName.get(slot.courtId) ?? "Cancha") : "Cualquier cancha"}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {slot.assignedMatches > 0 ? (
+                                  <Badge variant="outline" className="text-[10px]">
+                                    {slot.assignedMatches} {slot.assignedMatches === 1 ? "partido" : "partidos"}
+                                  </Badge>
+                                ) : null}
+                                <ConfirmActionButton
+                                  variant="ghost"
+                                  size="icon"
+                                  destructive
+                                  className="size-7"
+                                  aria-label={`Borrar turno ${slotTime}`}
+                                  title="¿Borrar este turno individual?"
+                                  description={
+                                    slotInUse
+                                      ? "Puede afectar partidos asignados en este horario específico."
+                                      : "Se eliminará únicamente este turno."
+                                  }
+                                  confirmLabel="Borrar turno"
+                                  onConfirm={() => removeSingleSlot(slot)}
+                                >
+                                  <Trash2 className="size-3.5" aria-hidden="true" />
+                                </ConfirmActionButton>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
               );
             })}
-          </ul>
+          </div>
         </section>
       ))}
     </div>

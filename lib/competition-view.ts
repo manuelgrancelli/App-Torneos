@@ -1,5 +1,5 @@
 import type { ConfirmationView, GroupView, MatchView } from "@/lib/data/competition";
-import { type BracketPlan, type Qualifier, roundName } from "@/lib/domain/bracket";
+import { type BracketPlan, type Qualifier, buildBracket, roundName } from "@/lib/domain/bracket";
 import { type MatchResult, type ScoringConfig, formatResult } from "@/lib/domain/scoring";
 import { type StandingRow, type StandingsConfig, computeStandings } from "@/lib/domain/standings";
 
@@ -191,23 +191,38 @@ export function qualifiersFromStandings(
   );
 }
 
-/** Tarjeta de un partido en la vista del cuadro (preview o real). */
+/** Integrante o equipo en una tarjeta del cuadro. */
+export type BracketCardTeam = {
+  id?: string | null;
+  name: string;
+  winner: boolean;
+  seedBadge?: string | null;
+  isProvisional?: boolean;
+};
+
+/** Tarjeta de un partido en la vista del cuadro (preview, proyectado o real). */
 export type BracketCard = {
   key: string;
+  matchId?: string;
   round: number;
   position: number;
   isThirdPlace: boolean;
   isBye: boolean;
-  home: { name: string; winner: boolean } | null;
-  away: { name: string; winner: boolean } | null;
+  home: BracketCardTeam | null;
+  away: BracketCardTeam | null;
   resultText: string | null;
   startsAt: string | null;
   courtName: string | null;
+  homeTeamId?: string | null;
+  awayTeamId?: string | null;
+  result?: MatchResult | null;
+  isWalkover?: boolean;
+  canScore?: boolean;
 };
 
 /** Tarjetas a partir del plan calculado (vista previa antes de generar). */
 export function cardsFromPlan(plan: BracketPlan, teamNames: Map<string, string>): BracketCard[] {
-  const side = (teamId: string | null) =>
+  const side = (teamId: string | null): BracketCardTeam | null =>
     teamId ? { name: teamNames.get(teamId) ?? "Equipo", winner: false } : null;
   return plan.matches.map((m) => ({
     key: m.key,
@@ -220,22 +235,160 @@ export function cardsFromPlan(plan: BracketPlan, teamNames: Map<string, string>)
     resultText: null,
     startsAt: null,
     courtName: null,
+    canScore: false,
   }));
 }
 
-/** Tarjetas a partir de los partidos de playoff guardados. */
+/**
+ * Mapeo de teamId a etiqueta de siembra (ej. "1A", "2B", "2F") según las tablas de posiciones.
+ */
+export function buildTeamSeedMap(
+  groups: GroupView[],
+  matches: MatchView[],
+  scoring: ScoringConfig,
+  standingsConfig: StandingsConfig,
+  perGroup: number,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  const standings = groupStandings(groups, matches, scoring, standingsConfig);
+  groups.forEach((group, g) => {
+    const rawLetter = group.name.replace(/grupo\s*/i, "").trim();
+    const groupLetter = rawLetter || String.fromCharCode(65 + g);
+    const rows = standings[g]?.rows ?? [];
+    for (let i = 0; i < Math.min(perGroup, rows.length); i++) {
+      const row = rows[i];
+      if (row) {
+        map.set(row.teamId, `${i + 1}${groupLetter}`);
+      }
+    }
+  });
+  return map;
+}
+
+/**
+ * Construye el cuadro proyectado en base a los grupos y las posiciones actuales de la fase de grupos.
+ * Cruces fijos predeterminados (ej. 1°A vs 2°F) que se actualizan automáticamente en tiempo real.
+ */
+export function buildProjectedBracket(
+  groups: GroupView[],
+  matches: MatchView[],
+  scoring: ScoringConfig,
+  standingsConfig: StandingsConfig,
+  playoffConfig: { qualifiersPerGroup: number; thirdPlace: boolean },
+  teamNames: Map<string, string>,
+): BracketCard[] | null {
+  if (groups.length < 2) return null;
+  const perGroup = Math.max(1, playoffConfig.qualifiersPerGroup);
+  const totalQualifiers = groups.length * perGroup;
+  if (totalQualifiers < 2 || totalQualifiers > 32) return null;
+
+  const standings = groupStandings(groups, matches, scoring, standingsConfig);
+
+  type SeedInfo = {
+    seedBadge: string;
+    seedLabel: string;
+    teamId: string | null;
+    teamName: string;
+    isProvisional: boolean;
+  };
+
+  const seedInfoMap = new Map<string, SeedInfo>();
+
+  const virtualQualifiers: Qualifier[] = groups.flatMap((group, g) => {
+    const rawLetter = group.name.replace(/grupo\s*/i, "").trim();
+    const groupLetter = rawLetter || String.fromCharCode(65 + g);
+    const groupStanding = standings[g];
+    const groupMatches = matches.filter((m) => m.groupId === group.id);
+    const groupFinished = groupMatches.length > 0 && groupMatches.every((m) => m.resultStatus !== null);
+
+    return Array.from({ length: perGroup }, (_, i) => {
+      const p = i + 1;
+      const seedCode = `${p}${groupLetter}`;
+      const seedLabel = `${p}° ${group.name || `Grupo ${groupLetter}`}`;
+      const row = groupStanding?.rows[i];
+
+      let teamId: string | null = null;
+      let teamName = seedLabel;
+      let isProvisional = false;
+
+      if (row && row.played > 0) {
+        teamId = row.teamId;
+        teamName = teamNames.get(row.teamId) ?? seedLabel;
+        isProvisional = !groupFinished;
+      }
+
+      seedInfoMap.set(seedCode, {
+        seedBadge: seedCode,
+        seedLabel,
+        teamId,
+        teamName,
+        isProvisional,
+      });
+
+      return {
+        teamId: seedCode,
+        group: g,
+        place: p,
+        rating: [0, 0, 0],
+      };
+    });
+  });
+
+  try {
+    const plan = buildBracket(virtualQualifiers, { thirdPlace: playoffConfig.thirdPlace });
+    const getSide = (seedCode: string | null): BracketCardTeam | null => {
+      if (!seedCode) return null;
+      const info = seedInfoMap.get(seedCode);
+      if (!info) return { name: seedCode, winner: false };
+      return {
+        id: info.teamId,
+        name: info.teamName,
+        winner: false,
+        seedBadge: info.seedBadge,
+        isProvisional: info.isProvisional,
+      };
+    };
+
+    return plan.matches.map((m) => ({
+      key: m.key,
+      round: m.round,
+      position: m.position,
+      isThirdPlace: m.isThirdPlace,
+      isBye: m.isBye,
+      home: getSide(m.home),
+      away: getSide(m.away),
+      resultText: null,
+      startsAt: null,
+      courtName: null,
+      canScore: false,
+    }));
+  } catch {
+    return null;
+  }
+}
+
+/** Tarjetas a partir de los partidos de playoff guardados en la base de datos. */
 export function cardsFromMatches(
   matches: MatchView[],
   teamNames: Map<string, string>,
   courtNames: Map<string, string>,
+  seedMap?: Map<string, string>,
 ): BracketCard[] {
   return matches
     .filter((m) => m.stage === "playoff")
     .map((m) => {
-      const side = (teamId: string | null) =>
-        teamId ? { name: teamNames.get(teamId) ?? "Equipo", winner: m.winnerTeamId === teamId } : null;
+      const side = (teamId: string | null): BracketCardTeam | null => {
+        if (!teamId) return null;
+        return {
+          id: teamId,
+          name: teamNames.get(teamId) ?? "Equipo",
+          winner: m.winnerTeamId === teamId,
+          seedBadge: seedMap?.get(teamId) ?? null,
+        };
+      };
       return {
         key: m.id,
+        matchId: m.id,
         round: m.round,
         position: m.position,
         isThirdPlace: m.isThirdPlace,
@@ -245,6 +398,11 @@ export function cardsFromMatches(
         resultText: m.isBye ? null : resultLabel(m),
         startsAt: m.startsAt,
         courtName: m.courtId ? (courtNames.get(m.courtId) ?? null) : null,
+        homeTeamId: m.homeTeamId,
+        awayTeamId: m.awayTeamId,
+        result: m.result,
+        isWalkover: m.isWalkover,
+        canScore: Boolean(m.homeTeamId && m.awayTeamId && !m.isBye),
       };
     });
 }

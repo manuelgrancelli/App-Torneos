@@ -8,6 +8,20 @@ export type AvailabilitySlot = { id: string; startsAt: string; endsAt: string };
 
 export type DayGroup<T> = { day: string; slots: T[] };
 
+export type AvailabilityWindow<T = AvailabilitySlot> = {
+  id: string;
+  day: string;
+  startsAt: string;
+  endsAt: string;
+  slots: T[];
+  slotIds: string[];
+};
+
+export type DayWindows<T = AvailabilitySlot> = {
+  day: string;
+  windows: AvailabilityWindow<T>[];
+};
+
 /** Agrupa franjas por día respetando el orden cronológico. */
 export function groupSlotsByDay<T extends AvailabilitySlot>(slots: readonly T[], dayOf: (slot: T) => string): DayGroup<T>[] {
   const sorted = [...slots].sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.id.localeCompare(b.id));
@@ -19,6 +33,101 @@ export function groupSlotsByDay<T extends AvailabilitySlot>(slots: readonly T[],
     else groups.push({ day, slots: [slot] });
   }
   return groups;
+}
+
+/**
+ * Agrupa los turnos individuales de un día en intervalos o franjas completas continuas
+ * (con pausas entre turnos de hasta maxBreakMinutes, por defecto 45 min).
+ * Permite que los participantes elijan la franja completa (ej. "09:00 a 15:00")
+ * en vez de tener que seleccionar cada intervalo de 1 hora individualmente.
+ */
+export function groupDaySlotsIntoWindows<T extends AvailabilitySlot>(
+  day: string,
+  daySlots: readonly T[],
+  maxBreakMinutes = 45,
+): AvailabilityWindow<T>[] {
+  if (daySlots.length === 0) return [];
+
+  const sorted = [...daySlots].sort(
+    (a, b) =>
+      Date.parse(a.startsAt) - Date.parse(b.startsAt) ||
+      Date.parse(a.endsAt) - Date.parse(b.endsAt) ||
+      a.id.localeCompare(b.id),
+  );
+
+  const maxBreakMs = maxBreakMinutes * 60 * 1000;
+  const windows: AvailabilityWindow<T>[] = [];
+  let current: {
+    startsAt: string;
+    endsAt: string;
+    startMs: number;
+    endMs: number;
+    slots: T[];
+  } | null = null;
+
+  for (const slot of sorted) {
+    const slotStartMs = Date.parse(slot.startsAt);
+    const slotEndMs = Date.parse(slot.endsAt);
+
+    if (!current) {
+      current = {
+        startsAt: slot.startsAt,
+        endsAt: slot.endsAt,
+        startMs: slotStartMs,
+        endMs: slotEndMs,
+        slots: [slot],
+      };
+    } else if (slotStartMs <= current.endMs + maxBreakMs) {
+      // Turno continuo o superpuesto dentro de la misma franja
+      current.slots.push(slot);
+      if (slotEndMs > current.endMs) {
+        current.endMs = slotEndMs;
+        current.endsAt = slot.endsAt;
+      }
+    } else {
+      windows.push({
+        id: `${day}-w${windows.length + 1}`,
+        day,
+        startsAt: current.startsAt,
+        endsAt: current.endsAt,
+        slots: current.slots,
+        slotIds: current.slots.map((s) => s.id),
+      });
+      current = {
+        startsAt: slot.startsAt,
+        endsAt: slot.endsAt,
+        startMs: slotStartMs,
+        endMs: slotEndMs,
+        slots: [slot],
+      };
+    }
+  }
+
+  if (current) {
+    windows.push({
+      id: `${day}-w${windows.length + 1}`,
+      day,
+      startsAt: current.startsAt,
+      endsAt: current.endsAt,
+      slots: current.slots,
+      slotIds: current.slots.map((s) => s.id),
+    });
+  }
+
+  return windows;
+}
+
+/** Agrupa los turnos de todos los días en franjas completas por día. */
+export function groupSlotsIntoDayWindows<T extends AvailabilitySlot>(
+  slots: readonly T[],
+  dayOf: (slot: T) => string,
+  maxBreakMinutes = 45,
+): DayWindows<T>[] {
+  const dayGroups = groupSlotsByDay(slots, dayOf);
+  return dayGroups.map(({ day, slots: daySlots }) => ({
+    day,
+    windows: groupDaySlotsIntoWindows(day, daySlots, maxBreakMinutes),
+  }));
 }
 
 export type AvailabilitySummary = {

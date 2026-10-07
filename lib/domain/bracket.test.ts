@@ -9,6 +9,8 @@ import {
   roundName,
   seedPositions,
 } from "./bracket";
+import { buildProjectedBracket, buildTeamSeedMap } from "@/lib/competition-view";
+import type { ScoringConfig } from "./scoring";
 
 const LETTERS = "ABCDEFGH";
 
@@ -176,5 +178,93 @@ describe("propagateResult", () => {
     });
     const broken = [state({ id: "x", homeTeamId: "A", awayTeamId: "B", nextMatchId: "ghost", nextMatchSide: "home" })];
     expect(propagateResult(broken, "x", "A")).toEqual({ ok: false, error: "El cuadro está incompleto." });
+  });
+});
+
+describe("buildProjectedBracket & buildTeamSeedMap", () => {
+  const scoring: ScoringConfig = {
+    type: "sets",
+    bestOf: 3,
+    gamesPerSet: 6,
+    tiebreak: true,
+    decidingSet: "full",
+    superTiebreakPoints: 11,
+    superTiebreakUntil: "quarterfinals",
+  };
+  const standingsConfig = { points: { win: 3, draw: 1, loss: 0 }, tiebreakers: ["points" as const] };
+  const playoffConfig = { qualifiersPerGroup: 2, thirdPlace: false };
+
+  const groups = [
+    { id: "g1", name: "Grupo A", position: 1, tiebreakSeed: 1, teamIds: ["t1", "t2", "t3"] },
+    { id: "g2", name: "Grupo B", position: 2, tiebreakSeed: 2, teamIds: ["t4", "t5", "t6"] },
+  ];
+
+  it("buildTeamSeedMap asigna 1A, 2A, 1B, 2B según las posiciones", () => {
+    const dummyMatch = (id: string, groupId: string, homeTeamId: string, awayTeamId: string, winnerTeamId: string) => ({
+      id,
+      stage: "group" as const,
+      groupId,
+      round: 1,
+      position: 1,
+      homeTeamId,
+      awayTeamId,
+      isBye: false,
+      isThirdPlace: false,
+      nextMatchId: null,
+      nextMatchSide: null,
+      loserNextMatchId: null,
+      loserNextMatchSide: null,
+      slotId: null,
+      courtId: null,
+      startsAt: null,
+      endsAt: null,
+      scheduleLocked: false,
+      result: { type: "sets" as const, sets: [{ home: 6, away: 0 }, { home: 6, away: 0 }] },
+      winnerTeamId,
+      isDraw: false,
+      isWalkover: false,
+      resultStatus: "confirmed" as const,
+    });
+
+    const matches = [
+      dummyMatch("m1", "g1", "t1", "t2", "t1"),
+      dummyMatch("m2", "g1", "t1", "t3", "t1"),
+      dummyMatch("m3", "g1", "t2", "t3", "t2"),
+      dummyMatch("m4", "g2", "t4", "t5", "t4"),
+      dummyMatch("m5", "g2", "t4", "t6", "t4"),
+      dummyMatch("m6", "g2", "t5", "t6", "t5"),
+    ];
+
+    const seedMap = buildTeamSeedMap(groups, matches, scoring, standingsConfig, 2);
+    expect(seedMap.get("t1")).toBe("1A");
+    expect(seedMap.get("t2")).toBe("2A");
+    expect(seedMap.get("t4")).toBe("1B");
+    expect(seedMap.get("t5")).toBe("2B");
+  });
+
+  it("buildProjectedBracket arma los cruces proyectados (1A vs 2B y 1B vs 2A)", () => {
+    const teamNames = new Map([
+      ["t1", "Pareja 1A"],
+      ["t2", "Pareja 2A"],
+      ["t4", "Pareja 1B"],
+      ["t5", "Pareja 2B"],
+    ]);
+
+    const cards = buildProjectedBracket(groups, [], scoring, standingsConfig, playoffConfig, teamNames);
+    expect(cards).not.toBeNull();
+    expect(cards).toHaveLength(3); // 2 semifinales + 1 final
+
+    const r1 = cards!.filter((c) => c.round === 1);
+    expect(r1).toHaveLength(2);
+    expect(r1[0]!.home?.seedBadge).toBe("1A");
+    expect(r1[0]!.away?.seedBadge).toBe("2B");
+    expect(r1[1]!.home?.seedBadge).toBe("1B");
+    expect(r1[1]!.away?.seedBadge).toBe("2A");
+  });
+
+  it("devuelve null si hay menos de 2 grupos", () => {
+    const oneGroup = [{ id: "g1", name: "Grupo Único", position: 1, tiebreakSeed: 1, teamIds: ["t1", "t2"] }];
+    const cards = buildProjectedBracket(oneGroup, [], scoring, standingsConfig, playoffConfig, new Map());
+    expect(cards).toBeNull();
   });
 });

@@ -13,7 +13,9 @@ export function AppHeader({ user }: { user: CurrentUser }) {
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-4 px-4">
         <Link
           href="/torneos"
-          className="group flex items-center gap-2.5 rounded-md font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          title="Torneos"
+          aria-label="Torneos"
+          className="group flex items-center gap-2.5 rounded-md font-semibold transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <TrophyLogo />
           <span>{APP_NAME}</span>

@@ -13,7 +13,10 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDayHeading, formatTimeRange, localDateKey } from "@/lib/dates";
-import { groupSlotsByDay } from "@/lib/domain/availability";
+import {
+  type AvailabilityWindow,
+  groupSlotsIntoDayWindows,
+} from "@/lib/domain/availability";
 import { applyServerErrors } from "@/lib/forms";
 import { organizerCreateTeamSchema, type OrganizerCreateTeamInput } from "@/lib/validation/registration";
 import { cn } from "@/lib/utils";
@@ -47,33 +50,43 @@ export function OrganizerRegistrationForm({
   });
   const selectedSlots = useWatch({ control: form.control, name: "slotIds" });
   const selected = useMemo(() => new Set(selectedSlots), [selectedSlots]);
-  const days = useMemo(
-    () => groupSlotsByDay(slots, (slot) => localDateKey(slot.startsAt, timezone)),
+  const dayWindows = useMemo(
+    () => groupSlotsIntoDayWindows(slots, (slot) => localDateKey(slot.startsAt, timezone)),
     [slots, timezone],
   );
+  const allWindows = useMemo(() => dayWindows.flatMap((d) => d.windows), [dayWindows]);
   const courtNames = useMemo(() => new Map(courts.map((court) => [court.id, court.name])), [courts]);
 
-  function toggleSlot(slotId: string) {
+  function isWindowSelected(window: AvailabilityWindow<OrganizerSlot>): boolean {
+    return window.slotIds.length > 0 && window.slotIds.every((id) => selected.has(id));
+  }
+
+  function toggleWindow(window: AvailabilityWindow<OrganizerSlot>) {
     const next = new Set(selected);
-    if (next.has(slotId)) next.delete(slotId);
-    else next.add(slotId);
+    const isSelected = isWindowSelected(window);
+    for (const id of window.slotIds) {
+      if (isSelected) next.delete(id);
+      else next.add(id);
+    }
     form.setValue("slotIds", [...next], { shouldDirty: true, shouldValidate: true });
   }
 
-  function toggleDay(daySlots: OrganizerSlot[]) {
+  function toggleDay(windows: AvailabilityWindow<OrganizerSlot>[]) {
     const next = new Set(selected);
-    const allSelected = daySlots.every((slot) => next.has(slot.id));
-    for (const slot of daySlots) {
-      if (allSelected) next.delete(slot.id);
-      else next.add(slot.id);
+    const allSelected = windows.every((w) => isWindowSelected(w));
+    for (const w of windows) {
+      for (const id of w.slotIds) {
+        if (allSelected) next.delete(id);
+        else next.add(id);
+      }
     }
     form.setValue("slotIds", [...next], { shouldDirty: true, shouldValidate: true });
   }
 
   function toggleAllSlots() {
-    const allSlotIds = slots.map((s) => s.id);
-    const allSelected = allSlotIds.length > 0 && allSlotIds.every((id) => selected.has(id));
-    form.setValue("slotIds", allSelected ? [] : allSlotIds, { shouldDirty: true, shouldValidate: true });
+    const allSelected = allWindows.every((w) => isWindowSelected(w));
+    const next = allSelected ? [] : slots.map((s) => s.id);
+    form.setValue("slotIds", next, { shouldDirty: true, shouldValidate: true });
   }
 
   const onSubmit = form.handleSubmit((values) => {
@@ -170,41 +183,43 @@ export function OrganizerRegistrationForm({
                 </p>
               ) : null}
               <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                {days.map(({ day, slots: daySlots }) => (
+                {dayWindows.map(({ day, windows }) => (
                   <section key={day} aria-labelledby={`organizer-slots-${day}`} className="space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <h3 id={`organizer-slots-${day}`} className="text-sm font-semibold first-letter:uppercase">
                         {formatDayHeading(day)}
                       </h3>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => toggleDay(daySlots)}>
-                        {daySlots.every((slot) => selected.has(slot.id)) ? "Ninguna" : "Todo el día"}
-                      </Button>
+                      {windows.length > 1 ? (
+                        <Button type="button" variant="ghost" size="sm" onClick={() => toggleDay(windows)}>
+                          {windows.every((w) => isWindowSelected(w)) ? "Ninguna" : "Todo el día"}
+                        </Button>
+                      ) : null}
                     </div>
-                    <ul className="grid grid-cols-2 gap-2">
-                      {daySlots.map((slot) => {
-                        const active = selected.has(slot.id);
+                    <ul className="grid grid-cols-1 gap-2">
+                      {windows.map((window, index) => {
+                        const active = isWindowSelected(window);
+                        const time = formatTimeRange(window.startsAt, window.endsAt, timezone);
+                        const label = windows.length > 1 ? `Franja ${index + 1}` : "Franja completa";
                         return (
-                          <li key={slot.id}>
+                          <li key={window.id}>
                             <button
                               type="button"
                               role="checkbox"
                               aria-checked={active}
-                              onClick={() => toggleSlot(slot.id)}
+                              onClick={() => toggleWindow(window)}
                               className={cn(
-                                "flex min-h-12 w-full flex-col items-start justify-center rounded-lg border px-3 py-2 text-left text-sm transition-colors",
+                                "flex min-h-14 w-full flex-col items-start justify-center rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
                                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                                 active ? "border-foreground bg-foreground text-background" : "bg-background hover:bg-muted",
                               )}
                             >
-                              <span className="flex items-center gap-1 font-medium tabular-nums">
-                                {active ? <Check className="size-4" aria-hidden="true" /> : null}
-                                {formatTimeRange(slot.startsAt, slot.endsAt, timezone)}
+                              <span className="flex items-center gap-1.5 font-medium tabular-nums">
+                                {active ? <Check className="size-4 shrink-0" aria-hidden="true" /> : null}
+                                <span className="text-base">{time}</span>
                               </span>
-                              {slot.courtId ? (
-                                <span className={cn("text-xs", active ? "text-background/80" : "text-muted-foreground")}>
-                                  {courtNames.get(slot.courtId) ?? "Cancha"}
-                                </span>
-                              ) : null}
+                              <span className={cn("text-xs font-normal", active ? "text-background/80" : "text-muted-foreground")}>
+                                {label} {window.slots.length > 1 ? `· ${window.slots.length} turnos posibles` : ""}
+                              </span>
                             </button>
                           </li>
                         );

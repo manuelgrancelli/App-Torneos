@@ -25,7 +25,13 @@ export function UserMenu({ user }: { user: CurrentUser }) {
       <form id={SIGN_OUT_FORM_ID} action={signOut} hidden />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="rounded-full" aria-label="Menú de usuario">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full"
+            aria-label="Menú de usuario (Mi perfil)"
+            title="Mi perfil"
+          >
             <Avatar className="size-8">
               {user.avatarUrl ? <AvatarImage src={user.avatarUrl} alt="" /> : null}
               <AvatarFallback className="text-xs">{getInitials(user.fullName)}</AvatarFallback>

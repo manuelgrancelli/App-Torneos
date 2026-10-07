@@ -1,4 +1,4 @@
-git add .env.example README.md app components docs lib supabase/migrations supabase/seed.sql supabase/templates/confirmation.html supabase/tests/database tests/e2e# Torneos: guía del proyecto
+# Torneos: guía del proyecto
 
 > **Fuente de verdad del proyecto.** Tiene el plan, el estado de cada fase, las convenciones y el registro de todas las decisiones. La usan como guía las IAs de programación del equipo (Claude Code y GitHub Copilot) y cualquier persona que trabaje en el repo.
 
@@ -527,14 +527,14 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** mantener las decisiones de D-014 y formularios tipados sin hacks.
 - **Cómo aplicar:** correr `pnpm dlx shadcn@latest add <comp>` respondiendo "n" a las sobrescrituras. `ConfirmActionButton` (`components/shared`) es el patrón para acciones destructivas.
 
-### D-035 — Inscripción: código, plantel y disponibilidad (2026-10-01 · F5)
+### D-035 — Inscripción: código, plantel y disponibilidad (2026-10-01 · F5) *(modificada en UI por D-059)*
 - **Decisión:**
   - **"¿Tenés un código?"** está en `/torneos` (se movió de F4 para no dejar un link roto) y normaliza igual que la base (`normalizeInviteCode`).
   - **`/unirse/[code]`** resuelve con `resolve_invite_code` y contempla cuatro casos: código inválido, ya inscripto, inscripción cerrada y cupo lleno.
   - **Nombre sugerido** para parejas: "Apellido / ".
   - **Fútbol 11:** permite pegar la lista de emails (`parseEmailList`).
   - **`/inscripciones/[teamId]`** es solo para integrantes (404 para el resto). El capitán edita y da de baja; los integrantes se pueden salir.
-  - **Disponibilidad:** chips con `role="checkbox"` de 48px de alto, "Todo el día", barra fija con contador y aviso `beforeunload` si hay cambios sin guardar.
+  - **Disponibilidad:** chips con `role="checkbox"` de 48px de alto, "Todo el día", barra fija con contador y aviso `beforeunload` si hay cambios sin guardar. Modificada por D-059 para agrupar en tarjetas de franjas continuas completas.
   - **Organizador:** las inscripciones se filtran por estado con `?estado=` y "Aprobar" se deshabilita con su motivo (plantel incompleto o cupo lleno). La disponibilidad se resume por franja, por equipo y en una matriz con la columna de nombres fija.
 - **Motivo:** cubrir el alcance de F5 sin RPC nuevas: las de F2 ya validan todo.
 - **Cómo aplicar:**
@@ -615,7 +615,6 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
   - Una RPC nueva implica actualizar la lista de `07_function_privileges` (el test falla a propósito).
   - Una pantalla nueva se suma a `a11y-security.spec.ts`.
 
-<<<<<<< HEAD
 ### D-043 — Tema claro/oscuro persistido (2026-10-02 · mantenimiento)
 - **Decisión:** agregar un selector de tema en el header privado. El tema inicial es claro; la preferencia elegida se guarda en la cookie `theme` por un año y aplica a toda la web, incluidas las páginas públicas. El `ThemeProvider` sincroniza la clase `.dark` en el documento y el `Toaster`; no se agrega `next-themes`.
 - **Motivo:** las variables y utilidades CSS oscuras ya existían, pero no había control que activara `.dark` y las notificaciones estaban fijadas a claro.
@@ -790,4 +789,37 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
   - Estilos temáticos sutiles por deporte con buen contraste tanto en tema claro como oscuro (dark mode).
   - Integrado en las tarjetas de torneos del organizador y del jugador (`OrganizedTournamentCard`, `ParticipationCard`), encabezado del panel de administración (`/torneos/[id]`), vista pública del torneo (`/t/[slug]`), detalle de inscripción (`/inscripciones/[teamId]`) y tarjetas/detalle de circuitos.
 - **Motivo:** reemplazar el texto plano secundario por una etiqueta visual distintiva análoga a las etiquetas de estado del torneo.
+
+### D-058 — Simplificación de navegación superior y acceso a Perfil (2026-10-07)
+- **Decisión:**
+  - Se elimina el enlace redundante "Torneos" de la barra de navegación principal (`MainNav`), ya que el isotipo/logotipo de la marca ya dirige a la vista principal de torneos.
+  - Se remueve la pestaña directa "Perfil" tanto del menú principal de escritorio como de la barra inferior mobile (`BottomNav`). El acceso a Perfil queda centralizado y accesible exclusivamente a través del menú de usuario (`UserMenu` / avatar con foto).
+- **Motivo:** reducir la redundancia visual en la barra de navegación y alinear el acceso al perfil con los estándares de diseño modernos.
+- **Cómo aplicar:** `nav-items.ts` centraliza los ítems de navegación excluyendo perfil; `user-menu.tsx` mantiene el link directo a `/perfil`.
+
+### D-059 — Disponibilidad y franjas en intervalos completos continuos (2026-10-07)
+- **Decisión:**
+  - **Agrupación en el dominio:** `lib/domain/availability.ts` incorpora `groupDaySlotsIntoWindows` y `groupSlotsIntoDayWindows` (con tolerancia entre turnos de hasta 45 min). Agrupa los turnos individuales de juego en intervalos o franjas completas continuas (ej. 09:00 a 15:00 o 18:00 a 22:00).
+  - **Selección de disponibilidad:** en `AvailabilityPicker` y `OrganizerRegistrationForm`, los participantes y el organizador seleccionan franjas horarias como bloques completos en lugar de intervalos específicos de 1 hora. Marcar una franja asocia automáticamente todos sus turnos internos atómicos en la base de datos (`team_availability`), asegurando que el programador automático (`scheduleMatches` / `runAutoSchedule`) mantenga los datos exactos para agendar partidos sin solapamientos.
+  - **Visualización y reportes:** la página de disponibilidad (`/torneos/[id]/disponibilidad`) resume y totaliza los cruces por franja completa en lugar de turnos fragmentados.
+  - **Gestor de franjas del organizador:** `SlotsManager` agrupa los turnos por franja con botón para borrar el intervalo completo en un clic, permitiendo desplegar los turnos individuales de juego mediante un acordeón para inspección o ajuste puntual.
+- **Motivo:** simplificar la experiencia de usuario de los jugadores al declarar disponibilidad, permitiéndoles marcar ventanas horarias reales sin tener que seleccionar decenas de botones de una hora.
+- **Cómo aplicar:** la base de datos conserva `time_slots` por turno de partido; toda la agregación y desagregación ocurre de forma transparente en el dominio y en la UI.
+
+### D-060 — Cuadro proyectado automático y carga de resultados in-situ (2026-10-07)
+- **Decisión:**
+  - **Cuadro proyectado automático:**
+    - Apenas se crean los grupos (`groups.length >= 2`), el cuadro de playoffs se vuelve inmediatamente visible tanto en el panel de administración (`/torneos/[id]/cuadro`) como en la vista pública (`/t/[slug]`), eliminando la necesidad de que el organizador deba generar o configurar el cuadro manualmente.
+    - Se muestran los cruces predeterminados con etiquetas de siembra (ej. `[1A]` vs `[2F]`). A medida que se disputan los partidos de la fase de grupos, `buildProjectedBracket` y `buildTeamSeedMap` (`lib/competition-view.ts`) calculan y proyectan en tiempo real los nombres de las parejas según la tabla de posiciones en vivo (marcando el badge `prov.` mientras la fase de grupos siga en curso).
+    - Al pasar el torneo a la etapa `playoffs` (`changeTournamentStatus`), la función de servidor `ensurePlayoffBracket` persiste automáticamente el cuadro oficial mediante la RPC `apply_bracket` y agenda la primera ronda en las canchas disponibles.
+  - **Carga de resultados in-situ en el cuadro:**
+    - `BracketView` (`components/bracket/bracket-view.tsx`) pasa a ser Client Component y soporta carga de marcadores en tiempo real.
+    - Cada tarjeta de partido de playoff jugable (`canScore`) incorpora un botón de acción directa ("Cargar resultado" o "Editar").
+    - Al hacer clic, se abre inmediatamente el modal `ResultDialog` en el lugar exacto del cuadro, eliminando la necesidad de bajar o hacer scroll hacia la lista de partidos.
+    - La carga valida el formato (sets, super tie-break o goles), guarda mediante la Server Action `saveMatchResult`, propaga el ganador a la siguiente ronda (y perdedor al 3er puesto si aplica) y refresca el árbol del cuadro en el momento.
+    - En `/torneos/[id]/cuadro`, la tabla de partidos (`MatchesBoard`) se presenta dentro de una sección desplegable (`CollapsibleSection`) al pie de página, manteniéndose disponible para asignar horarios y canchas sin interferir con la experiencia del cuadro.
+- **Motivo:** simplificar radicalmente la gestión del torneo, eliminando pasos manuales de generación de playoffs y evitando el desplazamiento innecesario para cargar resultados de las llaves eliminatorias.
+- **Cómo aplicar:** `BracketView` recibe `tournamentId`, `scoring` y `canEdit`; `ensurePlayoffBracket` es idempotente y garantiza que el cuadro exista en la base al entrar en playoffs.
+
+
 

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { requireOrganizerTournament } from "@/lib/data/organizer";
 import { getAvailabilityMatrix } from "@/lib/data/teams";
 import { formatDayHeading, formatInTimeZone, formatTimeRange, localDateKey } from "@/lib/dates";
-import { groupSlotsByDay, summarizeAvailability } from "@/lib/domain/availability";
+import { groupSlotsIntoDayWindows, summarizeAvailability } from "@/lib/domain/availability";
 
 export const metadata: Metadata = { title: "Disponibilidad" };
 
@@ -35,8 +35,16 @@ export default async function AvailabilityPage({ params }: PageProps<"/torneos/[
     slots.map((s) => s.id),
     rows,
   );
-  const days = groupSlotsByDay(slots, (s) => localDateKey(s.startsAt, tz));
-  const maxPerSlot = Math.max(1, ...summary.bySlot.values());
+  const dayWindows = groupSlotsIntoDayWindows(slots, (s) => localDateKey(s.startsAt, tz));
+  const allWindows = dayWindows.flatMap((d) => d.windows);
+
+  const windowCounts = new Map(
+    allWindows.map((w) => [
+      w.id,
+      teams.filter((t) => w.slotIds.some((sId) => summary.has(t.id, sId))).length,
+    ]),
+  );
+  const maxPerWindow = Math.max(1, ...windowCounts.values());
 
   return (
     <div className="space-y-6">
@@ -56,22 +64,26 @@ export default async function AvailabilityPage({ params }: PageProps<"/torneos/[
             <CardTitle>
               <h2 className="text-base font-semibold">Por franja</h2>
             </CardTitle>
-            <CardDescription>Cuántas inscripciones pueden jugar en cada horario.</CardDescription>
+            <CardDescription>Cuántas inscripciones pueden jugar en cada franja horaria.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {days.map(({ day, slots: daySlots }) => (
+            {dayWindows.map(({ day, windows }) => (
               <section key={day} className="space-y-2">
                 <h3 className="text-sm font-semibold first-letter:uppercase">{formatDayHeading(day)}</h3>
-                <ul className="space-y-1.5">
-                  {daySlots.map((slot) => {
-                    const count = summary.bySlot.get(slot.id) ?? 0;
+                <ul className="space-y-2">
+                  {windows.map((window, index) => {
+                    const count = windowCounts.get(window.id) ?? 0;
+                    const label = windows.length > 1 ? `Franja ${index + 1}` : "Franja completa";
                     return (
-                      <li key={slot.id} className="grid grid-cols-[6.5rem_1fr_2rem] items-center gap-2 text-sm">
-                        <span className="tabular-nums">{formatTimeRange(slot.startsAt, slot.endsAt, tz)}</span>
+                      <li key={window.id} className="grid grid-cols-[10rem_1fr_2rem] items-center gap-2 text-sm">
+                        <div className="min-w-0">
+                          <span className="block font-medium tabular-nums">{formatTimeRange(window.startsAt, window.endsAt, tz)}</span>
+                          <span className="block text-xs text-muted-foreground">{label} {window.slots.length > 1 ? `(${window.slots.length} turnos)` : ""}</span>
+                        </div>
                         <span className="h-2.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
                           <span
                             className="block h-full rounded-full bg-foreground/80"
-                            style={{ width: `${(count / maxPerSlot) * 100}%` }}
+                            style={{ width: `${(count / maxPerWindow) * 100}%` }}
                           />
                         </span>
                         <span className="text-right tabular-nums" aria-label={`${count} inscripciones disponibles`}>
@@ -91,12 +103,12 @@ export default async function AvailabilityPage({ params }: PageProps<"/torneos/[
             <CardTitle>
               <h2 className="text-base font-semibold">Por inscripción</h2>
             </CardTitle>
-            <CardDescription>Cuántas franjas marcó cada una (de {slots.length}).</CardDescription>
+            <CardDescription>Cuántas franjas marcó cada una (de {allWindows.length}).</CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="divide-y rounded-lg border">
               {teams.map((team) => {
-                const count = summary.byTeam.get(team.id) ?? 0;
+                const count = allWindows.filter((w) => w.slotIds.some((sId) => summary.has(team.id, sId))).length;
                 return (
                   <li key={team.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
                     <span className="truncate">
@@ -104,7 +116,7 @@ export default async function AvailabilityPage({ params }: PageProps<"/torneos/[
                       {team.status === "pending" ? <span className="text-muted-foreground"> · pendiente</span> : null}
                     </span>
                     <span className={count === 0 ? "font-medium text-amber-800" : "tabular-nums"}>
-                      {count === 0 ? "Ninguna" : count}
+                      {count === 0 ? "Ninguna" : `${count} / ${allWindows.length}`}
                     </span>
                   </li>
                 );
@@ -119,10 +131,9 @@ export default async function AvailabilityPage({ params }: PageProps<"/torneos/[
           <CardTitle>
             <h2 className="text-base font-semibold">Detalle</h2>
           </CardTitle>
-          <CardDescription>Inscripciones × franjas. Deslizá para ver todos los horarios.</CardDescription>
+          <CardDescription>Inscripciones × franjas horarias.</CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Región enfocable: con teclado también se puede desplazar en horizontal. */}
           <div
             className="overflow-x-auto rounded-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             role="region"
@@ -136,10 +147,10 @@ export default async function AvailabilityPage({ params }: PageProps<"/torneos/[
                   <th scope="col" className="sticky left-0 z-10 bg-background px-3 py-2 text-left font-medium">
                     Inscripción
                   </th>
-                  {slots.map((slot) => (
-                    <th key={slot.id} scope="col" className="whitespace-nowrap px-2 py-2 text-center font-normal text-muted-foreground">
-                      <span className="block first-letter:uppercase">{formatInTimeZone(slot.startsAt, tz, "EEE d")}</span>
-                      <span className="block tabular-nums">{formatInTimeZone(slot.startsAt, tz, "HH:mm")}</span>
+                  {allWindows.map((window, index) => (
+                    <th key={window.id} scope="col" className="whitespace-nowrap px-3 py-2 text-center font-normal text-muted-foreground">
+                      <span className="block first-letter:uppercase font-medium text-foreground">{formatInTimeZone(window.startsAt, tz, "EEE d")}</span>
+                      <span className="block tabular-nums text-xs">{formatTimeRange(window.startsAt, window.endsAt, tz)}</span>
                     </th>
                   ))}
                 </tr>
@@ -150,15 +161,18 @@ export default async function AvailabilityPage({ params }: PageProps<"/torneos/[
                     <th scope="row" className="sticky left-0 z-10 max-w-40 truncate bg-background px-3 py-2 text-left font-medium">
                       {team.name}
                     </th>
-                    {slots.map((slot) => (
-                      <td key={slot.id} className="px-2 py-2 text-center">
-                        {summary.has(team.id, slot.id) ? (
-                          <Check className="mx-auto size-4 text-emerald-700" aria-label="Disponible" />
-                        ) : (
-                          <span className="text-muted-foreground" aria-label="No disponible">·</span>
-                        )}
-                      </td>
-                    ))}
+                    {allWindows.map((window) => {
+                      const available = window.slotIds.some((sId) => summary.has(team.id, sId));
+                      return (
+                        <td key={window.id} className="px-2 py-2 text-center">
+                          {available ? (
+                            <Check className="mx-auto size-4 text-emerald-700" aria-label="Disponible" />
+                          ) : (
+                            <span className="text-muted-foreground" aria-label="No disponible">·</span>
+                          )}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
