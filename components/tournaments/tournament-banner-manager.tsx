@@ -61,6 +61,9 @@ export function TournamentBannerManager({
         });
 
       if (uploadError) {
+        if (uploadError.message?.toLowerCase().includes("bucket not found")) {
+          throw new Error("El bucket 'tournament-media' no existe en Supabase Storage. Crealo desde el panel de Supabase (Storage > New bucket).");
+        }
         throw new Error(uploadError.message || "Error al subir la imagen al almacenamiento.");
       }
 

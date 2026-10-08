@@ -38,6 +38,7 @@ export type MemberTeam = {
     minTeamSize: number;
     maxTeamSize: number;
     resultsRequireConfirmation: boolean;
+    bannerUrl: string | null;
   };
   slots: SlotView[];
   courts: { id: string; name: string }[];
@@ -70,7 +71,7 @@ export const getTeamForMember = cache(async (teamId: string, userId: string): Pr
   const { data: team, error } = await supabase
     .from("teams")
     .select(
-      "id, name, status, captain_id, tournament_id, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(slot_id), tournaments!teams_tournament_id_fkey(id, name, slug, status, timezone, starts_on, ends_on, results_require_confirmation, sports(name, min_team_size, max_team_size))",
+      "id, name, status, captain_id, tournament_id, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(slot_id), tournaments!teams_tournament_id_fkey(id, name, slug, status, timezone, starts_on, ends_on, results_require_confirmation, banner_url, sports(name, min_team_size, max_team_size))",
     )
     .eq("id", teamId)
     .maybeSingle();
@@ -116,6 +117,7 @@ export const getTeamForMember = cache(async (teamId: string, userId: string): Pr
       minTeamSize: t.sports?.min_team_size ?? 2,
       maxTeamSize: t.sports?.max_team_size ?? 2,
       resultsRequireConfirmation: t.results_require_confirmation,
+      bannerUrl: t.banner_url ?? null,
     },
     slots: slots.data.map((s) => ({ id: s.id, startsAt: s.starts_at, endsAt: s.ends_at, courtId: s.court_id })),
     courts: courts.data,

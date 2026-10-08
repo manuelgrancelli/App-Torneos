@@ -8,6 +8,7 @@ import { SendTeamInvitationButton } from "@/components/registration/send-team-in
 import { TeamActions } from "@/components/registration/team-actions";
 import { PublicPageLink } from "@/components/tournaments/public-page-link";
 import { StatusBadge, TeamStatusBadge, SportBadge } from "@/components/tournaments/status-badge";
+import { TournamentBanner } from "@/components/tournaments/tournament-banner";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth";
@@ -65,6 +66,16 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
           <PublicPageLink slug={tournament.slug} status={tournament.status} />
         </p>
       </header>
+
+      {tournament.bannerUrl ? (
+        <section aria-label="Afiche oficial del torneo">
+          <TournamentBanner
+            src={tournament.bannerUrl}
+            alt={`Afiche de ${tournament.name}`}
+            tournamentName={tournament.name}
+          />
+        </section>
+      ) : null}
 
       {team.status === "pending" ? (
         <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">
