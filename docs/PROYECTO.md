@@ -836,5 +836,20 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** permitir al organizador exhibir afiches promocionales, cronogramas gráficos o imágenes informativas con sponsors, ofreciendo a los participantes la posibilidad de ver el contenido en tamaño grande con un solo toque.
 - **Cómo aplicar:** aplicar migración `20261008000100_tournament_banner.sql`; `TournamentBanner` se monta de forma condicional si `tournament.bannerUrl` no es nulo.
 
-
-
+### D-062 — Vista enriquecida de invitación por email con afiche, datos del torneo y del compañero (2026-10-07)
+- **Decisión:**
+  - **Resolución segura de invitaciones (`public.resolve_team_invitation`):**
+    - Se crea la función RPC `public.resolve_team_invitation(p_token_hash text)` en `supabase/migrations/20261008000200_resolve_team_invitation.sql` con `security definer`.
+    - Resuelve y expone los metadatos de la invitación a partir del hash SHA-256 del token: email del destinatario, nombre del equipo, nombre del compañero/capitán (`profiles.full_name` con fallback a email), nombre del torneo, slug, deporte, fechas, descripción, `banner_url`, estado del torneo y si está expirada.
+    - Otorga privilegios de ejecución a `anon, authenticated` (`07_function_privileges`), permitiendo que el jugador invitado pueda conocer los detalles del evento antes de iniciar sesión o registrarse.
+  - **Pantalla `/invitacion/aceptar` enriquecida:**
+    - **Afiche oficial con lightbox:** si el organizador subió un flyer (`banner_url`), se despliega en la parte superior mediante `<TournamentBanner>` con visor modal a pantalla completa en alta definición.
+    - **Metadatos del torneo:** badges de deporte y estado, título, rango de fechas, descripción del organizador y enlace a la vista pública del torneo.
+    - **Tarjeta del compañero que invita:** destaca con claridad quién envió la invitación y el nombre de la pareja/equipo a conformar (ej. *"Lucas Gómez te invitó a formar parte del equipo Gómez / Martínez"*).
+    - **Flujo de confirmación y seguridad:**
+      - Si el usuario tiene sesión activa con el email destinatario: botón prominente `AcceptTeamInvitationButton` para confirmar y acceder directo al equipo (`/inscripciones/[teamId]`).
+      - Si no está logueado: opciones de "Iniciar sesión para aceptar" y "Crear cuenta con este email" conservando el parámetro `next`.
+      - Si está conectado con otro correo: advertencia visual clara indicando que la invitación fue enviada a otra dirección, con opción de cambiar de cuenta.
+      - Si el link caducó o ya fue aceptado: estados amigables que guían al usuario sin errores crípticos.
+- **Motivo:** brindar una experiencia transparente y profesional al integrante invitado cuando abre el enlace desde su correo, mostrándole toda la información del torneo, su afiche y su compañero antes de solicitarle aceptar.
+- **Cómo aplicar:** aplicar la migración `20261008000200_resolve_team_invitation.sql` en Supabase; la pantalla `/invitacion/aceptar` detecta automáticamente el token de la URL y resuelve la invitación.

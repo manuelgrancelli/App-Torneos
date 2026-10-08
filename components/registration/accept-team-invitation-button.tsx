@@ -2,12 +2,23 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
+import { CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { acceptTeamInvitation } from "@/app/invitacion/aceptar/actions";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 
-export function AcceptTeamInvitationButton({ token }: { token: string }) {
+interface AcceptTeamInvitationButtonProps {
+  token: string;
+  className?: string;
+  size?: "default" | "sm" | "lg";
+}
+
+export function AcceptTeamInvitationButton({
+  token,
+  className = "w-full",
+  size = "lg",
+}: AcceptTeamInvitationButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -25,9 +36,15 @@ export function AcceptTeamInvitationButton({ token }: { token: string }) {
   }
 
   return (
-    <Button type="button" disabled={isPending} onClick={accept}>
-      {isPending ? <Spinner /> : null}
-      Aceptar invitación
+    <Button
+      type="button"
+      size={size}
+      className={className}
+      disabled={isPending}
+      onClick={accept}
+    >
+      {isPending ? <Spinner /> : <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />}
+      {isPending ? "Aceptando..." : "Aceptar invitación y unirme al equipo"}
     </Button>
   );
 }

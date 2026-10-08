@@ -550,6 +550,11 @@ isOneToOne: false
 "require_user":
 { Args: Record<PropertyKey, never>; Returns: string
                            },
+"resolve_team_invitation":
+{ Args: { "p_token_hash": string }; Returns: {
+              "banner_url": string | null,"captain_name": string,"description": string | null,"ends_on": string,"is_expired": boolean,"recipient_email": string,"sport_name": string,"starts_on": string,"team_id": string,"team_name": string,"team_status": Database["public"]['Enums']["team_status"],"tournament_id": string,"tournament_name": string,"tournament_slug": string,"tournament_status": Database["public"]['Enums']["tournament_status"]
+            }[]
+                            },
 "resolve_invite_code":
 { Args: { "p_code": string }; Returns: {
               "approved_teams": number,"ends_on": string,"max_team_size": number,"max_teams": number,"min_team_size": number,"my_team_id": string,"name": string,"scoring_type": Database["public"]['Enums']["scoring_type"],"slug": string,"sport_id": string,"sport_name": string,"starts_on": string,"status": Database["public"]['Enums']["tournament_status"],"tournament_id": string
