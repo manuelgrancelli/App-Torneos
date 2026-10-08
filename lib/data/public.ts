@@ -17,6 +17,7 @@ export type PublicTournament = {
   name: string;
   slug: string;
   description: string | null;
+  bannerUrl: string | null;
   status: TournamentStatus;
   startsOn: string;
   endsOn: string;
@@ -49,7 +50,7 @@ async function loadPublicTournament(tournamentId: string): Promise<PublicTournam
     supabase
       .from("tournaments")
       .select(
-        "id, name, slug, description, status, starts_on, ends_on, timezone, scoring_config, standings_config, playoff_config, champion_team_id, sports(name, min_team_size)",
+        "id, name, slug, description, banner_url, status, starts_on, ends_on, timezone, scoring_config, standings_config, playoff_config, champion_team_id, sports(name, min_team_size)",
       )
       .eq("id", tournamentId)
       .maybeSingle(),
@@ -73,6 +74,7 @@ async function loadPublicTournament(tournamentId: string): Promise<PublicTournam
     name: t.name,
     slug: t.slug,
     description: t.description,
+    bannerUrl: t.banner_url ?? null,
     status: t.status,
     startsOn: t.starts_on,
     endsOn: t.ends_on,

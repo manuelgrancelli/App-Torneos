@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { type FormLocks, TournamentForm } from "@/components/tournaments/tournament-form";
+import { TournamentBannerManager } from "@/components/tournaments/tournament-banner-manager";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
 import { getTournamentCounts } from "@/lib/data/tournaments";
 import type { ScoringConfig } from "@/lib/domain/scoring";
@@ -23,7 +25,21 @@ export default async function TournamentSettingsPage({ params }: PageProps<"/tor
   };
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <h2 className="text-base font-semibold">Afiche o portada del torneo</h2>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TournamentBannerManager
+            tournamentId={tournament.id}
+            bannerUrl={tournament.bannerUrl}
+            tournamentName={tournament.name}
+          />
+        </CardContent>
+      </Card>
       <TournamentForm
         tournamentId={tournament.id}
         sport={{

@@ -7,6 +7,7 @@ import { type FixtureItem, PublicFixture } from "@/components/public/public-fixt
 import { ViewTabs } from "@/components/public/view-tabs";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge, SportBadge } from "@/components/tournaments/status-badge";
+import { TournamentBanner } from "@/components/tournaments/tournament-banner";
 import {
   buildProjectedBracket,
   buildTeamSeedMap,
@@ -104,6 +105,17 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
           <p className="max-w-prose text-sm whitespace-pre-line">{tournament.description}</p>
         ) : null}
       </header>
+
+      {tournament.bannerUrl ? (
+        <section aria-label="Afiche oficial del torneo">
+          <TournamentBanner
+            src={tournament.bannerUrl}
+            alt={`Afiche de ${tournament.name}`}
+            tournamentName={tournament.name}
+            priority
+          />
+        </section>
+      ) : null}
 
       {champion ? (
         <p className="flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 font-medium text-amber-950">

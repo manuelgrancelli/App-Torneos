@@ -11,6 +11,7 @@ import { dbErrorMessage } from "@/lib/supabase/errors";
 import {
   changeStatusSchema,
   tournamentIdSchema,
+  updateTournamentBannerSchema,
   updateTournamentSchema,
 } from "@/lib/validation/tournament";
 import { ensurePlayoffBracket } from "./cuadro/actions";
@@ -109,3 +110,20 @@ export const rotateInviteCode = createAction(tournamentIdSchema, async ({ tourna
   revalidateTournament(tournamentId);
   return actionOk({ code: data }, "Generamos un código nuevo. El link anterior ya no funciona.");
 });
+
+/** Actualiza o quita el afiche/portada informativa del torneo. */
+export const updateTournamentBanner = createAction(
+  updateTournamentBannerSchema,
+  async (input, { supabase }) => {
+    const { data, error } = await supabase
+      .from("tournaments")
+      .update({ banner_url: input.bannerUrl })
+      .eq("id", input.tournamentId)
+      .select("id");
+
+    if (error) return actionError(dbErrorMessage(error));
+    if (data.length === 0) return actionError(NOT_FOUND);
+    revalidateTournament(input.tournamentId);
+    return actionOk(undefined, input.bannerUrl ? "Afiche actualizado correctamente." : "Afiche eliminado.");
+  },
+);

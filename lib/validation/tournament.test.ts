@@ -68,3 +68,27 @@ describe("createTournamentSchema - validación de fechas", () => {
     }
   });
 });
+
+describe("updateTournamentBannerSchema", () => {
+  it("valida url válida o null", async () => {
+    const { updateTournamentBannerSchema } = await import("./tournament");
+    const valid = updateTournamentBannerSchema.safeParse({
+      tournamentId: "aaaaaaaa-0000-4000-8000-000000000001",
+      bannerUrl: "https://yoqfldxelkjnpmnmllat.supabase.co/storage/v1/object/public/tournament-media/banners/test.png",
+    });
+    expect(valid.success).toBe(true);
+
+    const validNull = updateTournamentBannerSchema.safeParse({
+      tournamentId: "aaaaaaaa-0000-4000-8000-000000000001",
+      bannerUrl: null,
+    });
+    expect(validNull.success).toBe(true);
+
+    const invalid = updateTournamentBannerSchema.safeParse({
+      tournamentId: "aaaaaaaa-0000-4000-8000-000000000001",
+      bannerUrl: "no-es-una-url",
+    });
+    expect(invalid.success).toBe(false);
+  });
+});
+

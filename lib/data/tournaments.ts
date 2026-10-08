@@ -119,6 +119,7 @@ export type OrganizerTournament = {
   name: string;
   slug: string;
   description: string | null;
+  bannerUrl: string | null;
   status: TournamentStatus;
   startsOn: string;
   endsOn: string;
@@ -154,6 +155,7 @@ export const getOrganizerTournament = cache(
       name: data.name,
       slug: data.slug,
       description: data.description,
+      bannerUrl: data.banner_url ?? null,
       status: data.status,
       startsOn: data.starts_on,
       endsOn: data.ends_on,

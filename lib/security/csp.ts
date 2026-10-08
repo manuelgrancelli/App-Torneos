@@ -23,8 +23,8 @@ export function buildCsp({ nonce, isDev, supabaseUrl }: CspOptions): string {
     "default-src": ["'self'"],
     "script-src": ["'self'", `'nonce-${nonce}'`, "'strict-dynamic'", ...(isDev ? ["'unsafe-eval'"] : [])],
     "style-src": ["'self'", "'unsafe-inline'"],
-    // Avatares de Google (cuenta vinculada con OAuth).
-    "img-src": ["'self'", "blob:", "data:", "https://*.googleusercontent.com"],
+    // Avatares de Google (cuenta vinculada con OAuth) y almacenamiento de Supabase (afiches/banners).
+    "img-src": ["'self'", "blob:", "data:", "https://*.googleusercontent.com", supabase.origin],
     "font-src": ["'self'"],
     "connect-src": ["'self'", supabase.origin, supabaseWs],
     "object-src": ["'none'"],

@@ -821,5 +821,20 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** simplificar radicalmente la gestión del torneo, eliminando pasos manuales de generación de playoffs y evitando el desplazamiento innecesario para cargar resultados de las llaves eliminatorias.
 - **Cómo aplicar:** `BracketView` recibe `tournamentId`, `scoring` y `canEdit`; `ensurePlayoffBracket` es idempotente y garantiza que el cuadro exista en la base al entrar en playoffs.
 
+### D-061 — Afiche o portada informativa del torneo con visor ampliado (2026-10-07)
+- **Decisión:**
+  - **Columna y almacenamiento:**
+    - Se agrega `banner_url text check (banner_url is null or (banner_url ~ '^https?://' and char_length(banner_url) <= 2048))` a `public.tournaments` con permiso de actualización para usuarios autenticados (`grant update (banner_url)`).
+    - Se crea el bucket `tournament-media` en Supabase Storage con límite de 5 MB por archivo y tipos permitidos (`image/png`, `image/jpeg`, `image/webp`, `image/gif`).
+    - Políticas RLS en `storage.objects`: lectura pública universal y subida/actualización/eliminación para organizadores autenticados.
+    - Se habilita `supabase.origin` en la directiva `img-src` de CSP (`lib/security/csp.ts`) para permitir la carga segura de imágenes desde Supabase Storage.
+  - **Experiencia de usuario y visor lightbox:**
+    - En la vista pública del torneo (`/t/[slug]`), el afiche se ubica como banner destacado debajo del encabezado (`TournamentBanner`). Cuenta con adaptación visual que previene cortes indeseados de texto y auspiciantes.
+    - Al hacer clic o presionar la imagen, se abre un visor modal (`Dialog`) en alta resolución y pantalla completa, con botón para abrir la imagen original y opción de guardarla.
+    - En el panel del organizador (`/torneos/[id]`), se incluye `TournamentBannerManager` dentro de una sección plegable (`CollapsibleSection`). Permite arrastrar o seleccionar archivos PNG, JPG o WEBP, previsualizar la imagen y cambiarla o eliminarla con confirmación (`ConfirmActionButton`).
+    - La acción de servidor `updateTournamentBanner` actualiza la URL y purga de inmediato la caché pública con `refreshPublicTournament`.
+- **Motivo:** permitir al organizador exhibir afiches promocionales, cronogramas gráficos o imágenes informativas con sponsors, ofreciendo a los participantes la posibilidad de ver el contenido en tamaño grande con un solo toque.
+- **Cómo aplicar:** aplicar migración `20261008000100_tournament_banner.sql`; `TournamentBanner` se monta de forma condicional si `tournament.bannerUrl` no es nulo.
+
 
 

@@ -5,6 +5,7 @@ import { DeleteTournamentButton } from "@/components/tournaments/delete-tourname
 import { InviteCard } from "@/components/tournaments/invite-card";
 import { PhaseGuide, type TransitionOption } from "@/components/tournaments/phase-guide";
 import { buildPhaseGuide } from "@/components/tournaments/phase-guide-model";
+import { TournamentBannerManager } from "@/components/tournaments/tournament-banner-manager";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
 import { getTournamentCounts } from "@/lib/data/tournaments";
 import { ALLOWED_TRANSITIONS, canDeleteTournament, checkTransition } from "@/lib/domain/tournament-status";
@@ -62,6 +63,22 @@ export default async function TournamentSummaryPage({ params }: PageProps<"/torn
       ) : null}
 
       <PhaseGuide tournamentId={tournament.id} status={tournament.status} guide={guide} options={options} />
+
+      <CollapsibleSection
+        title="Afiche o portada del torneo"
+        summary={
+          tournament.bannerUrl
+            ? "Afiche cargado · clic para ampliar o editar"
+            : "Subí una imagen PNG/JPG con info, horarios o sponsors"
+        }
+        defaultOpen={true}
+      >
+        <TournamentBannerManager
+          tournamentId={tournament.id}
+          bannerUrl={tournament.bannerUrl}
+          tournamentName={tournament.name}
+        />
+      </CollapsibleSection>
 
       {tournament.inviteCode ? (
         // `key` por estado: al abrir la inscripción la sección se vuelve a montar y aparece desplegada.

@@ -87,6 +87,13 @@ export const changeStatusSchema = z.object({
   status: z.enum(["draft", "registration_open", "group_stage", "playoffs", "finished"]),
 });
 
+export const updateTournamentBannerSchema = z.object({
+  tournamentId: z.uuid(),
+  bannerUrl: z.string().url({ message: "Ingresá una URL válida." }).max(2048).nullable(),
+});
+
+export type UpdateTournamentBannerInput = z.infer<typeof updateTournamentBannerSchema>;
+
 // -----------------------------------------------------------------------------
 // Canchas
 // -----------------------------------------------------------------------------
