@@ -98,17 +98,28 @@ export function buildBoardMatches(
   confirmations: ConfirmationView[],
   categoryNames?: Map<string, string>,
 ): BoardMatch[] {
-  const rounds = playoffRoundCount(matches);
+  const globalRounds = playoffRoundCount(matches);
+  const categoryRoundsMap = new Map<string | null, number>();
+  for (const m of matches) {
+    if (m.stage === "playoff") {
+      const catKey = m.categoryId ?? null;
+      const current = categoryRoundsMap.get(catKey) ?? 0;
+      if (m.round > current) categoryRoundsMap.set(catKey, m.round);
+    }
+  }
+
   return matches
     .filter((m) => !m.isBye)
-    .map((m) => ({
-      id: m.id,
-      categoryId: m.categoryId ?? null,
-      categoryName: m.categoryId && categoryNames ? (categoryNames.get(m.categoryId) ?? null) : null,
-      stage: m.stage,
-      round: m.round,
-      isThirdPlace: m.isThirdPlace,
-      section: matchStageLabel(m, groups, rounds),
+    .map((m) => {
+      const rounds = m.stage === "playoff" ? (categoryRoundsMap.get(m.categoryId ?? null) ?? globalRounds) : globalRounds;
+      return {
+        id: m.id,
+        categoryId: m.categoryId ?? null,
+        categoryName: m.categoryId && categoryNames ? (categoryNames.get(m.categoryId) ?? null) : null,
+        stage: m.stage,
+        round: m.round,
+        isThirdPlace: m.isThirdPlace,
+        section: matchStageLabel(m, groups, rounds),
       homeTeamId: m.homeTeamId,
       awayTeamId: m.awayTeamId,
       homeName: m.homeTeamId ? (teamNames.get(m.homeTeamId) ?? "Equipo") : "A definir",
@@ -126,7 +137,8 @@ export function buildBoardMatches(
       resultStatus: m.resultStatus,
       // Los comentarios solo importan mientras el resultado sigue objetado.
       disputes: m.resultStatus === "disputed" ? disputeComments(m.id, confirmations) : [],
-    }));
+    };
+  });
 }
 
 /** Partidos de un equipo vistos por sus integrantes (rival, horario, resultado desde su lado). */

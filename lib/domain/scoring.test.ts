@@ -149,6 +149,14 @@ describe("sets", () => {
         winner: "home",
       });
       expect(evaluateResult(padelUntilQF, sets([6, 4], [4, 6], [11, 8]), thirdPlaceContext).ok).toBe(false);
+
+      // En cuadro de 4 parejas (totalRounds = 2: R1 semis, R2 final)
+      const fourTeamsSemiContext = { stage: "playoff" as const, round: 1, totalRounds: 2, isThirdPlace: false };
+      expect(evaluateResult(padelUntilQF, sets([1, 6], [6, 1], [6, 2]), fourTeamsSemiContext)).toEqual({
+        ok: true,
+        winner: "home",
+      });
+      expect(evaluateResult(padelUntilQF, sets([1, 6], [6, 1], [11, 8]), fourTeamsSemiContext).ok).toBe(false);
     });
 
     it("superTiebreakUntil: 'all' mantiene super tie-break en la final", () => {

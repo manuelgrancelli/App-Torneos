@@ -59,10 +59,10 @@ export const assignSlot = createAction(assignSlotSchema, async (input, { supabas
  * (evaluateResult) y la RPC lo guarda y, en playoffs, hace avanzar al ganador.
  */
 export const recordResult = createAction(recordResultSchema, async (input, { supabase }) => {
-  const { data: match, error: matchError } = await supabase
+  const { data: match, error: matchError } = await (supabase as any)
     .from("matches")
     .select(
-      "id, stage, round, is_third_place, home_team_id, away_team_id, next_match_id, loser_next_match_id, tournaments!matches_tournament_id_fkey(scoring_config)",
+      "id, stage, round, is_third_place, category_id, home_team_id, away_team_id, next_match_id, loser_next_match_id, tournaments!matches_tournament_id_fkey(scoring_config)",
     )
     .eq("id", input.matchId)
     .eq("tournament_id", input.tournamentId)
@@ -70,9 +70,31 @@ export const recordResult = createAction(recordResultSchema, async (input, { sup
   if (matchError) return actionError(dbErrorMessage(matchError));
   if (!match || !match.tournaments || !match.home_team_id || !match.away_team_id) return actionError(NOT_FOUND);
 
-  const parsedConfig = scoringConfigSchema.safeParse(match.tournaments.scoring_config);
-  if (!parsedConfig.success) return actionError("La configuración de puntuación del torneo no es válida.");
-  const config: ScoringConfig = parsedConfig.data;
+  let config: ScoringConfig;
+  const categoryId = (match.category_id as string | null) ?? null;
+  if (categoryId) {
+    const { data: categoryData } = await (supabase as any)
+      .from("tournament_categories")
+      .select("scoring_config")
+      .eq("id", categoryId)
+      .maybeSingle();
+
+    const parsedCatConfig = categoryData?.scoring_config
+      ? scoringConfigSchema.safeParse(categoryData.scoring_config)
+      : null;
+
+    if (parsedCatConfig?.success) {
+      config = parsedCatConfig.data;
+    } else {
+      const parsedConfig = scoringConfigSchema.safeParse(match.tournaments.scoring_config);
+      if (!parsedConfig.success) return actionError("La configuración de puntuación del torneo no es válida.");
+      config = parsedConfig.data;
+    }
+  } else {
+    const parsedConfig = scoringConfigSchema.safeParse(match.tournaments.scoring_config);
+    if (!parsedConfig.success) return actionError("La configuración de puntuación del torneo no es válida.");
+    config = parsedConfig.data;
+  }
 
   let result: MatchResult;
   let winnerSide: "home" | "away" | null;
@@ -80,13 +102,21 @@ export const recordResult = createAction(recordResultSchema, async (input, { sup
     result = walkoverResult(config, input.winner);
     winnerSide = input.winner;
   } else {
-    let totalRounds: number | undefined;
-    if (match.stage === "playoff") {
-      const { data: maxRoundMatch } = await supabase
+    let totalRounds: number | undefined = input.totalRounds;
+    if (totalRounds === undefined && match.stage === "playoff") {
+      let query = (supabase as any)
         .from("matches")
         .select("round")
         .eq("tournament_id", input.tournamentId)
-        .eq("stage", "playoff")
+        .eq("stage", "playoff");
+
+      if (categoryId) {
+        query = query.eq("category_id", categoryId);
+      } else {
+        query = query.is("category_id", null);
+      }
+
+      const { data: maxRoundMatch } = await query
         .order("round", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -220,21 +250,23 @@ export const simulateTournamentResults = createAction(
     }
 
     if (tournament.status === "playoffs") {
-      const { data: maxRoundMatch } = await supabase
+      const { data: allPlayoffMatches } = await (supabase as any)
         .from("matches")
-        .select("round")
+        .select("category_id, round")
         .eq("tournament_id", tournamentId)
-        .eq("stage", "playoff")
-        .order("round", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .eq("stage", "playoff");
 
-      const totalRounds = maxRoundMatch?.round ?? 1;
+      const categoryRoundsMap = new Map<string | null, number>();
+      for (const m of allPlayoffMatches ?? []) {
+        const catKey = (m.category_id as string | null) ?? null;
+        const current = categoryRoundsMap.get(catKey) ?? 0;
+        if (m.round > current) categoryRoundsMap.set(catKey, m.round);
+      }
 
       for (let iteration = 0; iteration < 10; iteration++) {
-        const { data: matches, error: matchError } = await supabase
+        const { data: matches, error: matchError } = await (supabase as any)
           .from("matches")
-          .select("id, stage, round, is_third_place, is_bye, home_team_id, away_team_id")
+          .select("id, stage, round, is_third_place, is_bye, home_team_id, away_team_id, category_id")
           .eq("tournament_id", tournamentId)
           .eq("stage", "playoff")
           .is("result_status", null);
@@ -242,16 +274,18 @@ export const simulateTournamentResults = createAction(
         if (matchError) return actionError(dbErrorMessage(matchError));
 
         const playable = (matches ?? []).filter(
-          (m) => !m.is_bye && m.home_team_id && m.away_team_id,
+          (m: any) => !m.is_bye && m.home_team_id && m.away_team_id,
         );
 
         if (playable.length === 0) break;
 
         for (const match of playable) {
+          const catKey = (match.category_id as string | null) ?? null;
+          const matchTotalRounds = categoryRoundsMap.get(catKey) ?? match.round;
           const matchContext = {
             stage: "playoff" as const,
             round: match.round,
-            totalRounds,
+            totalRounds: matchTotalRounds,
             isThirdPlace: Boolean(match.is_third_place),
           };
           const { result, winner } = generateSimulatedMatchResult(scoringConfig, matchContext);

@@ -207,7 +207,7 @@ export default async function BracketPage({
         <BracketView
           cards={cards}
           timezone={tournament.timezone}
-          scoring={tournament.scoringConfig}
+          scoring={activeCategory?.scoringConfig ?? tournament.scoringConfig}
           tournamentId={tournament.id}
           canEdit={isPlayoffs}
         />

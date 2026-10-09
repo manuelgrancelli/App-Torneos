@@ -23,12 +23,19 @@ export const assignSlotSchema = z.object({
 });
 
 export const recordResultSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("score"), tournamentId: z.uuid(), matchId: z.uuid(), result: matchResultSchema }),
+  z.object({
+    kind: z.literal("score"),
+    tournamentId: z.uuid(),
+    matchId: z.uuid(),
+    result: matchResultSchema,
+    totalRounds: z.number().int().min(1).max(20).optional(),
+  }),
   z.object({
     kind: z.literal("walkover"),
     tournamentId: z.uuid(),
     matchId: z.uuid(),
     winner: z.enum(["home", "away"]),
+    totalRounds: z.number().int().min(1).max(20).optional(),
   }),
 ]);
 

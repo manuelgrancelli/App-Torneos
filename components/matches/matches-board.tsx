@@ -2,7 +2,7 @@
 
 import { CalendarClock, CheckCheck, ClipboardEdit, Eraser, Lock, MoreVertical, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { clearResult, confirmResult } from "@/app/(app)/torneos/[id]/partidos/actions";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -206,6 +206,13 @@ export function MatchesBoard(props: MatchesBoardProps) {
     FILTERS.map((f) => [f.value, categoryFiltered.filter((m) => matchesFilter(m, f.value)).length]),
   );
   const playoffRounds = playoffRoundCount(props.matches);
+  const editingPlayoffRounds = useMemo(() => {
+    if (!editing || editing.stage !== "playoff") return playoffRounds;
+    const catMatches = editing.categoryId
+      ? props.matches.filter((m) => m.categoryId === editing.categoryId && m.stage === "playoff")
+      : props.matches.filter((m) => !m.categoryId && m.stage === "playoff");
+    return catMatches.length > 0 ? playoffRoundCount(catMatches) : playoffRounds;
+  }, [editing, props.matches, playoffRounds]);
 
   const scheduled: FixedAssignment[] = props.matches
     .filter((m) => m.startsAt && m.endsAt)
@@ -346,7 +353,7 @@ export function MatchesBoard(props: MatchesBoardProps) {
           matchId={editing.id}
           stage={editing.stage}
           round={editing.round}
-          totalRounds={playoffRounds}
+          totalRounds={editingPlayoffRounds}
           isThirdPlace={editing.isThirdPlace}
           scoring={props.scoring}
           homeName={editing.homeName}

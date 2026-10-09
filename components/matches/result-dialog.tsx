@@ -107,12 +107,14 @@ export function ResultDialog(props: ResultDialogProps) {
             tournamentId: props.tournamentId,
             matchId: props.matchId,
             winner: walkoverWinner as "home" | "away",
+            totalRounds: props.totalRounds,
           })
         : await recordResult({
             kind: "score",
             tournamentId: props.tournamentId,
             matchId: props.matchId,
             result: result as MatchResult,
+            totalRounds: props.totalRounds,
           });
       if (!response.ok) {
         toast.error(response.error);
