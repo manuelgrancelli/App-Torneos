@@ -148,5 +148,40 @@ export const deleteSlotsSchema = z.object({
   slotIds: z.array(z.uuid()).min(1).max(500),
 });
 
+export const createCategorySchema = z.object({
+  tournamentId: z.uuid(),
+  name: z
+    .string()
+    .trim()
+    .min(2, { error: "Usá al menos 2 caracteres." })
+    .max(60, { error: "Usá como máximo 60 caracteres." }),
+  maxTeams: integer(2, 64, "el cupo"),
+});
+
+export const updateCategorySchema = z.object({
+  tournamentId: z.uuid(),
+  categoryId: z.uuid(),
+  name: z
+    .string()
+    .trim()
+    .min(2, { error: "Usá al menos 2 caracteres." })
+    .max(60, { error: "Usá como máximo 60 caracteres." }),
+  maxTeams: integer(2, 64, "el cupo"),
+});
+
+export const deleteCategorySchema = z.object({
+  tournamentId: z.uuid(),
+  categoryId: z.uuid(),
+});
+
+export const setCategoryStatusSchema = z.object({
+  tournamentId: z.uuid(),
+  categoryId: z.uuid(),
+  status: z.enum(["draft", "registration_open", "group_stage", "playoffs", "finished"]),
+  championTeamId: z.uuid().optional(),
+});
+
 export type GenerateSlotsInput = z.input<typeof generateSlotsSchema>;
 export type CreateSlotInput = z.input<typeof createSlotSchema>;
+export type CreateCategoryInput = z.input<typeof createCategorySchema>;
+export type UpdateCategoryInput = z.input<typeof updateCategorySchema>;

@@ -1,11 +1,14 @@
-import { Trophy } from "lucide-react";
+import { Layers, Trophy } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { CollapsibleSection } from "@/components/shared/collapsible-section";
 import { DeleteTournamentButton } from "@/components/tournaments/delete-tournament-button";
 import { InviteCard } from "@/components/tournaments/invite-card";
 import { PhaseGuide, type TransitionOption } from "@/components/tournaments/phase-guide";
 import { buildPhaseGuide } from "@/components/tournaments/phase-guide-model";
 import { TournamentBannerManager } from "@/components/tournaments/tournament-banner-manager";
+import { Button } from "@/components/ui/button";
+import { getTournamentCategories } from "@/lib/data/categories";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
 import { getTournamentCounts } from "@/lib/data/tournaments";
 import { ALLOWED_TRANSITIONS, canDeleteTournament, checkTransition } from "@/lib/domain/tournament-status";
@@ -25,7 +28,11 @@ export async function generateMetadata({ params }: PageProps<"/torneos/[id]">): 
 export default async function TournamentSummaryPage({ params }: PageProps<"/torneos/[id]">) {
   const { id } = await params;
   const tournament = await requireOrganizerTournament(id);
-  const [counts, origin] = await Promise.all([getTournamentCounts(tournament.id), getRequestOrigin()]);
+  const [counts, origin, categories] = await Promise.all([
+    getTournamentCounts(tournament.id),
+    getRequestOrigin(),
+    getTournamentCategories(tournament.id),
+  ]);
   let championName: string | null = null;
   if (tournament.championTeamId) {
     const supabase = await createClient();
@@ -63,6 +70,46 @@ export default async function TournamentSummaryPage({ params }: PageProps<"/torn
       ) : null}
 
       <PhaseGuide tournamentId={tournament.id} status={tournament.status} guide={guide} options={options} />
+
+      <CollapsibleSection
+        title="Categorías del torneo (Torneo integrado)"
+        summary={
+          categories.length > 0
+            ? `${categories.length} categoría${categories.length > 1 ? "s" : ""}: ${categories.map((c) => c.name).join(", ")}`
+            : "Organizá múltiples categorías (ej: 6ta Caballeros, 4ta Damas, Mixto) con canchas y horarios compartidos."
+        }
+        defaultOpen={true}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Los torneos integrados permiten disputar varias categorías en simultáneo. Cada categoría tiene sus propios grupos y playoffs independientes, compartiendo las mismas canchas y franjas horarias.
+          </p>
+          {categories.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {categories.map((c) => (
+                <span
+                  key={c.id}
+                  className="inline-flex items-center rounded-md border bg-muted/60 px-2.5 py-1 text-xs font-semibold"
+                >
+                  {c.name}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Aún no creaste categorías. Podés usar plantillas rápidas (+10 Cab, 6ta Cab, 8va Damas, Mixto, etc.) con 1 clic.
+            </p>
+          )}
+          <div>
+            <Button asChild size="sm">
+              <Link href={`/torneos/${tournament.id}/categorias`}>
+                <Layers className="mr-2 size-4" />
+                {categories.length > 0 ? "Gestionar categorías" : "Configurar categorías ahora"}
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </CollapsibleSection>
 
       <CollapsibleSection
         title="Afiche o portada del torneo"

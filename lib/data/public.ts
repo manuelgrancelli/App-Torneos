@@ -3,6 +3,7 @@ import { unstable_cache } from "next/cache";
 import { cache } from "react";
 import { toMatchView } from "@/lib/data/competition";
 import type { Competition } from "@/lib/data/competition";
+import type { TournamentCategory } from "@/lib/data/categories";
 import type { PlayoffConfig } from "@/lib/domain/bracket";
 import type { ScoringConfig } from "@/lib/domain/scoring";
 import type { StandingsConfig } from "@/lib/domain/standings";
@@ -46,7 +47,7 @@ export const getPublicTournamentId = cache(async (slug: string): Promise<string 
 
 async function loadPublicTournament(tournamentId: string): Promise<PublicTournament | null> {
   const supabase = createPublicClient();
-  const [tournament, teams, groups, matches, courts] = await Promise.all([
+  const [tournament, teams, groups, matches, courts, categories] = await Promise.all([
     supabase
       .from("tournaments")
       .select(
@@ -54,20 +55,44 @@ async function loadPublicTournament(tournamentId: string): Promise<PublicTournam
       )
       .eq("id", tournamentId)
       .maybeSingle(),
-    supabase.from("teams").select("id, name, status").eq("tournament_id", tournamentId).order("name"),
-    supabase
+    (supabase as any).from("teams").select("id, name, status, category_id").eq("tournament_id", tournamentId).order("name"),
+    (supabase as any)
       .from("tournament_groups")
-      .select("id, name, position, tiebreak_seed, group_teams(team_id, position)")
+      .select("id, name, category_id, position, tiebreak_seed, group_teams(team_id, position)")
       .eq("tournament_id", tournamentId)
       .order("position"),
     supabase.from("matches").select("*").eq("tournament_id", tournamentId).order("stage").order("round").order("position"),
     supabase.from("courts").select("id, name, venue").eq("tournament_id", tournamentId).order("position"),
+    (supabase as any)
+      .from("tournament_categories")
+      .select("id, tournament_id, name, position, status, max_teams, scoring_config, standings_config, playoff_config, champion_team_id")
+      .eq("tournament_id", tournamentId)
+      .order("position"),
   ]);
   for (const result of [tournament, teams, groups, matches, courts]) {
     if (result.error) throw result.error;
   }
   const t = tournament.data;
   if (!t) return null;
+
+  const allTeams = (teams.data as any[]) ?? [];
+  const parsedCategories: TournamentCategory[] = ((categories.data as any[]) ?? []).map((cat) => {
+    const catTeams = allTeams.filter((tm) => tm.category_id === cat.id);
+    return {
+      id: cat.id,
+      tournamentId: cat.tournament_id,
+      name: cat.name,
+      position: cat.position,
+      status: cat.status as TournamentStatus,
+      maxTeams: cat.max_teams,
+      scoringConfig: cat.scoring_config as ScoringConfig,
+      standingsConfig: cat.standings_config as StandingsConfig,
+      playoffConfig: cat.playoff_config as PlayoffConfig,
+      championTeamId: cat.champion_team_id,
+      approvedTeamsCount: catTeams.filter((tm) => tm.status === "approved").length,
+      totalTeamsCount: catTeams.length,
+    };
+  });
 
   return {
     id: t.id,
@@ -86,16 +111,23 @@ async function loadPublicTournament(tournamentId: string): Promise<PublicTournam
     playoffConfig: t.playoff_config as PlayoffConfig,
     championTeamId: t.champion_team_id,
     competition: {
-      teams: teams.data ?? [],
-      groups: (groups.data ?? []).map((g) => ({
+      teams: ((teams.data as any[]) ?? []).map((team) => ({
+        id: team.id,
+        name: team.name,
+        status: team.status,
+        categoryId: team.category_id ?? null,
+      })),
+      groups: ((groups.data as any[]) ?? []).map((g) => ({
         id: g.id,
+        categoryId: g.category_id ?? null,
         name: g.name,
         position: g.position,
         tiebreakSeed: g.tiebreak_seed,
-        teamIds: [...g.group_teams].sort((a, b) => a.position - b.position).map((gt) => gt.team_id),
+        teamIds: [...(g.group_teams ?? [])].sort((a: any, b: any) => a.position - b.position).map((gt: any) => gt.team_id),
       })),
       matches: (matches.data ?? []).map(toMatchView),
       confirmations: [],
+      categories: parsedCategories,
     },
     courts: courts.data ?? [],
   };
@@ -108,7 +140,7 @@ async function loadPublicTournament(tournamentId: string): Promise<PublicTournam
 export const getPublicTournament = cache(
   (tournamentId: string): Promise<PublicTournament | null> =>
     unstable_cache(loadPublicTournament, ["public-tournament", tournamentId], {
-      tags: [publicTournamentTag(tournamentId)],
       revalidate: 60,
+      tags: [publicTournamentTag(tournamentId)],
     })(tournamentId),
 );

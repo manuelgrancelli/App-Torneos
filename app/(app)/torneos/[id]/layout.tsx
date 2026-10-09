@@ -4,6 +4,7 @@ import { StatusBadge, SportBadge } from "@/components/tournaments/status-badge";
 import { buildPhaseGuide } from "@/components/tournaments/phase-guide-model";
 import { type NavGroupKey, TournamentNav } from "@/components/tournaments/tournament-nav";
 import { TournamentProgress } from "@/components/tournaments/tournament-progress";
+import { getTournamentCategories } from "@/lib/data/categories";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
 import { getTournamentCounts } from "@/lib/data/tournaments";
 import { formatDateRange } from "@/lib/dates";
@@ -22,8 +23,11 @@ const RECOMMENDED_TAB: Record<TournamentStatus, NavGroupKey> = {
 export default async function TournamentPanelLayout({ children, params }: LayoutProps<"/torneos/[id]">) {
   const { id } = await params;
   const tournament = await requireOrganizerTournament(id);
-  // `getTournamentCounts` está memoizado por request: las páginas hijas lo reutilizan.
-  const counts = await getTournamentCounts(tournament.id);
+  // `getTournamentCounts` y `getTournamentCategories` están memoizados o cacheados por request.
+  const [counts, categories] = await Promise.all([
+    getTournamentCounts(tournament.id),
+    getTournamentCategories(tournament.id),
+  ]);
   const guide = buildPhaseGuide(tournament.status, counts, {
     tournamentId: tournament.id,
     maxTeams: tournament.maxTeams,
@@ -52,6 +56,7 @@ export default async function TournamentPanelLayout({ children, params }: Layout
           tournamentId={tournament.id}
           recommended={RECOMMENDED_TAB[tournament.status]}
           badges={{
+            categorias: categories.length,
             inscripciones: tournament.status === "registration_open" ? counts.pendingTeams : 0,
             competencia: tournament.status === "group_stage" ? counts.pendingGroupMatches : 0,
           }}

@@ -128,6 +128,7 @@ export type OrganizerTeam = {
   id: string;
   name: string;
   status: TeamStatus;
+  categoryId: string | null;
   testGenerated: boolean;
   organizerRegistered: boolean;
   createdAt: string;
@@ -135,24 +136,32 @@ export type OrganizerTeam = {
   availabilityCount: number;
 };
 
+import { getTournamentCategories } from "./categories";
+
 /** Inscripciones de un torneo vistas por su organizador (con emails de los integrantes). */
 export const listTournamentTeams = cache(async (tournamentId: string): Promise<OrganizerTeam[]> => {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("teams")
-    .select("id, name, status, test_generated, organizer_registered, created_at, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(count)")
-    .eq("tournament_id", tournamentId)
-    .order("created_at");
+  const [{ data, error }, categories] = await Promise.all([
+    (supabase as any)
+      .from("teams")
+      .select("id, name, status, category_id, test_generated, organizer_registered, created_at, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(count)")
+      .eq("tournament_id", tournamentId)
+      .order("created_at"),
+    getTournamentCategories(tournamentId),
+  ]);
   if (error) throw error;
 
-  return data.map((team) => ({
-    id: team.id,
-    name: team.name,
-    status: team.status,
-    testGenerated: team.test_generated,
-    organizerRegistered: team.organizer_registered,
-    createdAt: team.created_at,
-    members: team.team_members
+  const singleCategoryId = categories.length === 1 ? categories[0]!.id : null;
+
+  return data.map((team: Record<string, unknown>) => ({
+    id: team.id as string,
+    name: team.name as string,
+    status: team.status as TeamStatus,
+    categoryId: ((team.category_id as string | null) ?? null) || singleCategoryId,
+    testGenerated: team.test_generated as boolean,
+    organizerRegistered: team.organizer_registered as boolean,
+    createdAt: team.created_at as string,
+    members: ((team.team_members as Parameters<typeof toMember>[0][]) ?? [])
       .map(toMember)
       .sort((a, b) =>
         a.role === b.role
@@ -161,7 +170,7 @@ export const listTournamentTeams = cache(async (tournamentId: string): Promise<O
             ? -1
             : 1,
       ),
-    availabilityCount: team.team_availability[0]?.count ?? 0,
+    availabilityCount: ((team.team_availability as { count: number }[])?.[0]?.count) ?? 0,
   }));
 });
 

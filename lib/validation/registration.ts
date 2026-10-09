@@ -18,6 +18,7 @@ export const memberEmailsSchema = z
 
 export const registerTeamSchema = z.object({
   code: z.string().trim().min(1).max(40),
+  categoryId: z.string().uuid().optional(),
   teamName: teamNameSchema,
   memberEmails: memberEmailsSchema,
 });
@@ -46,6 +47,7 @@ export const tournamentRegistrationActionSchema = z.object({ tournamentId: z.uui
 export const organizerCreateTeamSchema = z
   .object({
     tournamentId: z.uuid(),
+    categoryId: z.string().uuid().optional(),
     teamName: z.string().trim().max(60, { error: "Usá como máximo 60 caracteres." }).optional(),
     playerNames: z
       .array(z.string().trim().min(1, { error: "Ingresá el nombre de cada jugador." }).max(80))
@@ -78,9 +80,22 @@ export const organizerCreateTeamSchema = z
     }
   });
 
+export const assignTeamCategorySchema = z.object({
+  tournamentId: z.uuid(),
+  teamId: z.uuid(),
+  categoryId: z.uuid().nullable().optional(),
+});
+
+export const assignTournamentTeamsCategorySchema = z.object({
+  tournamentId: z.uuid(),
+  categoryId: z.uuid(),
+});
+
 export type RegisterTeamInput = z.input<typeof registerTeamSchema>;
 export type UpdateRosterInput = z.input<typeof updateRosterSchema>;
 export type OrganizerCreateTeamInput = z.input<typeof organizerCreateTeamSchema>;
+export type AssignTeamCategoryInput = z.input<typeof assignTeamCategorySchema>;
+export type AssignTournamentTeamsCategoryInput = z.input<typeof assignTournamentTeamsCategorySchema>;
 
 /** "demq2-padel " → "DEMQ2PADEL" (igual que normalize_code en la base). */
 export function normalizeInviteCode(code: string): string {

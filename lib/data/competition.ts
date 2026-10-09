@@ -3,11 +3,13 @@ import { cache } from "react";
 import type { MatchResult } from "@/lib/domain/scoring";
 import { createClient } from "@/lib/supabase/server";
 import type { Tables } from "@/lib/supabase/database.types";
+import { getTournamentCategories, type TournamentCategory } from "./categories";
 
 /** Lecturas de la competencia: grupos, partidos, programación y confirmaciones (con RLS). */
 
 export type MatchView = {
   id: string;
+  categoryId?: string | null;
   stage: Tables<"matches">["stage"];
   groupId: string | null;
   round: number;
@@ -32,7 +34,14 @@ export type MatchView = {
   resultStatus: Tables<"matches">["result_status"];
 };
 
-export type GroupView = { id: string; name: string; position: number; tiebreakSeed: number; teamIds: string[] };
+export type GroupView = {
+  id: string;
+  categoryId?: string | null;
+  name: string;
+  position: number;
+  tiebreakSeed: number;
+  teamIds: string[];
+};
 
 export type ConfirmationView = {
   matchId: string;
@@ -42,15 +51,17 @@ export type ConfirmationView = {
 };
 
 export type Competition = {
-  teams: { id: string; name: string; status: Tables<"teams">["status"] }[];
+  teams: { id: string; name: string; status: Tables<"teams">["status"]; categoryId?: string | null }[];
   groups: GroupView[];
   matches: MatchView[];
   confirmations: ConfirmationView[];
+  categories: TournamentCategory[];
 };
 
 export function toMatchView(m: Tables<"matches">): MatchView {
   return {
     id: m.id,
+    categoryId: (m as Record<string, unknown>).category_id as string | null ?? null,
     stage: m.stage,
     groupId: m.group_id,
     round: m.round,
@@ -79,11 +90,11 @@ export function toMatchView(m: Tables<"matches">): MatchView {
 /** Equipos, grupos, partidos y confirmaciones del torneo (lo que el usuario pueda ver). */
 export const getCompetition = cache(async (tournamentId: string): Promise<Competition> => {
   const supabase = await createClient();
-  const [teams, groups, matches, confirmations] = await Promise.all([
-    supabase.from("teams").select("id, name, status").eq("tournament_id", tournamentId).order("name"),
+  const [teams, groups, matches, confirmations, categories] = await Promise.all([
+    supabase.from("teams").select("*, team_members(id)").eq("tournament_id", tournamentId).order("name"),
     supabase
       .from("tournament_groups")
-      .select("id, name, position, tiebreak_seed, group_teams(team_id, position)")
+      .select("*, group_teams(team_id, position)")
       .eq("tournament_id", tournamentId)
       .order("position"),
     supabase
@@ -94,19 +105,32 @@ export const getCompetition = cache(async (tournamentId: string): Promise<Compet
       .order("round")
       .order("position"),
     supabase.from("match_confirmations").select("match_id, team_id, response, comment").eq("tournament_id", tournamentId),
+    getTournamentCategories(tournamentId),
   ]);
   for (const result of [teams, groups, matches, confirmations]) {
     if (result.error) throw result.error;
   }
 
+  const singleCategoryId = categories.length === 1 ? categories[0]!.id : null;
+
   return {
-    teams: teams.data ?? [],
-    groups: (groups.data ?? []).map((g) => ({
-      id: g.id,
-      name: g.name,
-      position: g.position,
-      tiebreakSeed: g.tiebreak_seed,
-      teamIds: [...g.group_teams].sort((a, b) => a.position - b.position).map((gt) => gt.team_id),
+    teams: (teams.data ?? []).map((t: Record<string, unknown>) => ({
+      id: t.id as string,
+      name: t.name as string,
+      status: t.status as Tables<"teams">["status"],
+      categoryId: ((t.category_id as string | null) ?? null) || singleCategoryId,
+    })),
+    groups: (groups.data ?? []).map((g: Record<string, unknown>) => ({
+      id: g.id as string,
+      categoryId: (g.category_id as string | null) ?? null,
+      name: g.name as string,
+      position: g.position as number,
+      tiebreakSeed: g.tiebreak_seed as number,
+      teamIds: [
+        ...((g.group_teams as { team_id: string; position: number }[]) ?? []),
+      ]
+        .sort((a, b) => a.position - b.position)
+        .map((gt) => gt.team_id),
     })),
     matches: (matches.data ?? []).map(toMatchView),
     confirmations: (confirmations.data ?? []).map((c) => ({
@@ -115,6 +139,7 @@ export const getCompetition = cache(async (tournamentId: string): Promise<Compet
       response: c.response,
       comment: c.comment,
     })),
+    categories,
   };
 });
 

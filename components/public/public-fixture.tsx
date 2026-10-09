@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 export type FixtureItem = {
   id: string;
+  categoryName?: string | null;
   section: string;
   homeName: string;
   awayName: string;
@@ -38,7 +39,14 @@ export function PublicFixture({ days, timezone }: { days: DayGroup<FixtureItem>[
                     {match.courtLabel ? <span className="block">{match.courtLabel}</span> : null}
                   </div>
                   <div className="min-w-0 space-y-0.5">
-                    <p className="text-xs text-muted-foreground">{match.section}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {match.categoryName ? (
+                        <span className="inline-flex items-center rounded-full border border-primary/40 bg-primary/5 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                          {match.categoryName}
+                        </span>
+                      ) : null}
+                      <p className="text-xs text-muted-foreground">{match.section}</p>
+                    </div>
                     <p className="text-sm">
                       <TeamName name={match.homeName} won={match.homeWon} />
                       <span className="px-1.5 text-muted-foreground">vs</span>

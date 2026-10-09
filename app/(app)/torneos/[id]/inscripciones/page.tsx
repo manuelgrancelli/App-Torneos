@@ -13,19 +13,24 @@ export const metadata: Metadata = { title: "Inscripciones" };
 const FILTERS = ["all", "pending", "approved", "rejected"] as const;
 type Filter = (typeof FILTERS)[number];
 
+import { getTournamentCategories } from "@/lib/data/categories";
+
 export default async function RegistrationsPage({ params, searchParams }: PageProps<"/torneos/[id]/inscripciones">) {
   const { id } = await params;
   const { estado } = await searchParams;
   const tournament = await requireOrganizerTournament(id);
-  const [teams, { courts, slots }] = await Promise.all([
+  const [teams, { courts, slots }, categories] = await Promise.all([
     listTournamentTeams(tournament.id),
     getCourtsAndSlots(tournament.id),
+    getTournamentCategories(tournament.id),
   ]);
   const approved = teams.filter((t) => t.status === "approved").length;
 
   // Por defecto: pendientes si hay, si no todas.
   const requested = typeof estado === "string" && (FILTERS as readonly string[]).includes(estado) ? (estado as Filter) : null;
   const filter: Filter = requested ?? (teams.some((t) => t.status === "pending") ? "pending" : "all");
+
+  const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name, maxTeams: c.maxTeams }));
 
   return (
     <div className="space-y-4">
@@ -37,6 +42,7 @@ export default async function RegistrationsPage({ params, searchParams }: PagePr
           teamSize={tournament.sport.min_team_size}
           slots={slots}
           courts={courts}
+          categories={categoryOptions}
         />
       ) : tournament.status === "draft" ? (
         <div className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
@@ -60,6 +66,7 @@ export default async function RegistrationsPage({ params, searchParams }: PagePr
         isTestTournament={tournament.isTest}
         canReview={tournament.status === "registration_open"}
         filter={filter}
+        categories={categoryOptions}
       />
     </div>
   );

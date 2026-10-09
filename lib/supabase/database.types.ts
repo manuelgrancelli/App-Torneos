@@ -459,6 +459,12 @@ isOneToOne: false
 "assign_match_slot":
 { Args: { "p_court_id": string,"p_match_id": string,"p_slot_id": string }; Returns: undefined
                            },
+"assign_team_category":
+{ Args: { "p_team_id": string,"p_category_id"?: string | null }; Returns: undefined
+                            },
+"assign_tournament_teams_category":
+{ Args: { "p_tournament_id": string,"p_category_id": string }; Returns: number
+                            },
 "clear_match_result":
 { Args: { "p_match_id": string }; Returns: undefined
                            },
@@ -476,7 +482,7 @@ isOneToOne: false
             }[]
                            },
 "create_organizer_team":
-{ Args: { "p_player_names": (string)[],"p_slot_ids": (string)[],"p_team_name": string,"p_tournament_id": string }; Returns: string
+{ Args: { "p_player_names": (string)[],"p_slot_ids": (string)[],"p_team_name": string,"p_tournament_id": string,"p_category_id"?: string | null }; Returns: string
                            },
 "fill_test_team_slots":
 { Args: { "p_tournament_id": string }; Returns: number
@@ -508,7 +514,7 @@ isOneToOne: false
 { Args: { "p_is_draw"?: boolean,"p_is_walkover"?: boolean,"p_match_id": string,"p_result": Json,"p_winner_team_id": string }; Returns: undefined
                            },
 "register_team":
-{ Args: { "p_code": string,"p_member_emails": (string)[],"p_team_name": string }; Returns: string
+{ Args: { "p_code": string,"p_member_emails": (string)[],"p_team_name": string,"p_category_id"?: string | null }; Returns: string
                            },
 "require_match_organizer":
 { Args: { "p_match_id": string }; Returns: {

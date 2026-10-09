@@ -6,6 +6,7 @@ import { matchResultSchema } from "@/lib/domain/scoring";
 
 export const saveGroupsSchema = z.object({
   tournamentId: z.uuid(),
+  categoryId: z.uuid().optional(),
   groups: z.array(z.array(z.uuid()).min(2, { error: "Cada grupo tiene que tener al menos 2 equipos." })).min(1).max(26),
 });
 

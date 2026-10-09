@@ -1,6 +1,9 @@
+import { Layers } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { type FormLocks, TournamentForm } from "@/components/tournaments/tournament-form";
 import { TournamentBannerManager } from "@/components/tournaments/tournament-banner-manager";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
 import { getTournamentCounts } from "@/lib/data/tournaments";
@@ -26,6 +29,26 @@ export default async function TournamentSettingsPage({ params }: PageProps<"/tor
 
   return (
     <div className="max-w-2xl space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <h2 className="text-base font-semibold">Categorías (Torneo Integrado)</h2>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Creá y configurá las categorías que compiten en este torneo (ej: 6ta Caballeros, 4ta Damas, +10 Mixto).
+            Cada una tendrá sus propios grupos y playoffs independientes, compartiendo las mismas canchas.
+          </p>
+          <Button asChild size="sm">
+            <Link href={`/torneos/${tournament.id}/categorias`}>
+              <Layers className="mr-2 size-4" />
+              Administrar categorías
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>

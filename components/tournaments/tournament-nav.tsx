@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
  */
 const GROUPS = [
   { key: "resumen", label: "Resumen", items: [{ segment: "", label: "Resumen" }] },
-  { key: "configuracion", label: "Configuración", items: [{ segment: "configuracion", label: "Configuración" }] },
+  { key: "categorias", label: "Categorías", items: [{ segment: "categorias", label: "Categorías" }] },
   { key: "canchas", label: "Canchas y franjas", items: [{ segment: "canchas-franjas", label: "Canchas y franjas" }] },
   {
     key: "inscripciones",
@@ -30,6 +30,7 @@ const GROUPS = [
       { segment: "cuadro", label: "Cuadro" },
     ],
   },
+  { key: "configuracion", label: "Configuración", items: [{ segment: "configuracion", label: "Configuración" }] },
 ] as const;
 
 export type NavGroupKey = (typeof GROUPS)[number]["key"];
@@ -78,8 +79,17 @@ export function TournamentNav({
                 >
                   {group.label}
                   {badge > 0 ? (
-                    <span className="rounded-full bg-primary px-1.5 text-xs font-semibold tabular-nums text-primary-foreground">
-                      <span className="sr-only">Pendientes: </span>
+                    <span
+                      className={cn(
+                        "rounded-full px-1.5 text-xs font-semibold tabular-nums",
+                        group.key === "categorias"
+                          ? "border bg-muted text-muted-foreground"
+                          : "bg-primary text-primary-foreground",
+                      )}
+                    >
+                      <span className="sr-only">
+                        {group.key === "categorias" ? "Categorías creadas: " : "Pendientes: "}
+                      </span>
                       {badge}
                     </span>
                   ) : group.key === recommended && !active ? (

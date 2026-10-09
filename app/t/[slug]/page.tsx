@@ -2,12 +2,14 @@ import { CalendarDays, LayoutGrid, Trophy, Users } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BracketView } from "@/components/bracket/bracket-view";
+import { CategoryTabs } from "@/components/categories/category-tabs";
 import { StandingsTable } from "@/components/groups/standings-table";
 import { type FixtureItem, PublicFixture } from "@/components/public/public-fixture";
 import { ViewTabs } from "@/components/public/view-tabs";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge, SportBadge } from "@/components/tournaments/status-badge";
 import { TournamentBanner } from "@/components/tournaments/tournament-banner";
+import { Badge } from "@/components/ui/badge";
 import {
   buildProjectedBracket,
   buildTeamSeedMap,
@@ -31,8 +33,9 @@ const VIEWS = [
 type View = (typeof VIEWS)[number]["value"];
 
 async function loadTournament(slug: string): Promise<PublicTournament | null> {
-  const id = await getPublicTournamentId(slug);
-  return id ? getPublicTournament(id) : null;
+  const tournamentId = await getPublicTournamentId(slug);
+  if (!tournamentId) return null;
+  return getPublicTournament(tournamentId);
 }
 
 export async function generateMetadata({ params }: PageProps<"/t/[slug]">): Promise<Metadata> {
@@ -40,14 +43,13 @@ export async function generateMetadata({ params }: PageProps<"/t/[slug]">): Prom
   const tournament = await loadTournament(slug);
   if (!tournament) return { title: "Torneo no encontrado" };
 
-  const description = truncate(
+  const description =
     tournament.description?.trim() ||
-      `${tournament.sportName} · ${formatDateRange(tournament.startsOn, tournament.endsOn)}. Grupos, fixture y cuadro.`,
-    160,
-  );
+    `Torneo de ${tournament.sportName}. Consultá grupos, tablas de posiciones, cruces y fixture oficial.`;
+
   return {
     title: tournament.name,
-    description,
+    description: truncate(description, 160),
     alternates: { canonical: `/t/${tournament.slug}` },
     openGraph: { title: tournament.name, description, type: "website", url: `/t/${tournament.slug}` },
   };
@@ -64,11 +66,27 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
   if (!tournament) notFound();
 
   const { competition, timezone } = tournament;
+  const categories = competition.categories ?? [];
+  const hasCategories = categories.length > 0;
+  const activeCategory = hasCategories
+    ? categories.find((c) => c.id === query.cat) ?? categories[0]
+    : null;
+  const categoryNames = new Map(categories.map((c) => [c.id, c.name]));
+
   const teamNames = new Map(competition.teams.map((t) => [t.id, t.name]));
   const courts = new Map(tournament.courts.map((c) => [c.id, c]));
   const courtNames = new Map(tournament.courts.map((c) => [c.id, c.name]));
   const champion = tournament.championTeamId ? teamNames.get(tournament.championTeamId) : null;
-  const playoffMatches = competition.matches.filter((m) => m.stage === "playoff");
+
+  const filteredGroups = hasCategories && activeCategory
+    ? competition.groups.filter((g) => g.categoryId === activeCategory.id)
+    : competition.groups;
+
+  const filteredMatches = hasCategories && activeCategory
+    ? competition.matches.filter((m) => m.categoryId === activeCategory.id)
+    : competition.matches;
+
+  const playoffMatches = filteredMatches.filter((m) => m.stage === "playoff");
   const visibleMatches = competition.matches.filter((m) => !m.isBye);
 
   // Vistas disponibles según lo que ya exista; por defecto, la etapa en curso.
@@ -76,7 +94,7 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
     (v) =>
       (v.value === "grupos" && competition.groups.length > 0) ||
       (v.value === "fixture" && visibleMatches.length > 0) ||
-      (v.value === "cuadro" && playoffMatches.length > 0),
+      (v.value === "cuadro" && competition.matches.some((m) => m.stage === "playoff")),
   );
   const requested = available.find((v) => v.value === query.vista);
   const view: View | null = requested?.value ?? (playoffMatches.length > 0 ? "cuadro" : (available[0]?.value ?? null));
@@ -125,24 +143,50 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
       ) : null}
 
       {view === null ? (
-        <RegistrationView tournament={tournament} />
+        <RegistrationView tournament={tournament} categoryNames={categoryNames} />
       ) : (
         <div className="space-y-4">
           <ViewTabs basePath={`/t/${tournament.slug}`} views={available} active={view} />
 
+          {hasCategories && (view === "grupos" || view === "cuadro") ? (
+            <div className="space-y-1.5 pt-1">
+              <span className="text-xs font-medium text-muted-foreground">Categoría:</span>
+              <CategoryTabs
+                categories={categories.map((c) => ({
+                  id: c.id,
+                  name: c.name,
+                  count: competition.teams.filter((t) => t.categoryId === c.id).length,
+                }))}
+                activeId={activeCategory?.id ?? null}
+                baseUrl={`/t/${tournament.slug}`}
+                extraParams={{ vista: view }}
+              />
+            </div>
+          ) : null}
+
           {view === "grupos" ? (
-            <section aria-label="Grupos y posiciones" className="grid gap-4 lg:grid-cols-2">
-              {groupStandings(competition.groups, competition.matches, tournament.scoringConfig, tournament.standingsConfig).map(
-                ({ group, rows }) => (
-                  <StandingsTable
-                    key={group.id}
-                    title={group.name}
-                    rows={rows}
-                    teamNames={teamNames}
-                    scoringType={tournament.scoringConfig.type}
-                    qualifiers={tournament.playoffConfig.qualifiersPerGroup}
-                  />
-                ),
+            <section aria-label="Grupos y posiciones" className="space-y-4">
+              {filteredGroups.length === 0 ? (
+                <EmptyState
+                  icon={LayoutGrid}
+                  title="Todavía no hay grupos en esta categoría"
+                  description="Se publicarán cuando el organizador realice el sorteo."
+                />
+              ) : (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {groupStandings(filteredGroups, filteredMatches, tournament.scoringConfig, tournament.standingsConfig).map(
+                    ({ group, rows }) => (
+                      <StandingsTable
+                        key={group.id}
+                        title={group.name}
+                        rows={rows}
+                        teamNames={teamNames}
+                        scoringType={tournament.scoringConfig.type}
+                        qualifiers={tournament.playoffConfig.qualifiersPerGroup}
+                      />
+                    ),
+                  )}
+                </div>
               )}
             </section>
           ) : null}
@@ -150,7 +194,7 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
           {view === "fixture" ? (
             <PublicFixture
               timezone={timezone}
-              days={groupByLocalDay(fixtureItems(tournament, teamNames, courts), () => timezone)}
+              days={groupByLocalDay(fixtureItems(tournament, teamNames, courts, categoryNames), () => timezone)}
             />
           ) : null}
 
@@ -162,8 +206,8 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
                   teamNames,
                   courtNames,
                   buildTeamSeedMap(
-                    tournament.competition.groups,
-                    tournament.competition.matches,
+                    filteredGroups,
+                    filteredMatches,
                     tournament.scoringConfig,
                     tournament.standingsConfig,
                     tournament.playoffConfig.qualifiersPerGroup,
@@ -171,16 +215,16 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
                 )}
                 timezone={timezone}
               />
-            ) : tournament.competition.groups.length >= 2 ? (
+            ) : filteredGroups.length >= 2 ? (
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground">
-                  Cuadro proyectado según las posiciones actuales de la fase de grupos.
+                  Cuadro proyectado según las posiciones actuales de la fase de grupos {activeCategory ? `(${activeCategory.name})` : ""}.
                 </p>
                 <BracketView
                   cards={
                     buildProjectedBracket(
-                      tournament.competition.groups,
-                      tournament.competition.matches,
+                      filteredGroups,
+                      filteredMatches,
                       tournament.scoringConfig,
                       tournament.standingsConfig,
                       tournament.playoffConfig,
@@ -191,7 +235,11 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
                 />
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">El cuadro de playoffs se definirá al armar los grupos.</p>
+              <EmptyState
+                icon={LayoutGrid}
+                title="El cuadro aún no está disponible"
+                description={hasCategories ? `Se proyectará al armar los grupos de "${activeCategory?.name}".` : "El cuadro de playoffs se definirá al armar los grupos."}
+              />
             )
           ) : null}
         </div>
@@ -201,7 +249,13 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
 }
 
 /** Antes de los grupos: estado de la inscripción y equipos aprobados. */
-function RegistrationView({ tournament }: { tournament: PublicTournament }) {
+function RegistrationView({
+  tournament,
+  categoryNames,
+}: {
+  tournament: PublicTournament;
+  categoryNames: Map<string, string>;
+}) {
   const teams = tournament.competition.teams;
   const heading = approvedTeamsLabel(tournament.teamSize);
   return (
@@ -222,8 +276,13 @@ function RegistrationView({ tournament }: { tournament: PublicTournament }) {
           </h2>
           <ul className="grid gap-2 sm:grid-cols-2">
             {teams.map((team) => (
-              <li key={team.id} className="rounded-lg border px-3 py-2 text-sm">
-                {team.name}
+              <li key={team.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
+                <span>{team.name}</span>
+                {team.categoryId && categoryNames.has(team.categoryId) ? (
+                  <Badge variant="outline" className="text-[11px] font-medium border-primary/40 bg-primary/5 text-primary">
+                    {categoryNames.get(team.categoryId)}
+                  </Badge>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -237,6 +296,7 @@ function fixtureItems(
   tournament: PublicTournament,
   teamNames: Map<string, string>,
   courts: Map<string, { name: string; venue: string | null }>,
+  categoryNames?: Map<string, string>,
 ): FixtureItem[] {
   const { matches, groups } = tournament.competition;
   const rounds = playoffRoundCount(matches);
@@ -246,6 +306,7 @@ function fixtureItems(
       const court = m.courtId ? courts.get(m.courtId) : undefined;
       return {
         id: m.id,
+        categoryName: m.categoryId && categoryNames ? (categoryNames.get(m.categoryId) ?? null) : null,
         section: matchStageLabel(m, groups, rounds),
         homeName: m.homeTeamId ? (teamNames.get(m.homeTeamId) ?? "Equipo") : "A definir",
         awayName: m.awayTeamId ? (teamNames.get(m.awayTeamId) ?? "Equipo") : "A definir",

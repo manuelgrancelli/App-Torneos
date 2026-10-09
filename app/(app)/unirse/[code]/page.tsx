@@ -13,6 +13,7 @@ import { formatDateRange } from "@/lib/dates";
 import { approvedTeamsLabel, teamNoun } from "@/lib/domain/tournament-status";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeInviteCode } from "@/lib/validation/registration";
+import { getTournamentCategories } from "@/lib/data/categories";
 
 export const metadata: Metadata = { title: "Inscripción" };
 
@@ -47,15 +48,18 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
     );
   }
 
-  // Traer afiche y descripción del torneo si están cargados
-  const { data: tourExtra } = await supabase
-    .from("tournaments")
-    .select("banner_url, description")
-    .eq("id", tournament.tournament_id)
-    .maybeSingle();
+  // Traer afiche, descripción y categorías del torneo
+  const [tourExtra, categories] = await Promise.all([
+    supabase
+      .from("tournaments")
+      .select("banner_url, description")
+      .eq("id", tournament.tournament_id)
+      .maybeSingle(),
+    getTournamentCategories(tournament.tournament_id),
+  ]);
 
-  const bannerUrl = tourExtra?.banner_url ?? null;
-  const description = tourExtra?.description ?? null;
+  const bannerUrl = tourExtra.data?.banner_url ?? null;
+  const description = tourExtra.data?.description ?? null;
 
   const noun = teamNoun(tournament.min_team_size);
   const full = tournament.approved_teams >= tournament.max_teams;
@@ -155,6 +159,13 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
               code={code}
               teamSize={tournament.min_team_size}
               defaultName={suggestedName(user.fullName, tournament.min_team_size)}
+              categories={categories.map((c) => ({
+                id: c.id,
+                name: c.name,
+                status: c.status,
+                maxTeams: c.maxTeams,
+                approvedTeamsCount: c.approvedTeamsCount,
+              }))}
             />
           </CardContent>
         </Card>

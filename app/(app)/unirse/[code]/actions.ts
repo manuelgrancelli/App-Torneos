@@ -12,10 +12,11 @@ import { registerTeamSchema } from "@/lib/validation/registration";
  * tamaño del plantel y duplicados; quien inscribe queda como capitán (D-005).
  */
 export const registerTeam = createAction(registerTeamSchema, async (input, { supabase }) => {
-  const { data, error } = await supabase.rpc("register_team", {
+  const { data, error } = await (supabase.rpc as any)("register_team", {
     p_code: input.code,
     p_team_name: input.teamName,
     p_member_emails: input.memberEmails,
+    p_category_id: input.categoryId ?? null,
   });
   if (error) return actionError(dbErrorMessage(error));
 
@@ -47,11 +48,21 @@ export const registerTeam = createAction(registerTeamSchema, async (input, { sup
     }
   }
 
+  const { data: teamData } = await supabase
+    .from("teams")
+    .select("status")
+    .eq("id", data)
+    .maybeSingle();
+
+  const isApproved = teamData?.status === "approved";
+
   revalidatePath("/torneos");
   return actionOk(
     { teamId: data },
-    invitationWarning
-      ? "La inscripción quedó pendiente. No pudimos enviar la invitación; podés reenviarla desde tu equipo."
-      : "¡Listo! Tu inscripción quedó pendiente de aprobación.",
+    isApproved
+      ? "¡Listo! La pareja quedó inscripta y aprobada en el torneo."
+      : invitationWarning
+        ? "La inscripción quedó pendiente. No pudimos enviar la invitación; podés reenviarla desde tu equipo."
+        : "¡Listo! Tu inscripción quedó pendiente de aprobación.",
   );
 });

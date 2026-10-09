@@ -97,6 +97,13 @@ function MatchRow({
   return (
     <li className="flex items-start gap-3 px-3 py-3" data-testid="match-row">
       <div className="min-w-0 flex-1 space-y-1">
+        {match.categoryName ? (
+          <div className="pb-0.5">
+            <Badge variant="outline" className="border-primary/40 bg-primary/5 text-primary text-[10px] font-medium tracking-wide">
+              {match.categoryName}
+            </Badge>
+          </div>
+        ) : null}
         <p className={cn("truncate text-sm", homeWon && "font-semibold")}>{match.homeName}</p>
         <p className={cn("truncate text-sm", awayWon && "font-semibold")}>{match.awayName}</p>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-xs text-muted-foreground">
@@ -183,9 +190,21 @@ export function MatchesBoard(props: MatchesBoardProps) {
     setClearing(null);
   }
 
-  const visible = props.matches.filter((m) => matchesFilter(m, filter));
+  const availableCategories = Array.from(
+    new Set(props.matches.map((m) => m.categoryName).filter((c): c is string => Boolean(c))),
+  );
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
+  const categoryFiltered = props.matches.filter((m) => {
+    if (categoryFilter === "all") return true;
+    return m.categoryName === categoryFilter;
+  });
+
+  const visible = categoryFiltered.filter((m) => matchesFilter(m, filter));
   const sections = [...new Set(visible.map((m) => m.section))];
-  const counts = Object.fromEntries(FILTERS.map((f) => [f.value, props.matches.filter((m) => matchesFilter(m, f.value)).length]));
+  const counts = Object.fromEntries(
+    FILTERS.map((f) => [f.value, categoryFiltered.filter((m) => matchesFilter(m, f.value)).length]),
+  );
   const playoffRounds = playoffRoundCount(props.matches);
 
   const scheduled: FixedAssignment[] = props.matches
@@ -201,6 +220,39 @@ export function MatchesBoard(props: MatchesBoardProps) {
 
   return (
     <div className="space-y-4">
+      {availableCategories.length > 1 ? (
+        <div className="flex flex-wrap items-center gap-1.5 pb-1">
+          <span className="text-xs font-medium text-muted-foreground mr-1">Categoría:</span>
+          <button
+            type="button"
+            onClick={() => setCategoryFilter("all")}
+            className={cn(
+              "inline-flex h-7 items-center rounded-full border px-3 text-xs transition-colors",
+              categoryFilter === "all"
+                ? "border-primary bg-primary text-primary-foreground font-medium shadow-sm"
+                : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            Todas ({props.matches.length})
+          </button>
+          {availableCategories.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setCategoryFilter(cat)}
+              className={cn(
+                "inline-flex h-7 items-center rounded-full border px-3 text-xs transition-colors",
+                categoryFilter === cat
+                  ? "border-primary bg-primary text-primary-foreground font-medium shadow-sm"
+                  : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              {cat} ({props.matches.filter((m) => m.categoryName === cat).length})
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       <div role="tablist" aria-label="Filtrar partidos" className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <button

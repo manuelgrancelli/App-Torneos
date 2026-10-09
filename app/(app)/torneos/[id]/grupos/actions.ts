@@ -12,7 +12,7 @@ import { saveGroupsSchema } from "@/lib/validation/competition";
  * Guarda los grupos y genera su fixture todos contra todos. El fixture se
  * calcula acá (lib/domain) y la RPC valida y persiste todo junto (D-036).
  */
-export const saveGroups = createAction(saveGroupsSchema, async ({ tournamentId, groups }, { supabase }) => {
+export const saveGroups = createAction(saveGroupsSchema, async ({ tournamentId, categoryId, groups }, { supabase }) => {
   const payload = groups.map((teamIds, index) => ({
     name: groupName(index),
     teamIds,
@@ -26,7 +26,11 @@ export const saveGroups = createAction(saveGroupsSchema, async ({ tournamentId, 
     ),
   }));
 
-  const { error } = await supabase.rpc("apply_groups", { p_tournament_id: tournamentId, p_groups: payload });
+  const { error } = await supabase.rpc("apply_groups", {
+    p_tournament_id: tournamentId,
+    p_groups: payload,
+    ...(categoryId ? { p_category_id: categoryId } : {}),
+  });
   if (error) return actionError(dbErrorMessage(error));
 
   revalidatePath(`/torneos/${tournamentId}`, "layout");

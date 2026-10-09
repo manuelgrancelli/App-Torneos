@@ -16,11 +16,20 @@ import { applyServerErrors, firstErrorMessage } from "@/lib/forms";
 import { registerTeamSchema } from "@/lib/validation/registration";
 import { MemberEmailsField } from "./member-emails-field";
 
+export type TeamCategoryOption = {
+  id: string;
+  name: string;
+  status: string;
+  maxTeams: number;
+  approvedTeamsCount: number;
+};
+
 type TeamFormProps = {
   /** Integrantes que necesita el deporte (incluido quien inscribe). */
   teamSize: number;
   defaultName: string;
   defaultEmails?: string[];
+  categories?: TeamCategoryOption[];
   onSaved?: () => void;
 } & ({ mode: "register"; code: string } | { mode: "edit"; teamId: string });
 
@@ -31,10 +40,17 @@ export function TeamForm(props: TeamFormProps) {
   const companions = Math.max(props.teamSize - 1, 0);
   const noun = teamNoun(props.teamSize);
 
+  const defaultCategory =
+    props.mode === "register" && props.categories && props.categories.length > 0
+      ? (props.categories.find((c) => c.status === "registration_open" && c.approvedTeamsCount < c.maxTeams)?.id ??
+        props.categories[0]?.id)
+      : undefined;
+
   const form = useForm({
     resolver: zodResolver(registerTeamSchema),
     defaultValues: {
       code: props.mode === "register" ? props.code : "edit",
+      categoryId: defaultCategory,
       teamName: props.defaultName,
       memberEmails: props.defaultEmails ?? Array.from({ length: companions }, () => ""),
     },
@@ -73,6 +89,41 @@ export function TeamForm(props: TeamFormProps) {
   return (
     <form onSubmit={onSubmit} noValidate>
       <FieldGroup>
+        {props.mode === "register" && props.categories && props.categories.length > 0 ? (
+          <Controller
+            name="categoryId"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="category-select">Categoría en la que te inscribís</FieldLabel>
+                <select
+                  id="category-select"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={field.value ?? ""}
+                  onChange={(e) => field.onChange(e.target.value || undefined)}
+                >
+                  <option value="" disabled>
+                    Elegí una categoría...
+                  </option>
+                  {props.categories?.map((cat) => {
+                    const isFull = cat.approvedTeamsCount >= cat.maxTeams;
+                    const isClosed = cat.status !== "registration_open";
+                    return (
+                      <option key={cat.id} value={cat.id} disabled={isClosed || isFull}>
+                        {cat.name} {isClosed ? "(Inscripción cerrada)" : isFull ? "(Cupo lleno)" : `(${cat.approvedTeamsCount}/${cat.maxTeams})`}
+                      </option>
+                    );
+                  })}
+                </select>
+                <FieldDescription>
+                  Este torneo integra múltiples categorías. Seleccioná en cuál va a jugar tu {noun}.
+                </FieldDescription>
+                {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+              </Field>
+            )}
+          />
+        ) : null}
+
         <Controller
           name="teamName"
           control={form.control}

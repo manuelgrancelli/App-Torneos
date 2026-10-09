@@ -853,3 +853,65 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
       - Si el link caducó o ya fue aceptado: estados amigables que guían al usuario sin errores crípticos.
 - **Motivo:** brindar una experiencia transparente y profesional al integrante invitado cuando abre el enlace desde su correo, mostrándole toda la información del torneo, su afiche y su compañero antes de solicitarle aceptar.
 - **Cómo aplicar:** aplicar la migración `20261008000200_resolve_team_invitation.sql` en Supabase; la pantalla `/invitacion/aceptar` detecta automáticamente el token de la URL y resuelve la invitación.
+
+### D-063 — Sorteo de grupos considerando la disponibilidad horaria de las parejas (2026-10-08)
+- **Decisión:**
+  - **Sorteo inteligente en el dominio (`drawGroups` en `lib/domain/groups.ts`):**
+    - La función `drawGroups` acepta opcionalmente la disponibilidad de los equipos (`availability?: Readonly<Record<string, readonly string[]>>`).
+    - Al sortear los grupos, detecta incompatibilidades horarias: si dos parejas indicaron disponibilidad pero no comparten ninguna franja horaria en común (intersección vacía de `slotIds`), se consideran incompatibles y el algoritmo evita que queden en el mismo grupo.
+    - El algoritmo optimiza mediante asignación voraz aleatorizada con múltiples intentos (`RESTARTS = 40`) y búsqueda local de intercambios 2-opt, minimizando a 0 los cruces sin franja común y maximizando el solapamiento de horarios entre las parejas de cada grupo.
+    - Se mantiene el tamaño balanceado de los grupos (difieren a lo sumo en 1 equipo) y la reproducibilidad determinística mediante el generador pseudoaleatorio con semilla (`createRng(seed)`).
+    - Si no se pasa disponibilidad o los equipos no cargaron franjas, se mantiene el sorteo aleatorio clásico sin interrupciones.
+  - **Detección y alerta de cruces (`getGroupAvailabilityConflicts` en `lib/domain/groups.ts`):**
+    - Evalúa las parejas de cada grupo y reporta cruces entre equipos que no comparten ninguna franja horaria disponible.
+  - **Integración en la interfaz de usuario (`GroupBuilder` y `/torneos/[id]/grupos`):**
+    - `GroupsPage` carga las franjas horarias y disponibilidad de los equipos mediante `getSchedulingData(tournament.id)` y las suministra a `<GroupBuilder>`.
+    - Al presionar "Sortear" o cambiar la cantidad de grupos, se ejecuta el sorteo considerando las franjas cargadas por las parejas.
+### D-064 — Torneos Integrados: Múltiples Categorías con Programación Cruzada de Canchas (2026-10-08)
+- **Decisión:**
+  - **Concepto de Torneo Integrado:**
+    - Un torneo puede contener múltiples categorías (ej. "+10 Caballeros", "6ta Caballeros", "8va Damas"), compartiendo las mismas canchas e instalaciones durante las mismas fechas.
+    - Todas las categorías comparten el mismo pool de canchas (`courts`) y franjas horarias (`time_slots`).
+    - Los partidos de distintas categorías se alternan y combinan en las mismas canchas (ej. Cancha 1 a las 10:00 recibe un cruce de 6ta Caballeros y a las 11:00 un cruce de 4ta Femenino) sin colisiones de horario ni de cancha.
+  - **Modelo de Datos y Restricciones (`20261008000300_integrated_tournament_categories.sql`):**
+    - Tabla `tournament_categories`: `(id, tournament_id, name, position, status, max_teams, scoring_config, standings_config, playoff_config, champion_team_id)`.
+    - Columna `category_id` agregada con `references tournament_categories(id)` en `teams`, `tournament_groups` y `matches`.
+    - Restricción por jugador: se mantiene la restricción de que cada jugador solo puede inscribirse en una única categoría dentro del mismo torneo (`unique (tournament_id, email)`).
+    - Retrocompatibilidad absoluta: `category_id` es nullable; torneos sin categorías funcionan exactamente igual que antes.
+    - RPCs `register_team`, `apply_groups`, `apply_bracket` y nueva RPC `set_category_status` para transición de estados por categoría.
+  - **Inscripción Unificada:**
+    - El torneo cuenta con un único link y código de invitación unificado (`/unirse/[code]`).
+    - Al inscribirse, el capitán elige la categoría correspondiente.
+    - El organizador puede inscribir parejas manualmente indicando la categoría y filtrar las inscripciones aprobadas/pendientes por categoría.
+  - **Administración y Ciclo de Vida Independiente (`/torneos/[id]/categorias`):**
+    - Pestaña "Categorías" en el menú del organizador con gestión completa (CRUD y presets habituales de pádel).
+    - Cada categoría avanza de fase de forma independiente (ej. 6ta Caballeros puede estar en playoffs mientras 8va Damas está en grupos).
+  - **Sorteos y Tablas Independientes (`/torneos/[id]/grupos` y `/torneos/[id]/cuadro`):**
+    - Píldoras de selección de categoría (`<CategoryTabs>`).
+    - Cada categoría sortea sus grupos aplicando el algoritmo consciente de disponibilidad horaria (D-063) y calcula sus posiciones de forma aislada.
+    - Cada categoría proyecta y juega su cuadro de playoffs con su propio campeón.
+  - **Tablero de Partidos y Fixture Público con Visualización Cruzada:**
+    - El tablero del organizador (`/torneos/[id]/partidos`) y el fixture público (`/t/[slug]`) muestran todos los partidos asignados a las canchas con badges de categoría (ej. `[6TA CAB]`, `[4TA FEM]`).
+    - Se ofrece un filtro por categoría que permite alternar entre la vista global de las canchas del club y el cronograma de una categoría específica.
+- **Motivo:** permitir organizar eventos multizona y multicategoría habituales en circuitos de pádel manteniendo una única fecha, sede y programación física de canchas.
+- **Cómo aplicar:** ejecutar la migración `20261008000300_integrated_tournament_categories.sql` en Supabase; los torneos existentes continúan funcionando sin cambios y los nuevos pueden habilitar categorías desde la pestaña "Categorías".
+
+### D-065 — Auto-aprobación de parejas inscriptas por el organizador y aprobación directa (2026-10-08)
+- **Decisión:**
+  - **Auto-aprobación por organizador:** cuando quien inscribe una pareja es el organizador del torneo (tanto desde el formulario de la pestaña Inscripciones como desde el link de inscripción por código `/unirse/[code]`), la pareja se da de alta automáticamente como aprobada (`status = 'approved'`, `organizer_registered = true`), sin quedar en estado pendiente ni requerir pasos adicionales.
+  - **Inscripción múltiple del organizador:** el organizador puede anotar múltiples parejas en cualquiera de las categorías del torneo sin ser bloqueado por la regla de inscripción única de jugador.
+  - **Asignación atómica de categoría en inscripción manual:** `create_organizer_team` recibe `p_category_id` y lo persiste directamente al crear el equipo en la base de datos, validando el cupo de la categoría.
+  - **Aprobación directa en gestión de inscripciones:** en `RegistrationsList` y en la RPC `review_registration`, el organizador puede aprobar manualmente cualquier inscripción pendiente en cualquier momento, sin quedar bloqueado por invitaciones pendientes de compañeros.
+- **Motivo:** agilizar la carga del torneo para el organizador y evitar inconsistencias donde parejas inscriptas por la administración quedaban esperando una aprobación que nadie podía ejecutar.
+- **Cómo aplicar:** aplicar `20261008000400_auto_approve_organizer_registration.sql` en el SQL Editor de Supabase.
+
+### D-066 — Asignación y migración de parejas a categorías y resiliencia en sorteo (2026-10-08)
+- **Decisión:**
+  - **Fallback automático para torneos con 1 categoría:** en consultas de competencia y listado de parejas (`getCompetition` y `listTournamentTeams`), si el torneo tiene una única categoría, las parejas sin categoría asignada se asocian automáticamente a ella para que aparezcan de inmediato en el sorteo de grupos y en la pestaña correspondiente.
+  - **Gestión de categorías en Inscripciones:** selector desplegable en cada tarjeta de pareja en `RegistrationsList` y banner de asignación masiva para vincular parejas huérfanas con un solo clic.
+  - **Resiliencia en el sorteo de grupos:** `GroupBuilder` previene errores de rango si hay menos de 2 parejas, deshabilita el botón de sorteo y muestra alertas claras guiando al organizador.
+  - **RPCs y migración en base de datos:** `assign_team_category`, `assign_tournament_teams_category` y actualización de `apply_groups` para auto-asignar parejas en torneos de categoría única.
+- **Motivo:** evitar que parejas inscriptas queden invisibles o figuren 0 inscriptos al intentar sortear los grupos.
+- **Cómo aplicar:** aplicar `20261008000500_assign_team_category_and_backfill.sql` en el SQL Editor de Supabase.
+
+

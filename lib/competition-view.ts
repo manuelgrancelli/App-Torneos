@@ -65,6 +65,8 @@ export function disputeComments(matchId: string, confirmations: ConfirmationView
 /** Fila del tablero de partidos del organizador. */
 export type BoardMatch = {
   id: string;
+  categoryId: string | null;
+  categoryName: string | null;
   stage: "group" | "playoff";
   round: number;
   isThirdPlace: boolean;
@@ -94,12 +96,15 @@ export function buildBoardMatches(
   teamNames: Map<string, string>,
   courtNames: Map<string, string>,
   confirmations: ConfirmationView[],
+  categoryNames?: Map<string, string>,
 ): BoardMatch[] {
   const rounds = playoffRoundCount(matches);
   return matches
     .filter((m) => !m.isBye)
     .map((m) => ({
       id: m.id,
+      categoryId: m.categoryId ?? null,
+      categoryName: m.categoryId && categoryNames ? (categoryNames.get(m.categoryId) ?? null) : null,
       stage: m.stage,
       round: m.round,
       isThirdPlace: m.isThirdPlace,

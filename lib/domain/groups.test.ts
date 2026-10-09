@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { drawGroups, groupCountOptions, groupName, validateGroups } from "./groups";
+import { drawGroups, getGroupAvailabilityConflicts, groupCountOptions, groupName, validateGroups } from "./groups";
 
 const teams = (n: number) => Array.from({ length: n }, (_, i) => `t${i + 1}`);
 
@@ -33,6 +33,83 @@ describe("drawGroups", () => {
     expect(() => drawGroups(teams(5), 3, 1)).toThrow(RangeError);
     expect(() => drawGroups(teams(5), 0, 1)).toThrow(RangeError);
     expect(() => drawGroups(["a", "a", "b"], 1, 1)).toThrow("repetidos");
+  });
+  it("separa en grupos distintos a parejas sin franjas horarias en común", () => {
+    // Pareja A y C pueden franjas 1 y 2; Pareja B y D solo franja 3
+    const availability = {
+      parejaA: ["franja1", "franja2"],
+      parejaB: ["franja3"],
+      parejaC: ["franja1"],
+      parejaD: ["franja3"],
+    };
+    const teamList = ["parejaA", "parejaB", "parejaC", "parejaD"];
+    const groups = drawGroups(teamList, 2, 42, availability);
+
+    // Debe haber 2 grupos de 2 equipos
+    expect(groups).toHaveLength(2);
+    expect(groups[0]).toHaveLength(2);
+    expect(groups[1]).toHaveLength(2);
+
+    // Pareja A y Pareja B NO deben estar en el mismo grupo
+    const groupWithA = groups.find((g) => g.includes("parejaA"))!;
+    expect(groupWithA).not.toContain("parejaB");
+    expect(groupWithA).not.toContain("parejaD");
+    expect(groupWithA).toContain("parejaC");
+
+    const groupWithB = groups.find((g) => g.includes("parejaB"))!;
+    expect(groupWithB).toContain("parejaD");
+
+    // No debe haber ningún conflicto de disponibilidad en ninguno de los grupos
+    expect(getGroupAvailabilityConflicts(groups, availability)).toEqual([]);
+  });
+
+  it("es reproducible con disponibilidad y misma semilla", () => {
+    const availability = {
+      t1: ["f1"],
+      t2: ["f1"],
+      t3: ["f2"],
+      t4: ["f2"],
+    };
+    const draw1 = drawGroups(["t1", "t2", "t3", "t4"], 2, 999, availability);
+    const draw2 = drawGroups(["t1", "t2", "t3", "t4"], 2, 999, availability);
+    expect(draw1).toEqual(draw2);
+  });
+
+  it("ubica a equipos sin disponibilidad cargada sin fallar ni romper restricciones de los demás", () => {
+    const availability = {
+      t1: ["f1"],
+      t2: ["f1"],
+      t3: ["f2"],
+      t4: [], // sin franjas cargadas
+    };
+    const groups = drawGroups(["t1", "t2", "t3", "t4"], 2, 123, availability);
+    // t1 y t3 no deben estar juntos porque f1 y f2 no se solapan
+    const groupWithT1 = groups.find((g) => g.includes("t1"))!;
+    expect(groupWithT1).not.toContain("t3");
+  });
+});
+
+describe("getGroupAvailabilityConflicts", () => {
+  it("detecta parejas sin franjas en común en el mismo grupo", () => {
+    const availability = {
+      t1: ["f1", "f2"],
+      t2: ["f3"],
+      t3: ["f1"],
+    };
+    const conflicts = getGroupAvailabilityConflicts([["t1", "t2", "t3"]], availability);
+    expect(conflicts).toHaveLength(2);
+    expect(conflicts).toContainEqual({ groupIndex: 0, teamA: "t1", teamB: "t2" });
+    expect(conflicts).toContainEqual({ groupIndex: 0, teamA: "t2", teamB: "t3" });
+  });
+
+  it("no reporta conflicto si tienen al menos una franja en común o si alguno no cargó disponibilidad", () => {
+    const availability = {
+      t1: ["f1", "f2"],
+      t2: ["f2", "f3"],
+      t3: [],
+    };
+    const conflicts = getGroupAvailabilityConflicts([["t1", "t2", "t3"]], availability);
+    expect(conflicts).toEqual([]);
   });
 });
 

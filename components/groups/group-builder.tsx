@@ -1,9 +1,9 @@
 "use client";
 
 import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
-import { GripVertical, Shuffle } from "lucide-react";
+import { GripVertical, Shuffle, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { saveGroups } from "@/app/(app)/torneos/[id]/grupos/actions";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, FieldLabel } from "@/components/ui/field";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
-import { drawGroups, groupCountOptions, groupName, validateGroups } from "@/lib/domain/groups";
+import {
+  drawGroups,
+  getGroupAvailabilityConflicts,
+  groupCountOptions,
+  groupName,
+  validateGroups,
+} from "@/lib/domain/groups";
 import { randomSeed } from "@/lib/domain/random";
 import { roundRobinMatchCount } from "@/lib/domain/round-robin";
 import { cn } from "@/lib/utils";
@@ -20,9 +26,12 @@ type Team = { id: string; name: string };
 
 type GroupBuilderProps = {
   tournamentId: string;
+  categoryId?: string;
   teams: Team[];
   /** Grupos ya guardados (para editarlos mientras no haya resultados). */
   initialGroups: string[][];
+  /** Disponibilidad por equipo: teamId → slotIds */
+  availability?: Record<string, string[]>;
 };
 
 function TeamChip({
@@ -30,19 +39,22 @@ function TeamChip({
   groupIndex,
   groupCount,
   onMove,
+  hasConflict,
 }: {
   team: Team;
   groupIndex: number;
   groupCount: number;
   onMove: (teamId: string, toGroup: number) => void;
+  hasConflict?: boolean;
 }) {
   const { ref, handleRef, isDragging } = useDraggable({ id: team.id, data: { groupIndex } });
   return (
     <li
       ref={ref}
       className={cn(
-        "flex items-center gap-2 rounded-lg border bg-background px-2 py-1.5 text-sm",
+        "flex items-center gap-2 rounded-lg border bg-background px-2 py-1.5 text-sm transition-colors",
         isDragging && "opacity-60 shadow",
+        hasConflict && "border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20",
       )}
     >
       {/* Agarre para arrastrar (mouse/touch); con teclado se usa el selector. */}
@@ -55,6 +67,15 @@ function TeamChip({
         <GripVertical className="size-4" aria-hidden="true" />
       </button>
       <span className="min-w-0 flex-1 truncate">{team.name}</span>
+      {hasConflict ? (
+        <span
+          className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-900 dark:bg-amber-900/50 dark:text-amber-200"
+          title="No comparte horario disponible con alguna pareja de este grupo"
+        >
+          <TriangleAlert className="size-3 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+          <span className="hidden sm:inline">Sin coincidencia</span>
+        </span>
+      ) : null}
       <NativeSelect
         size="sm"
         aria-label={`Mover ${team.name} a…`}
@@ -77,11 +98,13 @@ function GroupColumn({
   teams,
   groupCount,
   onMove,
+  conflicts,
 }: {
   index: number;
   teams: Team[];
   groupCount: number;
   onMove: (teamId: string, toGroup: number) => void;
+  conflicts: Set<string>;
 }) {
   const { ref, isDropTarget } = useDroppable({ id: `group-${index}` });
   return (
@@ -98,7 +121,14 @@ function GroupColumn({
       </h3>
       <ul className="min-h-12 space-y-1.5">
         {teams.map((team) => (
-          <TeamChip key={team.id} team={team} groupIndex={index} groupCount={groupCount} onMove={onMove} />
+          <TeamChip
+            key={team.id}
+            team={team}
+            groupIndex={index}
+            groupCount={groupCount}
+            onMove={onMove}
+            hasConflict={conflicts.has(team.id)}
+          />
         ))}
       </ul>
     </section>
@@ -109,16 +139,26 @@ function GroupColumn({
  * Armado de grupos: sorteo con semilla y ajuste manual (drag and drop o el
  * selector "Mover a…", que funciona con teclado y en mobile).
  */
-export function GroupBuilder({ tournamentId, teams, initialGroups }: GroupBuilderProps) {
+export function GroupBuilder({
+  tournamentId,
+  categoryId,
+  teams,
+  initialGroups,
+  availability,
+}: GroupBuilderProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const hasEnoughTeams = teams.length >= 2;
   const options = groupCountOptions(teams.length);
   const suggested = options.find((count) => teams.length / count <= 5) ?? options[options.length - 1] ?? 1;
   const [groupCount, setGroupCount] = useState(initialGroups.length || suggested);
   const [groups, setGroups] = useState<string[][]>(initialGroups);
   const byId = new Map(teams.map((t) => [t.id, t]));
 
-  const draw = (count = groupCount) => setGroups(drawGroups(teams.map((t) => t.id), count, randomSeed()));
+  const draw = (count = groupCount) => {
+    if (!hasEnoughTeams) return;
+    setGroups(drawGroups(teams.map((t) => t.id), count, randomSeed(), availability));
+  };
 
   function move(teamId: string, toGroup: number) {
     setGroups((prev) => {
@@ -130,9 +170,25 @@ export function GroupBuilder({ tournamentId, teams, initialGroups }: GroupBuilde
 
   const validation = groups.length > 0 ? validateGroups(teams.map((t) => t.id), groups) : null;
 
+  const conflicts = useMemo(
+    () => (availability && groups.length > 0 ? getGroupAvailabilityConflicts(groups, availability) : []),
+    [groups, availability],
+  );
+
+  const groupConflicts = useMemo(() => {
+    const map = new Map<number, Set<string>>();
+    for (const c of conflicts) {
+      if (!map.has(c.groupIndex)) map.set(c.groupIndex, new Set());
+      const set = map.get(c.groupIndex)!;
+      set.add(c.teamA);
+      set.add(c.teamB);
+    }
+    return map;
+  }, [conflicts]);
+
   function save() {
     startTransition(async () => {
-      const result = await saveGroups({ tournamentId, groups });
+      const result = await saveGroups({ tournamentId, categoryId, groups });
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -149,11 +205,32 @@ export function GroupBuilder({ tournamentId, teams, initialGroups }: GroupBuilde
           <h2 className="text-base font-semibold">Armar grupos</h2>
         </CardTitle>
         <CardDescription>
-          Sorteá los {teams.length} equipos aprobados y, si querés, acomodalos a mano antes de confirmar. Se generan los
-          partidos todos contra todos dentro de cada grupo.
+          {teams.length === 0 ? (
+            "No hay parejas aprobadas en esta categoría para sortear."
+          ) : (
+            `Sorteá las ${teams.length} parejas aprobadas respetando su disponibilidad horaria y, si querés, acomodalas a mano antes de confirmar. Se generan los partidos todos contra todos dentro de cada grupo.`
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {!hasEnoughTeams ? (
+          <div className="flex items-start gap-2.5 rounded-lg border border-amber-300/60 bg-amber-50/50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div className="space-y-1">
+              <p className="font-medium text-foreground">
+                {teams.length === 0
+                  ? "No hay parejas aprobadas en esta categoría para sortear los grupos."
+                  : "Se necesitan al menos 2 parejas aprobadas para poder sortear los grupos (actualmente hay 1)."}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {teams.length === 0
+                  ? "Asegurate de que las inscripciones estén aprobadas y pertenezcan a esta categoría desde la pestaña Inscripciones."
+                  : "Inscribí al menos una pareja más para poder generar la fase de grupos."}
+              </p>
+            </div>
+          </div>
+        ) : null}
+
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <Field className="sm:w-48">
             <FieldLabel htmlFor="group-count">Cantidad de grupos</FieldLabel>
@@ -161,20 +238,25 @@ export function GroupBuilder({ tournamentId, teams, initialGroups }: GroupBuilde
               id="group-count"
               className="w-full"
               value={String(groupCount)}
+              disabled={!hasEnoughTeams}
               onChange={(e) => {
                 const count = Number(e.target.value);
                 setGroupCount(count);
                 if (groups.length > 0) draw(count);
               }}
             >
-              {options.map((count) => (
-                <NativeSelectOption key={count} value={String(count)}>
-                  {count} {count === 1 ? "grupo" : "grupos"} (~{Math.round(teams.length / count)} por grupo)
-                </NativeSelectOption>
-              ))}
+              {options.length === 0 ? (
+                <NativeSelectOption value="1">Sin grupos</NativeSelectOption>
+              ) : (
+                options.map((count) => (
+                  <NativeSelectOption key={count} value={String(count)}>
+                    {count} {count === 1 ? "grupo" : "grupos"} (~{Math.round(teams.length / count)} por grupo)
+                  </NativeSelectOption>
+                ))
+              )}
             </NativeSelect>
           </Field>
-          <Button type="button" variant="outline" onClick={() => draw()}>
+          <Button type="button" variant="outline" onClick={() => draw()} disabled={!hasEnoughTeams || isPending}>
             <Shuffle aria-hidden="true" />
             {groups.length > 0 ? "Volver a sortear" : "Sortear"}
           </Button>
@@ -197,10 +279,38 @@ export function GroupBuilder({ tournamentId, teams, initialGroups }: GroupBuilde
                   groupCount={groups.length}
                   onMove={move}
                   teams={group.map((id) => byId.get(id)).filter((t): t is Team => Boolean(t))}
+                  conflicts={groupConflicts.get(index) ?? new Set()}
                 />
               ))}
             </div>
           </DragDropProvider>
+        ) : null}
+
+        {conflicts.length > 0 ? (
+          <div
+            className="flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+            role="alert"
+          >
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+            <div className="space-y-1">
+              <p className="font-medium">
+                {conflicts.length === 1
+                  ? "Atención: hay 1 cruce en el mismo grupo sin horarios en común"
+                  : `Atención: hay ${conflicts.length} cruces en el mismo grupo sin horarios en común`}
+              </p>
+              <ul className="list-disc space-y-0.5 pl-4 text-xs">
+                {conflicts.map((c, i) => (
+                  <li key={i}>
+                    <strong>{groupName(c.groupIndex)}:</strong> {byId.get(c.teamA)?.name ?? c.teamA} y{" "}
+                    {byId.get(c.teamB)?.name ?? c.teamB} no comparten ninguna franja disponible.
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                Podés volver a sortear o reacomodar las parejas para que puedan programarse todos los partidos.
+              </p>
+            </div>
+          </div>
         ) : null}
 
         {validation && !validation.ok ? (

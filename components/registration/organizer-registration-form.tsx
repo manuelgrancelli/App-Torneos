@@ -4,12 +4,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useTransition } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { createOrganizerTeam } from "@/app/(app)/torneos/[id]/inscripciones/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDayHeading, formatTimeRange, localDateKey } from "@/lib/dates";
@@ -30,6 +30,7 @@ type OrganizerRegistrationFormProps = {
   teamSize: number;
   slots: OrganizerSlot[];
   courts: { id: string; name: string }[];
+  categories?: { id: string; name: string }[];
 };
 
 export function OrganizerRegistrationForm({
@@ -39,6 +40,7 @@ export function OrganizerRegistrationForm({
   teamSize,
   slots,
   courts,
+  categories,
 }: OrganizerRegistrationFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -46,7 +48,13 @@ export function OrganizerRegistrationForm({
 
   const form = useForm<OrganizerCreateTeamInput>({
     resolver: zodResolver(organizerCreateTeamSchema),
-    defaultValues: { tournamentId, teamName: "", playerNames: Array(teamSize).fill(""), slotIds: [] },
+    defaultValues: {
+      tournamentId,
+      categoryId: categories && categories.length > 0 ? categories[0]?.id : undefined,
+      teamName: "",
+      playerNames: Array(teamSize).fill(""),
+      slotIds: [],
+    },
   });
   const selectedSlots = useWatch({ control: form.control, name: "slotIds" });
   const selected = useMemo(() => new Set(selectedSlots), [selectedSlots]);
@@ -128,6 +136,31 @@ export function OrganizerRegistrationForm({
           <p className="text-sm text-muted-foreground">Primero cargá franjas en Canchas y franjas.</p>
         ) : (
           <form onSubmit={onSubmit} noValidate className="space-y-5">
+            {categories && categories.length > 0 ? (
+              <Controller
+                name="categoryId"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="org-category-select">Categoría del torneo</FieldLabel>
+                    <select
+                      id="org-category-select"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      value={field.value ?? ""}
+                      onChange={(e) => field.onChange(e.target.value || undefined)}
+                    >
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                    {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                  </Field>
+                )}
+              />
+            ) : null}
+
             {!isPadel ? (
               <Field data-invalid={Boolean(form.formState.errors.teamName)}>
                 <FieldLabel htmlFor="organizer-team-name">Nombre del equipo o la pareja</FieldLabel>

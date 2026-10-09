@@ -28,12 +28,14 @@ export default async function MatchesPage({ params }: PageProps<"/torneos/[id]/p
 
   const teamNames = new Map(competition.teams.map((t) => [t.id, t.name]));
   const courtNames = new Map(scheduling.courts.map((c) => [c.id, c.name]));
+  const categoryNames = new Map(competition.categories.map((c) => [c.id, c.name]));
   const board = buildBoardMatches(
     competition.matches,
     competition.groups,
     teamNames,
     courtNames,
     competition.confirmations,
+    categoryNames,
   );
   const canEdit = tournament.status === "group_stage" || tournament.status === "playoffs";
   const pending = board.filter((m) => !m.result && m.homeTeamId && m.awayTeamId);

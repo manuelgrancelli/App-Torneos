@@ -1,11 +1,13 @@
 "use client";
 
-import { Check, Crown, UserRoundX, X } from "lucide-react";
+import { AlertCircle, Check, Crown, UserRoundX, X, ClipboardList } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
+  assignAllUnassignedTeams,
+  assignTeamCategory,
   fillTestTeamSlots,
   reviewRegistration,
 } from "@/app/(app)/torneos/[id]/inscripciones/actions";
@@ -13,10 +15,10 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { TeamStatusBadge } from "@/components/tournaments/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
 import type { OrganizerTeam, TeamStatus } from "@/lib/data/teams";
 import { cn } from "@/lib/utils";
-import { ClipboardList } from "lucide-react";
 
 type Filter = "all" | TeamStatus;
 
@@ -36,6 +38,7 @@ type RegistrationsListProps = {
   /** Solo con la inscripción abierta se aprueba o rechaza (lo valida la RPC). */
   canReview: boolean;
   filter: Filter;
+  categories?: { id: string; name: string; maxTeams?: number }[];
 };
 
 function ReviewButtons({
@@ -98,6 +101,129 @@ function ReviewButtons({
   );
 }
 
+function TeamCategorySelector({
+  tournamentId,
+  teamId,
+  currentCategoryId,
+  categories,
+}: {
+  tournamentId: string;
+  teamId: string;
+  currentCategoryId: string | null;
+  categories: { id: string; name: string }[];
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function handleChange(val: string) {
+    const nextCat = val === "" ? null : val;
+    startTransition(async () => {
+      const result = await assignTeamCategory({
+        tournamentId,
+        teamId,
+        categoryId: nextCat,
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(result.message ?? "Categoría asignada.");
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      {isPending ? <Spinner className="size-3" /> : null}
+      <NativeSelect
+        size="sm"
+        value={currentCategoryId ?? ""}
+        disabled={isPending}
+        onChange={(e) => handleChange(e.target.value)}
+        className="h-7 text-xs w-auto min-w-[120px] max-w-[200px]"
+        aria-label="Cambiar categoría"
+      >
+        <NativeSelectOption value="">Sin categoría</NativeSelectOption>
+        {categories.map((c) => (
+          <NativeSelectOption key={c.id} value={c.id}>
+            {c.name}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+    </div>
+  );
+}
+
+function BulkAssignBanner({
+  tournamentId,
+  unassignedCount,
+  categories,
+}: {
+  tournamentId: string;
+  unassignedCount: number;
+  categories: { id: string; name: string }[];
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [targetCategory, setTargetCategory] = useState<string>(categories[0]?.id ?? "");
+
+  function handleBulkAssign() {
+    if (!targetCategory) return;
+    startTransition(async () => {
+      const result = await assignAllUnassignedTeams({
+        tournamentId,
+        categoryId: targetCategory,
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(result.message ?? "Parejas asignadas.");
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+      <div className="flex items-center gap-2">
+        <AlertCircle className="size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div>
+          <p className="font-medium">
+            Hay {unassignedCount} {unassignedCount === 1 ? "pareja" : "parejas"} sin categoría asignada.
+          </p>
+          <p className="text-xs text-amber-800 dark:text-amber-300">
+            Podés asignarlas todas juntas a una categoría:
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <NativeSelect
+          size="sm"
+          value={targetCategory}
+          disabled={isPending}
+          onChange={(e) => setTargetCategory(e.target.value)}
+          className="h-8 text-xs bg-background"
+        >
+          {categories.map((c) => (
+            <NativeSelectOption key={c.id} value={c.id}>
+              {c.name}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={isPending || !targetCategory}
+          onClick={handleBulkAssign}
+          className="h-8 text-xs shrink-0"
+        >
+          {isPending ? <Spinner className="size-3" /> : "Asignar todas"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /** Listado de inscripciones con filtros por estado y aprobación/rechazo. */
 export function RegistrationsList({
   tournamentId,
@@ -107,16 +233,29 @@ export function RegistrationsList({
   isTestTournament,
   canReview,
   filter,
+  categories,
 }: RegistrationsListProps) {
   const router = useRouter();
   const [isToolPending, startToolTransition] = useTransition();
-  const approved = teams.filter((t) => t.status === "approved").length;
-  const visible = filter === "all" ? teams : teams.filter((t) => t.status === filter);
+  const [selectedCat, setSelectedCat] = useState<string>("all");
+
+  const categoryNames = useMemo(
+    () => new Map((categories ?? []).map((c) => [c.id, c.name])),
+    [categories],
+  );
+
+  const categoryFiltered = useMemo(() => {
+    if (selectedCat === "all") return teams;
+    return teams.filter((t) => t.categoryId === selectedCat);
+  }, [teams, selectedCat]);
+
+  const approved = categoryFiltered.filter((t) => t.status === "approved").length;
+  const visible = filter === "all" ? categoryFiltered : categoryFiltered.filter((t) => t.status === filter);
   const counts = {
-    all: teams.length,
-    pending: teams.filter((t) => t.status === "pending").length,
+    all: categoryFiltered.length,
+    pending: categoryFiltered.filter((t) => t.status === "pending").length,
     approved,
-    rejected: teams.filter((t) => t.status === "rejected").length,
+    rejected: categoryFiltered.filter((t) => t.status === "rejected").length,
   };
 
   function runRegistrationTool() {
@@ -133,6 +272,38 @@ export function RegistrationsList({
 
   return (
     <div className="space-y-4">
+      {categories && categories.length > 1 ? (
+        <div className="flex flex-wrap items-center gap-1.5 pb-1">
+          <span className="text-xs font-medium text-muted-foreground mr-1">Categoría:</span>
+          <button
+            type="button"
+            onClick={() => setSelectedCat("all")}
+            className={cn(
+              "inline-flex h-7 items-center rounded-full border px-3 text-xs transition-colors",
+              selectedCat === "all"
+                ? "border-primary bg-primary text-primary-foreground font-medium shadow-sm"
+                : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            Todas ({teams.length})
+          </button>
+          {categories.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setSelectedCat(c.id)}
+              className={cn(
+                "inline-flex h-7 items-center rounded-full border px-3 text-xs transition-colors",
+                selectedCat === c.id
+                  ? "border-primary bg-primary text-primary-foreground font-medium shadow-sm"
+                  : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              {c.name} ({teams.filter((t) => t.categoryId === c.id).length})
+            </button>
+          ))}
+        </div>
+      ) : null}
       {canReview && isTestTournament ? (
         <div className="flex flex-wrap gap-2">
           {approved < maxTeams ? (
@@ -150,6 +321,14 @@ export function RegistrationsList({
             </p>
         </div>
       ) : null}
+      {categories && categories.length > 0 && teams.some((t) => !t.categoryId) ? (
+        <BulkAssignBanner
+          tournamentId={tournamentId}
+          unassignedCount={teams.filter((t) => !t.categoryId).length}
+          categories={categories}
+        />
+      ) : null}
+
       <nav aria-label="Filtrar inscripciones" className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <Link
@@ -176,19 +355,30 @@ export function RegistrationsList({
         <ul className="grid gap-3 lg:grid-cols-2">
           {visible.map((team) => {
             const complete = team.members.length >= teamSize;
-            const unaccepted =
-              !team.organizerRegistered && team.members.some((member) => !member.userId);
+            const categoryMax =
+              team.categoryId && categories
+                ? categories.find((c) => c.id === team.categoryId)?.maxTeams ?? maxTeams
+                : maxTeams;
+            const categoryApproved = team.categoryId
+              ? teams.filter((t) => t.categoryId === team.categoryId && t.status === "approved").length
+              : approved;
             const approveDisabledReason = !complete
               ? "El plantel está incompleto."
-              : unaccepted
-                ? "Falta que todos acepten la invitación."
-              : approved >= maxTeams
+              : categoryApproved >= categoryMax
                 ? "Se completó el cupo."
                 : undefined;
             return (
               <li key={team.id} className="space-y-3 rounded-xl border p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-medium">{team.name}</h3>
+                  {categories && categories.length > 0 ? (
+                    <TeamCategorySelector
+                      tournamentId={tournamentId}
+                      teamId={team.id}
+                      currentCategoryId={team.categoryId}
+                      categories={categories}
+                    />
+                  ) : null}
                   <TeamStatusBadge status={team.status} />
                   {team.testGenerated ? <Badge variant="secondary">Ficticia</Badge> : null}
                   {team.organizerRegistered ? <Badge variant="outline">Cargada por organizador</Badge> : null}
