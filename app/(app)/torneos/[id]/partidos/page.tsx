@@ -1,6 +1,7 @@
 import { CalendarRange } from "lucide-react";
 import type { Metadata } from "next";
 import { AutoScheduleDialog } from "@/components/matches/auto-schedule-dialog";
+import { ExportMatchesImageModal } from "@/components/matches/export-matches-image-modal";
 import { MatchesBoard } from "@/components/matches/matches-board";
 import { SimulateResultsButton } from "@/components/matches/simulate-results-button";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -49,20 +50,30 @@ export default async function MatchesPage({ params }: PageProps<"/torneos/[id]/p
             ? "Todos los partidos tienen resultado."
             : `${pending.length} partidos sin resultado · ${unscheduled.length} sin horario.`}
         </p>
-        {canEdit && pending.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2">
-            {tournament.isTest ? (
-              <SimulateResultsButton
-                tournamentId={tournament.id}
-                label={tournament.status === "group_stage" ? "Simular fase de grupos" : "Simular resultados"}
-              />
-            ) : null}
-            <AutoScheduleDialog
-              tournamentId={tournament.id}
-              matchLabels={Object.fromEntries(board.map((m) => [m.id, `${m.homeName} vs ${m.awayName}`]))}
+        <div className="flex flex-wrap items-center gap-2">
+          {board.length > 0 ? (
+            <ExportMatchesImageModal
+              tournamentName={tournament.name}
+              sportName={tournament.sport.name}
+              timezone={tournament.timezone}
+              matches={board}
             />
-          </div>
-        ) : null}
+          ) : null}
+          {canEdit && pending.length > 0 ? (
+            <>
+              {tournament.isTest ? (
+                <SimulateResultsButton
+                  tournamentId={tournament.id}
+                  label={tournament.status === "group_stage" ? "Simular fase de grupos" : "Simular resultados"}
+                />
+              ) : null}
+              <AutoScheduleDialog
+                tournamentId={tournament.id}
+                matchLabels={Object.fromEntries(board.map((m) => [m.id, `${m.homeName} vs ${m.awayName}`]))}
+              />
+            </>
+          ) : null}
+        </div>
       </div>
       <MatchesBoard
         tournamentId={tournament.id}

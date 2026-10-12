@@ -194,6 +194,8 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
           {view === "fixture" ? (
             <PublicFixture
               timezone={timezone}
+              tournamentName={tournament.name}
+              sportName={tournament.sportName}
               days={groupByLocalDay(fixtureItems(tournament, teamNames, courts, categoryNames), () => timezone)}
             />
           ) : null}

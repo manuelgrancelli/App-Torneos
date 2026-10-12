@@ -1,5 +1,7 @@
 import { Trophy } from "lucide-react";
+import { ExportMatchesImageModal } from "@/components/matches/export-matches-image-modal";
 import { type DayGroup, formatDayHeading, formatTimeRange } from "@/lib/dates";
+import type { MatchExportData } from "@/lib/graphics/matches-image";
 import { cn } from "@/lib/utils";
 
 export type FixtureItem = {
@@ -17,9 +19,49 @@ export type FixtureItem = {
 };
 
 /** Fixture público por día (en la zona del torneo); los partidos sin horario van al final. */
-export function PublicFixture({ days, timezone }: { days: DayGroup<FixtureItem>[]; timezone: string }) {
+export function PublicFixture({
+  days,
+  timezone,
+  tournamentName,
+  sportName,
+}: {
+  days: DayGroup<FixtureItem>[];
+  timezone: string;
+  tournamentName?: string;
+  sportName?: string;
+}) {
+  const allMatches: MatchExportData[] = tournamentName
+    ? days.flatMap((g) =>
+        g.items.map((m) => ({
+          id: m.id,
+          homeName: m.homeName,
+          awayName: m.awayName,
+          startsAt: m.startsAt,
+          endsAt: m.endsAt,
+          courtName: m.courtLabel,
+          section: m.section,
+          categoryName: m.categoryName,
+          resultText: m.resultText,
+          winnerTeamId: m.homeWon ? "home" : m.awayWon ? "away" : null,
+          homeTeamId: m.homeWon ? "home" : null,
+          awayTeamId: m.awayWon ? "away" : null,
+        })),
+      )
+    : [];
+
   return (
     <div className="space-y-6">
+      {tournamentName && allMatches.length > 0 ? (
+        <div className="flex justify-end">
+          <ExportMatchesImageModal
+            tournamentName={tournamentName}
+            sportName={sportName}
+            timezone={timezone}
+            matches={allMatches}
+            size="sm"
+          />
+        </div>
+      ) : null}
       {days.map((group) => {
         const headingId = `dia-${group.day ?? "sin-horario"}`;
         return (

@@ -21,11 +21,15 @@ import {
 import { randomSeed } from "@/lib/domain/random";
 import { roundRobinMatchCount } from "@/lib/domain/round-robin";
 import { cn } from "@/lib/utils";
+import { ExportGroupsImageModal } from "./export-groups-image-modal";
 
 type Team = { id: string; name: string };
 
 type GroupBuilderProps = {
   tournamentId: string;
+  tournamentName?: string;
+  categoryName?: string;
+  sportName?: string;
   categoryId?: string;
   teams: Team[];
   /** Grupos ya guardados (para editarlos mientras no haya resultados). */
@@ -141,6 +145,9 @@ function GroupColumn({
  */
 export function GroupBuilder({
   tournamentId,
+  tournamentName,
+  categoryName,
+  sportName,
   categoryId,
   teams,
   initialGroups,
@@ -231,35 +238,51 @@ export function GroupBuilder({
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <Field className="sm:w-48">
-            <FieldLabel htmlFor="group-count">Cantidad de grupos</FieldLabel>
-            <NativeSelect
-              id="group-count"
-              className="w-full"
-              value={String(groupCount)}
-              disabled={!hasEnoughTeams}
-              onChange={(e) => {
-                const count = Number(e.target.value);
-                setGroupCount(count);
-                if (groups.length > 0) draw(count);
-              }}
-            >
-              {options.length === 0 ? (
-                <NativeSelectOption value="1">Sin grupos</NativeSelectOption>
-              ) : (
-                options.map((count) => (
-                  <NativeSelectOption key={count} value={String(count)}>
-                    {count} {count === 1 ? "grupo" : "grupos"} (~{Math.round(teams.length / count)} por grupo)
-                  </NativeSelectOption>
-                ))
-              )}
-            </NativeSelect>
-          </Field>
-          <Button type="button" variant="outline" onClick={() => draw()} disabled={!hasEnoughTeams || isPending}>
-            <Shuffle aria-hidden="true" />
-            {groups.length > 0 ? "Volver a sortear" : "Sortear"}
-          </Button>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <Field className="sm:w-48">
+              <FieldLabel htmlFor="group-count">Cantidad de grupos</FieldLabel>
+              <NativeSelect
+                id="group-count"
+                className="w-full"
+                value={String(groupCount)}
+                disabled={!hasEnoughTeams}
+                onChange={(e) => {
+                  const count = Number(e.target.value);
+                  setGroupCount(count);
+                  if (groups.length > 0) draw(count);
+                }}
+              >
+                {options.length === 0 ? (
+                  <NativeSelectOption value="1">Sin grupos</NativeSelectOption>
+                ) : (
+                  options.map((count) => (
+                    <NativeSelectOption key={count} value={String(count)}>
+                      {count} {count === 1 ? "grupo" : "grupos"} (~{Math.round(teams.length / count)} por grupo)
+                    </NativeSelectOption>
+                  ))
+                )}
+              </NativeSelect>
+            </Field>
+            <Button type="button" variant="outline" onClick={() => draw()} disabled={!hasEnoughTeams || isPending}>
+              <Shuffle aria-hidden="true" />
+              {groups.length > 0 ? "Volver a sortear" : "Sortear"}
+            </Button>
+          </div>
+
+          {groups.length > 0 ? (
+            <ExportGroupsImageModal
+              tournamentName={tournamentName ?? "Torneo"}
+              categoryName={categoryName}
+              sportName={sportName}
+              groups={groups.map((group, idx) => ({
+                name: groupName(idx),
+                teams: group.map((id) => byId.get(id)?.name).filter((n): n is string => Boolean(n)),
+              }))}
+              size="default"
+              variant="outline"
+            />
+          ) : null}
         </div>
 
         {groups.length > 0 ? (
@@ -322,10 +345,22 @@ export function GroupBuilder({
         ) : null}
 
         {groups.length > 0 ? (
-          <Button type="button" onClick={save} disabled={isPending || !validation?.ok}>
-            {isPending ? <Spinner /> : null}
-            Confirmar grupos y generar partidos
-          </Button>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+            <Button type="submit" onClick={save} disabled={isPending || !validation?.ok} className="shadow-sm">
+              {isPending ? <Spinner /> : null}
+              Confirmar grupos y generar partidos
+            </Button>
+            <ExportGroupsImageModal
+              tournamentName={tournamentName ?? "Torneo"}
+              categoryName={categoryName}
+              sportName={sportName}
+              groups={groups.map((group, idx) => ({
+                name: groupName(idx),
+                teams: group.map((id) => byId.get(id)?.name).filter((n): n is string => Boolean(n)),
+              }))}
+              variant="outline"
+            />
+          </div>
         ) : null}
       </CardContent>
     </Card>

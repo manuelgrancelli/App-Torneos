@@ -2,6 +2,7 @@ import { AlertCircle, LayoutGrid } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CategoryTabs } from "@/components/categories/category-tabs";
+import { ExportGroupsImageModal } from "@/components/groups/export-groups-image-modal";
 import { GroupBuilder } from "@/components/groups/group-builder";
 import { StandingsTable } from "@/components/groups/standings-table";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -140,6 +141,9 @@ export default async function GroupsPage({
       {canEdit ? (
         <GroupBuilder
           tournamentId={tournament.id}
+          tournamentName={tournament.name}
+          categoryName={activeCategory?.name}
+          sportName={tournament.sport.name}
           categoryId={activeCategory?.id}
           teams={approved.map((t) => ({ id: t.id, name: t.name }))}
           initialGroups={groups.map((g) => g.teamIds)}
@@ -148,15 +152,28 @@ export default async function GroupsPage({
       ) : null}
 
       {standings.length > 0 ? (
-        <section aria-labelledby="posiciones" className="space-y-3">
-          <h2 id="posiciones" className="text-lg font-semibold">
-            Posiciones {activeCategory ? `— ${activeCategory.name}` : ""}
-          </h2>
-          {hasResults && isCategoryGroupStage ? (
-            <p className="text-sm text-muted-foreground">
-              Ya hay resultados cargados: los grupos no se pueden rearmar.
-            </p>
-          ) : null}
+        <section aria-labelledby="posiciones" className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 id="posiciones" className="text-lg font-semibold">
+                Posiciones {activeCategory ? `— ${activeCategory.name}` : ""}
+              </h2>
+              {hasResults && isCategoryGroupStage ? (
+                <p className="text-sm text-muted-foreground">
+                  Ya hay resultados cargados: los grupos no se pueden rearmar.
+                </p>
+              ) : null}
+            </div>
+            <ExportGroupsImageModal
+              tournamentName={tournament.name}
+              categoryName={activeCategory?.name}
+              sportName={tournament.sport.name}
+              groups={standings.map(({ group, rows }) => ({
+                name: group.name,
+                teams: rows.map((r) => teamNames.get(r.teamId) ?? "Equipo"),
+              }))}
+            />
+          </div>
           <div className="grid gap-4 lg:grid-cols-2">
             {standings.map(({ group, rows }) => (
               <StandingsTable

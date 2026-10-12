@@ -2,6 +2,7 @@ import { Network, Trophy } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BracketView } from "@/components/bracket/bracket-view";
+import { ExportBracketImageModal } from "@/components/bracket/export-bracket-image-modal";
 import { CategoryTabs } from "@/components/categories/category-tabs";
 import { MatchesBoard } from "@/components/matches/matches-board";
 import { SimulateResultsButton } from "@/components/matches/simulate-results-button";
@@ -192,16 +193,27 @@ export default async function BracketPage({
         </div>
       ) : null}
 
-      <section aria-labelledby="cuadro" className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h2 id="cuadro" className="text-lg font-semibold">
-            {hasPlayoffMatches ? "Cuadro de playoffs" : "Cruces proyectados"}{" "}
-            {activeCategory ? `— ${activeCategory.name}` : ""}
-          </h2>
-          {hasPlayoffMatches && isPlayoffs ? (
-            <p className="hidden text-xs text-muted-foreground sm:block">
-              Cargá o editá resultados directamente en cada partido del cuadro.
-            </p>
+      <section aria-labelledby="cuadro" className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 id="cuadro" className="text-lg font-semibold">
+              {hasPlayoffMatches ? "Cuadro de playoffs" : "Cruces proyectados"}{" "}
+              {activeCategory ? `— ${activeCategory.name}` : ""}
+            </h2>
+            {hasPlayoffMatches && isPlayoffs ? (
+              <p className="hidden text-xs text-muted-foreground sm:block">
+                Cargá o editá resultados directamente en cada partido del cuadro.
+              </p>
+            ) : null}
+          </div>
+          {cards.length > 0 ? (
+            <ExportBracketImageModal
+              tournamentName={tournament.name}
+              categoryName={activeCategory?.name}
+              sportName={tournament.sport.name}
+              cards={cards}
+              champion={champion}
+            />
           ) : null}
         </div>
         <BracketView
