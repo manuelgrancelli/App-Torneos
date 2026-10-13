@@ -252,3 +252,21 @@ describe("generateSimulatedMatchResult", () => {
   });
 });
 
+describe("recordResultSchema", () => {
+  it("acepta totalRounds 0, null, undefined o número positivo", async () => {
+    const { recordResultSchema } = await import("@/lib/validation/competition");
+    const validPayload = {
+      kind: "score" as const,
+      tournamentId: "00000000-0000-4000-8000-000000000001",
+      matchId: "00000000-0000-4000-8000-000000000002",
+      result: sets([6, 4], [6, 3]),
+    };
+
+    expect(recordResultSchema.safeParse(validPayload).success).toBe(true);
+    expect(recordResultSchema.safeParse({ ...validPayload, totalRounds: 0 }).success).toBe(true);
+    expect(recordResultSchema.safeParse({ ...validPayload, totalRounds: null }).success).toBe(true);
+    expect(recordResultSchema.safeParse({ ...validPayload, totalRounds: undefined }).success).toBe(true);
+    expect(recordResultSchema.safeParse({ ...validPayload, totalRounds: 3 }).success).toBe(true);
+  });
+});
+

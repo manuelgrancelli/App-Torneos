@@ -28,14 +28,14 @@ export const recordResultSchema = z.discriminatedUnion("kind", [
     tournamentId: z.uuid(),
     matchId: z.uuid(),
     result: matchResultSchema,
-    totalRounds: z.number().int().min(1).max(20).optional(),
+    totalRounds: z.number().int().min(0).max(20).optional().nullable(),
   }),
   z.object({
     kind: z.literal("walkover"),
     tournamentId: z.uuid(),
     matchId: z.uuid(),
     winner: z.enum(["home", "away"]),
-    totalRounds: z.number().int().min(1).max(20).optional(),
+    totalRounds: z.number().int().min(0).max(20).optional().nullable(),
   }),
 ]);
 

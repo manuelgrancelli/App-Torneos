@@ -32,7 +32,7 @@ type AvailabilityPickerProps = {
  * Muestra las franjas completas (ej. de 9 a 15) en lugar de intervalos específicos de 1 hora.
  * Marcar una franja habilita la disponibilidad en todo ese intervalo para programar partidos.
  */
-export function AvailabilityPicker({ teamId, timezone, slots, courts, selected, readOnly }: AvailabilityPickerProps) {
+export function AvailabilityPicker({ teamId, timezone, slots, courts: _courts, selected, readOnly }: AvailabilityPickerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const saved = useMemo(() => new Set(selected), [selected]);
@@ -115,12 +115,12 @@ export function AvailabilityPicker({ teamId, timezone, slots, courts, selected, 
           const allSelected = windows.length > 0 && windows.every((w) => isWindowSelected(w));
           return (
             <section key={day} aria-labelledby={`avail-${day}`} className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 id={`avail-${day}`} className="text-sm font-semibold first-letter:uppercase">
                   {formatDayHeading(day)}
                 </h3>
                 {!readOnly && windows.length > 1 ? (
-                  <Button type="button" variant="ghost" size="sm" onClick={() => toggleDay(windows)}>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => toggleDay(windows)} className="h-8 px-2 text-xs">
                     {allSelected ? "Ninguna" : "Todo el día"}
                   </Button>
                 ) : null}
@@ -140,16 +140,18 @@ export function AvailabilityPicker({ teamId, timezone, slots, courts, selected, 
                         disabled={readOnly}
                         onClick={() => toggleWindow(window)}
                         className={cn(
-                          "flex min-h-14 w-full flex-col items-start justify-center rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
+                          "flex min-h-14 w-full flex-col items-start justify-center rounded-lg border px-3 py-2.5 text-left text-sm transition-all",
                           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed",
-                          active ? "border-foreground bg-foreground text-background" : "bg-background hover:bg-muted",
+                          active
+                            ? "border-emerald-600 bg-emerald-600 text-white shadow-xs dark:bg-emerald-600 dark:border-emerald-600"
+                            : "border-border bg-background hover:bg-muted text-foreground",
                         )}
                       >
                         <span className="flex items-center gap-1.5 font-medium tabular-nums">
-                          {active ? <Check className="size-4 shrink-0" aria-hidden="true" /> : null}
+                          {active ? <Check className="size-4 shrink-0 stroke-[2.5]" aria-hidden="true" /> : null}
                           <span className="text-base">{time}</span>
                         </span>
-                        <span className={cn("text-xs font-normal", active ? "text-background/80" : "text-muted-foreground")}>
+                        <span className={cn("text-xs font-normal", active ? "text-white/85" : "text-muted-foreground")}>
                           {label} {slotsCount > 1 ? `· ${slotsCount} turnos posibles` : ""}
                         </span>
                       </button>

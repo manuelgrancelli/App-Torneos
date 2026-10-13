@@ -102,7 +102,8 @@ export const recordResult = createAction(recordResultSchema, async (input, { sup
     result = walkoverResult(config, input.winner);
     winnerSide = input.winner;
   } else {
-    let totalRounds: number | undefined = input.totalRounds;
+    let totalRounds: number | undefined =
+      input.totalRounds && input.totalRounds > 0 ? input.totalRounds : undefined;
     if (totalRounds === undefined && match.stage === "playoff") {
       let query = (supabase as any)
         .from("matches")

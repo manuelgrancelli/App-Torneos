@@ -14,7 +14,7 @@ export default async function CourtsAndSlotsPage({ params }: PageProps<"/torneos
   const inSetup = tournament.status === "draft" || tournament.status === "registration_open";
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[2fr_3fr]">
+    <div className="grid gap-6 grid-cols-1 xl:grid-cols-[2fr_3fr]">
       <CourtsManager tournamentId={tournament.id} courts={courts} canDelete={inSetup} />
       <SlotsManager
         tournamentId={tournament.id}

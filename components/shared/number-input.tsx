@@ -60,7 +60,7 @@ export function NumberInput({
         type="button"
         variant="outline"
         size="icon"
-        className="size-10 shrink-0 touch-manipulation md:size-8"
+        className="size-9 shrink-0 touch-manipulation sm:size-8"
         onClick={handleDecrement}
         disabled={disabled || (numValue !== undefined && numMin !== undefined && numValue <= numMin)}
         aria-label="Disminuir"
@@ -70,12 +70,13 @@ export function NumberInput({
       </Button>
 
       <Input
+        placeholder="—"
         {...props}
         type="text"
         inputMode="numeric"
         pattern="[0-9]*"
         disabled={disabled}
-        className={cn("text-center font-medium", className)}
+        className={cn("text-center font-bold text-base sm:text-lg min-w-[2.5rem]", className)}
         value={value ?? ""}
         onFocus={(e) => {
           e.currentTarget.select();
@@ -91,7 +92,7 @@ export function NumberInput({
         type="button"
         variant="outline"
         size="icon"
-        className="size-10 shrink-0 touch-manipulation md:size-8"
+        className="size-9 shrink-0 touch-manipulation sm:size-8"
         onClick={handleIncrement}
         disabled={disabled || (numValue !== undefined && numMax !== undefined && numValue >= numMax)}
         aria-label="Aumentar"

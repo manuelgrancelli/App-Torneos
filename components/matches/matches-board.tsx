@@ -207,11 +207,12 @@ export function MatchesBoard(props: MatchesBoardProps) {
   );
   const playoffRounds = playoffRoundCount(props.matches);
   const editingPlayoffRounds = useMemo(() => {
-    if (!editing || editing.stage !== "playoff") return playoffRounds;
+    if (!editing || editing.stage !== "playoff") return undefined;
     const catMatches = editing.categoryId
       ? props.matches.filter((m) => m.categoryId === editing.categoryId && m.stage === "playoff")
       : props.matches.filter((m) => !m.categoryId && m.stage === "playoff");
-    return catMatches.length > 0 ? playoffRoundCount(catMatches) : playoffRounds;
+    const count = catMatches.length > 0 ? playoffRoundCount(catMatches) : playoffRounds;
+    return count > 0 ? count : undefined;
   }, [editing, props.matches, playoffRounds]);
 
   const scheduled: FixedAssignment[] = props.matches

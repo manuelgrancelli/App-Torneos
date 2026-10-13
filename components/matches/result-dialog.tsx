@@ -101,20 +101,25 @@ export function ResultDialog(props: ResultDialogProps) {
 
   function save() {
     startTransition(async () => {
+      const safeTotalRounds =
+        props.stage === "playoff" && props.totalRounds && props.totalRounds > 0
+          ? props.totalRounds
+          : undefined;
+
       const response = walkover
         ? await recordResult({
             kind: "walkover",
             tournamentId: props.tournamentId,
             matchId: props.matchId,
             winner: walkoverWinner as "home" | "away",
-            totalRounds: props.totalRounds,
+            totalRounds: safeTotalRounds,
           })
         : await recordResult({
             kind: "score",
             tournamentId: props.tournamentId,
             matchId: props.matchId,
             result: result as MatchResult,
-            totalRounds: props.totalRounds,
+            totalRounds: safeTotalRounds,
           });
       if (!response.ok) {
         toast.error(response.error);
@@ -128,7 +133,7 @@ export function ResultDialog(props: ResultDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Resultado</DialogTitle>
           <DialogDescription>
@@ -136,7 +141,7 @@ export function ResultDialog(props: ResultDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5">
+        <div className="space-y-4">
           <Field orientation="horizontal">
             <Switch id="result-wo" checked={walkover} onCheckedChange={setWalkover} />
             <FieldLabel htmlFor="result-wo">Ganó por W.O. (el rival no se presentó)</FieldLabel>
@@ -157,38 +162,75 @@ export function ResultDialog(props: ResultDialogProps) {
               </ToggleGroup>
             </FieldSet>
           ) : scoring.type === "sets" ? (
-            <div className="space-y-2">
-              <div className="grid grid-cols-[1fr_4.5rem_4.5rem] items-end gap-2 text-sm font-medium">
-                <span />
-                <span className="truncate text-center" title={homeName}>{homeName}</span>
-                <span className="truncate text-center" title={awayName}>{awayName}</span>
-              </div>
+            <div className="space-y-3">
               {sets.map(([home, away], index) => {
                 const isStb = isSuperTiebreakSet(scoring, index, matchContext);
-                const label = isStb ? `Super tie-break (${scoring.superTiebreakPoints} pts)` : `Set ${index + 1}`;
+                const label = isStb ? "Super tie-break" : `Set ${index + 1}`;
+                const subtitle = isStb
+                  ? `a ${scoring.superTiebreakPoints} pts (con dif. de 2)`
+                  : undefined;
                 return (
-                  <div key={index} className="grid grid-cols-[1fr_4.5rem_4.5rem] items-center gap-2">
-                    <span className="text-sm">{label}</span>
-                    <NumberInput
-                      aria-label={`${label}: ${homeName}`}
-                      min={0}
-                      max={99}
-                      value={home}
-                      onChange={(v) => setSets((prev) => prev.map((s, i) => (i === index ? [v, s[1]] : s)))}
-                      className="text-center"
-                    />
-                    <NumberInput
-                      aria-label={`${label}: ${awayName}`}
-                      min={0}
-                      max={99}
-                      value={away}
-                      onChange={(v) => setSets((prev) => prev.map((s, i) => (i === index ? [s[0], v] : s)))}
-                      className="text-center"
-                    />
+                  <div
+                    key={index}
+                    className="rounded-xl border border-border/70 bg-card/60 p-3 sm:p-3.5 space-y-2.5 transition-colors"
+                  >
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <span className="inline-block size-1.5 rounded-full bg-primary" />
+                        {label}
+                      </span>
+                      {subtitle && (
+                        <span className="text-[11px] font-medium text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                          {subtitle}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4 items-center">
+                      <div className="space-y-1">
+                        <span
+                          className="text-xs font-medium text-foreground truncate block text-center"
+                          title={homeName}
+                        >
+                          {homeName}
+                        </span>
+                        <NumberInput
+                          aria-label={`${label}: ${homeName}`}
+                          min={0}
+                          max={99}
+                          value={home}
+                          onChange={(v) =>
+                            setSets((prev) => prev.map((s, i) => (i === index ? [v, s[1]] : s)))
+                          }
+                          className="text-center font-bold text-base"
+                          placeholder="—"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <span
+                          className="text-xs font-medium text-foreground truncate block text-center"
+                          title={awayName}
+                        >
+                          {awayName}
+                        </span>
+                        <NumberInput
+                          aria-label={`${label}: ${awayName}`}
+                          min={0}
+                          max={99}
+                          value={away}
+                          onChange={(v) =>
+                            setSets((prev) => prev.map((s, i) => (i === index ? [s[0], v] : s)))
+                          }
+                          className="text-center font-bold text-base"
+                          placeholder="—"
+                        />
+                      </div>
+                    </div>
                   </div>
                 );
               })}
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground px-0.5">
                 {scoring.decidingSet === "super_tiebreak" && isSuperTiebreakSet(scoring, totalSets - 1, matchContext)
                   ? `El set decisivo es a super tie-break a ${scoring.superTiebreakPoints} puntos (con 2 de diferencia).`
                   : scoring.decidingSet === "super_tiebreak"
@@ -223,11 +265,11 @@ export function ResultDialog(props: ResultDialogProps) {
 
           {!walkover && evaluation ? (
             evaluation.ok ? (
-              <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900" aria-live="polite">
+              <div className="rounded-lg border border-emerald-300/40 bg-emerald-50 px-3.5 py-2.5 text-sm font-medium text-emerald-900 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-200" aria-live="polite">
                 {winnerText}
-              </p>
+              </div>
             ) : (
-              <ul className="list-disc space-y-1 rounded-lg bg-red-50 px-3 py-2 pl-7 text-sm text-red-900" role="alert">
+              <ul className="list-disc space-y-1 rounded-lg border border-destructive/30 bg-destructive/10 px-3.5 py-2.5 pl-7 text-sm text-destructive dark:border-destructive/40 dark:bg-destructive/20 dark:text-red-300" role="alert">
                 {evaluation.errors.map((error) => (
                   <li key={error}>{error}</li>
                 ))}

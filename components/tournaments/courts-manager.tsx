@@ -58,14 +58,14 @@ function CourtForm({
   });
 
   return (
-    <form onSubmit={onSubmit} noValidate className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+    <form onSubmit={onSubmit} noValidate className="grid gap-3 grid-cols-1 md:grid-cols-[1fr_1fr_auto] md:items-end">
       <Controller
         name="name"
         control={form.control}
         render={({ field, fieldState }) => (
-          <Field data-invalid={fieldState.invalid}>
+          <Field data-invalid={fieldState.invalid} className="min-w-0">
             <FieldLabel htmlFor={`${idPrefix}-name`}>Nombre</FieldLabel>
-            <Input {...field} id={`${idPrefix}-name`} placeholder="Cancha 3" aria-invalid={fieldState.invalid} />
+            <Input {...field} id={`${idPrefix}-name`} placeholder="Cancha 3" aria-invalid={fieldState.invalid} className="w-full" />
             {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
           </Field>
         )}
@@ -74,20 +74,20 @@ function CourtForm({
         name="venue"
         control={form.control}
         render={({ field, fieldState }) => (
-          <Field data-invalid={fieldState.invalid}>
+          <Field data-invalid={fieldState.invalid} className="min-w-0">
             <FieldLabel htmlFor={`${idPrefix}-venue`}>Sede (opcional)</FieldLabel>
-            <Input {...field} id={`${idPrefix}-venue`} placeholder="Club Centro" aria-invalid={fieldState.invalid} />
+            <Input {...field} id={`${idPrefix}-venue`} placeholder="Club Centro" aria-invalid={fieldState.invalid} className="w-full" />
             {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
           </Field>
         )}
       />
-      <div className="flex gap-2">
-        <Button type="submit" disabled={isPending} className="flex-1 sm:flex-none">
+      <div className="flex gap-2 w-full md:w-auto">
+        <Button type="submit" disabled={isPending} className="flex-1 md:flex-none">
           {isPending ? <Spinner /> : court ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}
           {court ? "Guardar" : "Agregar"}
         </Button>
         {court ? (
-          <Button type="button" variant="ghost" size="icon" onClick={onDone} aria-label="Cancelar edición">
+          <Button type="button" variant="ghost" size="icon" onClick={onDone} aria-label="Cancelar edición" className="shrink-0">
             <X aria-hidden="true" />
           </Button>
         ) : null}

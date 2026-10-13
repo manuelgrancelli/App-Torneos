@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { createOrganizerTeam } from "@/app/(app)/torneos/[id]/inscripciones/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDayHeading, formatTimeRange, localDateKey } from "@/lib/dates";
@@ -63,7 +63,6 @@ export function OrganizerRegistrationForm({
     [slots, timezone],
   );
   const allWindows = useMemo(() => dayWindows.flatMap((d) => d.windows), [dayWindows]);
-  const courtNames = useMemo(() => new Map(courts.map((court) => [court.id, court.name])), [courts]);
 
   function isWindowSelected(window: AvailabilityWindow<OrganizerSlot>): boolean {
     return window.slotIds.length > 0 && window.slotIds.every((id) => selected.has(id));
@@ -202,10 +201,10 @@ export function OrganizerRegistrationForm({
             </fieldset>
 
             <fieldset className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <legend className="text-sm font-medium">Franjas en las que pueden jugar</legend>
                 {slots.length > 0 ? (
-                  <Button type="button" variant="outline" size="sm" onClick={toggleAllSlots}>
+                  <Button type="button" variant="outline" size="sm" onClick={toggleAllSlots} className="h-8 text-xs">
                     {slots.every((slot) => selected.has(slot.id)) ? "Deseleccionar todas" : "Seleccionar todas"}
                   </Button>
                 ) : null}
@@ -218,12 +217,12 @@ export function OrganizerRegistrationForm({
               <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {dayWindows.map(({ day, windows }) => (
                   <section key={day} aria-labelledby={`organizer-slots-${day}`} className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <h3 id={`organizer-slots-${day}`} className="text-sm font-semibold first-letter:uppercase">
                         {formatDayHeading(day)}
                       </h3>
                       {windows.length > 1 ? (
-                        <Button type="button" variant="ghost" size="sm" onClick={() => toggleDay(windows)}>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => toggleDay(windows)} className="h-8 px-2 text-xs">
                           {windows.every((w) => isWindowSelected(w)) ? "Ninguna" : "Todo el día"}
                         </Button>
                       ) : null}
@@ -241,16 +240,18 @@ export function OrganizerRegistrationForm({
                               aria-checked={active}
                               onClick={() => toggleWindow(window)}
                               className={cn(
-                                "flex min-h-14 w-full flex-col items-start justify-center rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
+                                "flex min-h-14 w-full flex-col items-start justify-center rounded-lg border px-3 py-2.5 text-left text-sm transition-all",
                                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                                active ? "border-foreground bg-foreground text-background" : "bg-background hover:bg-muted",
+                                active
+                                  ? "border-emerald-600 bg-emerald-600 text-white shadow-xs dark:bg-emerald-600 dark:border-emerald-600"
+                                  : "border-border bg-background hover:bg-muted text-foreground",
                               )}
                             >
                               <span className="flex items-center gap-1.5 font-medium tabular-nums">
-                                {active ? <Check className="size-4 shrink-0" aria-hidden="true" /> : null}
+                                {active ? <Check className="size-4 shrink-0 stroke-[2.5]" aria-hidden="true" /> : null}
                                 <span className="text-base">{time}</span>
                               </span>
-                              <span className={cn("text-xs font-normal", active ? "text-background/80" : "text-muted-foreground")}>
+                              <span className={cn("text-xs font-normal", active ? "text-white/85" : "text-muted-foreground")}>
                                 {label} {window.slots.length > 1 ? `· ${window.slots.length} turnos posibles` : ""}
                               </span>
                             </button>

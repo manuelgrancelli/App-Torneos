@@ -914,4 +914,16 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** evitar que parejas inscriptas queden invisibles o figuren 0 inscriptos al intentar sortear los grupos.
 - **Cómo aplicar:** aplicar `20261008000500_assign_team_category_and_backfill.sql` en el SQL Editor de Supabase.
 
+### D-067 — Responsividad en canchas/franjas y distinción visual en verde para días y franjas seleccionadas (2026-10-12)
+- **Decisión:**
+  - **Días seleccionados en verde:** en `SlotGenerator` (y `SingleSlotForm`), los chips de días seleccionados para crear las franjas horarias se muestran con fondo y borde verde esmeralda (`bg-emerald-600 text-white border-emerald-600`) y con icono de tilde (`Check`), eliminando la ambigüedad del estado activo anterior (gris sutil) para que sea inmediatamente evidente qué días están incluidos. Se incorpora además el botón de acción rápida "Seleccionar todos" / "Deseleccionar todos".
+  - **Franjas disponibles en verde:** en `AvailabilityPicker` y `OrganizerRegistrationForm`, las franjas horarias marcadas como disponibles adoptan el mismo color verde esmeralda para una experiencia unificada y clara.
+  - **Responsividad y prevención de solapamientos ("opciones que se pisan"):**
+    - En `SlotsManager`, los pares de inputs ("Desde"/"Hasta" y "Duración de cada partido"/"Pausa entre partidos") se configuran con rejilla adaptable `grid-cols-1 sm:grid-cols-2 gap-3` para evitar que los textos largos y selectores se aprieten o desalineen en resoluciones móviles.
+    - Las pestañas ("Generar en lote" y "Agregar una") en mobile se expanden como control segmentado a lo ancho (`w-full grid grid-cols-2 sm:w-fit`).
+    - En el listado de franjas (`SlotList`), la cabecera de cada franja y sus acciones ("Ver turnos" y borrar) se reorganizan en disposición vertical en mobile y horizontal en pantallas grandes (`flex-col sm:flex-row`), evitando que los badges, horarios y botones de acción colisionen. Dentro de los turnos individuales, los nombres de canchas y horarios cuentan con truncado y envoltura segura.
+    - En la vista principal (`/torneos/[id]/canchas-franjas`), se ajusta la rejilla a `grid-cols-1 xl:grid-cols-[2fr_3fr]` y el formulario de canchas (`CourtForm`) a `grid-cols-1 md:grid-cols-[1fr_1fr_auto]` para garantizar espacio adecuado en tablets y notebooks.
+- **Motivo:** solucionar problemas de visualización en pantallas móviles/tablets donde los controles se pisaban y clarificar visualmente la selección de días en el alta de franjas.
+- **Cómo aplicar:** cambios aplicados directamente en `slots-manager.tsx`, `courts-manager.tsx`, `availability-picker.tsx`, `organizer-registration-form.tsx` y en la página `/torneos/[id]/canchas-franjas/page.tsx`.
+
 
