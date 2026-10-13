@@ -926,4 +926,12 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** solucionar problemas de visualización en pantallas móviles/tablets donde los controles se pisaban y clarificar visualmente la selección de días en el alta de franjas.
 - **Cómo aplicar:** cambios aplicados directamente en `slots-manager.tsx`, `courts-manager.tsx`, `availability-picker.tsx`, `organizer-registration-form.tsx` y en la página `/torneos/[id]/canchas-franjas/page.tsx`.
 
+### D-068 — Desambiguación de RPC apply_groups y resiliencia en generación de grupos (2026-10-13)
+- **Decisión:**
+  - En `saveGroups` (`app/(app)/torneos/[id]/grupos/actions.ts`), enviar `p_category_id: categoryId ?? null` explícitamente para evitar el error de ambigüedad de funciones en PostgREST (`PGRST203: Could not choose the best candidate function`) que ocurre cuando coexisten las firmas de 2 y 3 parámetros con valores por defecto. En caso de bases sin la migración de categorías, se incluye reintento automático con la firma original de 2 parámetros.
+  - En `lib/supabase/errors.ts`, se mapean los códigos de PostgREST/PostgreSQL (`PGRST203`, `PGRST202`, `42883`, `42703`, `42P01`) con mensajes descriptivos.
+  - Migración `20261013100000_fix_rpc_overloads.sql` para eliminar de la base las funciones obsoletas de 2 parámetros.
+- **Motivo:** solucionar el error genérico "No pudimos completar la operación. Probá de nuevo." al confirmar el sorteo de grupos y generar los partidos.
+- **Cómo aplicar:** cambios ya aplicados en la app. Si se desea limpiar la base en Supabase, ejecutar en el SQL Editor: `drop function if exists public.apply_groups(uuid, jsonb); drop function if exists public.apply_bracket(uuid, jsonb);`.
+
 

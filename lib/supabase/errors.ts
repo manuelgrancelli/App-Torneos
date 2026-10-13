@@ -63,6 +63,11 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   "23502": "Faltan datos obligatorios.",
   "22P02": "Los datos no son válidos.",
   PGRST116: "No encontramos lo que buscabas.",
+  PGRST203: "Conflicto de versiones de funciones en la base de datos.",
+  PGRST202: "No se encontró la función requerida en la base de datos.",
+  "42883": "La función en la base de datos no coincide con los parámetros requeridos.",
+  "42703": "Falta una columna en la base de datos. Verificá las migraciones en Supabase.",
+  "42P01": "Falta una tabla en la base de datos. Verificá las migraciones en Supabase.",
 };
 
 const DB_PERMISSION_MESSAGE = "No tenés permiso para hacer esto.";
