@@ -134,6 +134,31 @@ export function PhaseGuide({
           </div>
         ))}
 
+        {status === "group_stage" && guide.steps.length > 0 && guide.steps.every((s) => s.done) ? (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm space-y-2">
+            <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-medium">
+              <Check className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              ¡Fase de grupos finalizada con éxito!
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Los cruces del cuadro de playoffs ya están definidos y podés comenzar a cargar los resultados directamente.
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button asChild size="sm">
+                <Link href={`/torneos/${tournamentId}/cuadro`}>
+                  Ir al cuadro de playoffs
+                  <ArrowRight className="ml-1 size-3.5" />
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/torneos/${tournamentId}/partidos`}>
+                  Ver partidos
+                </Link>
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         {guide.nextPhase ? (
           <p className="text-sm text-muted-foreground">
             Sigue: <span className="font-medium text-foreground">{guide.nextPhase}</span>

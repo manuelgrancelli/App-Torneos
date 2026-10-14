@@ -1100,5 +1100,22 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** alinear la distribución visual según la preferencia explícita del usuario, ubicando el balance numérico en su perfil y el flujo operativo de torneos en la pantalla principal.
 - **Cómo aplicar:** implementado en `components/tournaments/tournament-stats-summary.tsx`, `components/tournaments/tournament-dashboard.tsx`, `app/(app)/perfil/page.tsx`, y `app/(app)/torneos/page.tsx`.
 
+### D-078 — Eliminación del botón manual de playoffs, transición fluida tras fase de grupos y carga de resultados fuera de franjas (2026-10-14)
+- **Decisión:**
+  - **Eliminación del botón manual "Terminar grupos y pasar a playoffs":**
+    - Se remueve la opción manual de transición de estado `playoffs` de `PhaseGuide` y `TournamentSummaryPage` (`app/(app)/torneos/[id]/page.tsx`), así como el botón "Pasar a playoffs" en `components/categories/categories-manager.tsx`.
+    - Al concluir todos los partidos de la fase de grupos, el sistema muestra en su lugar un banner de finalización con enlaces directos a "Ir al cuadro de playoffs" y "Ver partidos".
+  - **Generación y sincronización automática de playoffs:**
+    - Al guardar el resultado del último partido de fase de grupos en `recordResult` (`partidos/actions.ts`), se dispara inmediatamente `ensurePlayoffBracket`, persistiendo los cruces de playoffs en la base de datos sin requerir interacción administrativa adicional.
+    - `MatchesPage` (`app/(app)/torneos/[id]/partidos/page.tsx`) asegura que si los grupos terminaron o el torneo está en playoffs, los partidos de playoffs se encuentren generados para permitir su carga inmediata desde el listado general de partidos.
+  - **Carga de resultados y programación flexible fuera de franjas:**
+    - Se elimina la auto-programación forzosa de playoffs (`runAutoSchedule`) dentro de `ensurePlayoffBracket` y `recordResult`, permitiendo que el organizador defina los resultados de playoffs libremente, incluso si los partidos no tienen franjas horarias asignadas o se juegan fuera de los turnos de juego iniciales.
+    - En PostgreSQL (`supabase/migrations/20261014170000_fluid_playoffs_and_byes_fix.sql`):
+      - Se actualiza `record_match_result` para permitir cargar resultados de playoffs cuando el torneo o categoría todavía figura en `group_stage`, siempre que hayan concluido los partidos de grupo, actualizando el estado de forma transparente.
+      - Se corrige `apply_bracket` para asignar `result_status = 'confirmed'` a los partidos con bye, evitando el fallo de restricción `check` de base de datos (`matches_check`).
+- **Motivo:** eliminar la fricción innecesaria de botones manuales intermedios, solucionar el bloqueo que impedía cargar resultados de playoffs tras culminar la zona y dar total autonomía al organizador para resolver las llaves eliminatorias.
+- **Cómo aplicar:** implementado en `supabase/migrations/20261014170000_fluid_playoffs_and_byes_fix.sql`, `app/(app)/torneos/[id]/cuadro/actions.ts`, `app/(app)/torneos/[id]/partidos/actions.ts`, `app/(app)/torneos/[id]/partidos/page.tsx`, `app/(app)/torneos/[id]/page.tsx`, `components/tournaments/phase-guide.tsx`, y `components/categories/categories-manager.tsx`.
+
+
 
 

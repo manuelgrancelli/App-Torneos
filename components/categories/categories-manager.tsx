@@ -274,13 +274,11 @@ export function CategoriesManager({ tournamentId, categories, inSetup = false }:
                             <ArrowRight className="size-3.5 ml-1" />
                           </Link>
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => handleStatusChange(cat.id, "playoffs")}
-                          disabled={isPending}
-                        >
-                          Pasar a playoffs
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={`/torneos/${tournamentId}/cuadro?cat=${cat.id}`}>
+                            Ver cuadro
+                            <ArrowRight className="size-3.5 ml-1" />
+                          </Link>
                         </Button>
                       </>
                     ) : null}

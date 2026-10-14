@@ -8,6 +8,8 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { buildBoardMatches } from "@/lib/competition-view";
 import { getCompetition, getSchedulingData } from "@/lib/data/competition";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
+import { createClient } from "@/lib/supabase/server";
+import { ensurePlayoffBracket } from "../cuadro/actions";
 
 export const metadata: Metadata = { title: "Partidos" };
 
@@ -15,7 +17,20 @@ export const metadata: Metadata = { title: "Partidos" };
 export default async function MatchesPage({ params }: PageProps<"/torneos/[id]/partidos">) {
   const { id } = await params;
   const tournament = await requireOrganizerTournament(id);
-  const [competition, scheduling] = await Promise.all([getCompetition(tournament.id), getSchedulingData(tournament.id)]);
+  const supabase = await createClient();
+  let [competition, scheduling] = await Promise.all([getCompetition(tournament.id), getSchedulingData(tournament.id)]);
+
+  // D-078: Si concluyeron los partidos de grupos o el torneo está en playoffs, asegurar partidos de playoff en la base
+  const groupMatches = competition.matches.filter((m) => m.stage === "group");
+  const allGroupMatchesFinished =
+    groupMatches.length > 0 && groupMatches.every((m) => m.resultStatus !== null);
+
+  if (allGroupMatchesFinished || tournament.status === "playoffs") {
+    const res = await ensurePlayoffBracket(supabase, tournament.id);
+    if (res.ok && (res.count ?? 0) > 0) {
+      competition = await getCompetition(tournament.id);
+    }
+  }
 
   if (competition.matches.length === 0) {
     return (

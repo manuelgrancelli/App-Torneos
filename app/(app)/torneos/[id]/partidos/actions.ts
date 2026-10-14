@@ -20,6 +20,7 @@ import {
   matchActionSchema,
   recordResultSchema,
 } from "@/lib/validation/competition";
+import { ensurePlayoffBracket } from "../cuadro/actions";
 
 const NOT_FOUND = "No encontramos el partido o no tenés permiso para modificarlo.";
 
@@ -197,20 +198,31 @@ export const recordResult = createAction(recordResultSchema, async (input, { sup
     }
   }
 
-  // Playoffs: si el partido siguiente (o el del 3er puesto) ya tiene sus dos
-  // equipos y no tiene horario, se intenta programarlo (D-039).
-  const targets = [match.next_match_id, match.loser_next_match_id].filter((id): id is string => Boolean(id));
-  if (targets.length > 0) {
-    const { data: next } = await supabase
+  // D-078: Si era un partido de fase de grupos, verificar si concluyeron todos los partidos de zona.
+  // De ser así, se genera inmediatamente el cuadro de playoffs sin exigir botones administrativos manuales.
+  if (match.stage === "group") {
+    let groupMatchesQuery = (supabase as any)
       .from("matches")
-      .select("id, home_team_id, away_team_id")
-      .in("id", targets)
-      .is("result_status", null)
-      .is("slot_id", null);
-    const ready = (next ?? []).filter((m) => m.home_team_id && m.away_team_id).map((m) => m.id);
-    if (ready.length > 0) {
-      const scheduled = await runAutoSchedule(supabase, input.tournamentId, "unscheduled", ready);
-      if (scheduled.ok) scheduledNext += scheduled.outcome.assigned;
+      .select("id, result_status")
+      .eq("tournament_id", input.tournamentId)
+      .eq("stage", "group");
+
+    if (categoryId) {
+      groupMatchesQuery = groupMatchesQuery.eq("category_id", categoryId);
+    }
+
+    const { data: catGroupMatches } = await groupMatchesQuery;
+    const allCatFinished =
+      catGroupMatches &&
+      catGroupMatches.length > 0 &&
+      catGroupMatches.every((m: any) => m.result_status !== null);
+
+    if (allCatFinished) {
+      await ensurePlayoffBracket(
+        supabase,
+        input.tournamentId,
+        categoryId ? { categoryId } : undefined,
+      );
     }
   }
 

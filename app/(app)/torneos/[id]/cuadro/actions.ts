@@ -30,22 +30,6 @@ export async function ensurePlayoffBracket(
   tournamentId: string,
   options?: { qualifiersPerGroup?: number; thirdPlace?: boolean; categoryId?: string },
 ): Promise<{ ok: boolean; count?: number; error?: string; warnings?: string[] }> {
-  let existQuery = supabase
-    .from("matches")
-    .select("id")
-    .eq("tournament_id", tournamentId)
-    .eq("stage", "playoff");
-
-  if (options?.categoryId) {
-    existQuery = (existQuery as any).eq("category_id", options.categoryId);
-  }
-
-  const { data: existing, error: existError } = await existQuery.limit(1);
-  if (existError) return { ok: false, error: dbErrorMessage(existError) };
-  if (existing && existing.length > 0 && !options?.qualifiersPerGroup) {
-    return { ok: true, count: existing.length };
-  }
-
   const { data: tournament, error: tourError } = await supabase
     .from("tournaments")
     .select("id, status, scoring_config, standings_config, playoff_config")
@@ -76,6 +60,22 @@ export async function ensurePlayoffBracket(
       }
     }
     return { ok: true, count: totalMatches, warnings: allWarnings };
+  }
+
+  let existQuery = supabase
+    .from("matches")
+    .select("id")
+    .eq("tournament_id", tournamentId)
+    .eq("stage", "playoff");
+
+  if (options?.categoryId) {
+    existQuery = (existQuery as any).eq("category_id", options.categoryId);
+  }
+
+  const { data: existing, error: existError } = await existQuery.limit(1);
+  if (existError) return { ok: false, error: dbErrorMessage(existError) };
+  if (existing && existing.length > 0 && !options?.qualifiersPerGroup) {
+    return { ok: true, count: existing.length };
   }
 
   let categoryPlayoffConfig = tournament.playoff_config;
@@ -122,6 +122,12 @@ export async function ensurePlayoffBracket(
         .update({ status: "playoffs" })
         .eq("id", options.categoryId);
     }
+    if (!options?.categoryId && tournament.status === "group_stage") {
+      await (supabase as any)
+        .from("tournaments")
+        .update({ status: "playoffs" })
+        .eq("id", tournamentId);
+    }
   }
 
   if (!canBuildPlayoffs) return { ok: false, error: "La fase de grupos todavía tiene partidos pendientes de resultado." };
@@ -164,24 +170,8 @@ export async function ensurePlayoffBracket(
   });
   if (rpcError) return { ok: false, error: dbErrorMessage(rpcError) };
 
-  // Primera ronda (y partidos que ya tengan sus dos equipos por byes).
-  let readyQuery = supabase
-    .from("matches")
-    .select("id, home_team_id, away_team_id")
-    .eq("tournament_id", tournamentId)
-    .eq("stage", "playoff")
-    .eq("is_bye", false)
-    .is("result_status", null);
-
-  if (options?.categoryId) {
-    readyQuery = (readyQuery as any).eq("category_id", options.categoryId);
-  }
-
-  const { data: ready } = await readyQuery;
-  const readyIds = (ready ?? []).filter((m) => m.home_team_id && m.away_team_id).map((m) => m.id);
-  if (readyIds.length > 0) {
-    await runAutoSchedule(supabase, tournamentId, "unscheduled", readyIds);
-  }
+  // D-078: En playoffs los horarios y resultados los define el organizador directamente;
+  // no se fuerza la auto-programación a franjas horarias arbitrarias.
 
   revalidatePath(`/torneos/${tournamentId}`, "layout");
   refreshPublicTournament(tournamentId);

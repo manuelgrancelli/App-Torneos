@@ -42,7 +42,10 @@ export default async function TournamentSummaryPage({ params }: PageProps<"/torn
   }
 
   // Transiciones posibles con su validación (la base vuelve a validar al aplicar).
-  const options: TransitionOption[] = ALLOWED_TRANSITIONS[tournament.status].map((to) => {
+  // D-078: La transición a playoffs es fluida y automática al concluir los partidos de zona.
+  // Se omite el botón manual 'playoffs' ("Terminar grupos y pasar a playoffs").
+  const validTransitions = ALLOWED_TRANSITIONS[tournament.status].filter((to) => to !== "playoffs");
+  const options: TransitionOption[] = validTransitions.map((to) => {
     const check = checkTransition(tournament.status, to, {
       slotCount: counts.slots,
       teamCount: counts.teams,
