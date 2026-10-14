@@ -55,6 +55,69 @@ export type SetsScoringConfig = z.infer<typeof setsScoringConfigSchema>;
 export type GoalsScoringConfig = z.infer<typeof goalsScoringConfigSchema>;
 export type ScoringConfig = z.infer<typeof scoringConfigSchema>;
 
+/**
+ * Normaliza cualquier configuración de puntuación, incluso si proviene de migraciones antiguas
+ * (ej. campos "setsToWin" en lugar de "bestOf" o falta de "decidingSet"), o si es undefined/null.
+ */
+export function normalizeScoringConfig(raw: unknown): ScoringConfig {
+  const fallback: SetsScoringConfig = {
+    type: "sets",
+    bestOf: 3,
+    gamesPerSet: 6,
+    tiebreak: true,
+    decidingSet: "super_tiebreak",
+    superTiebreakPoints: 11,
+    superTiebreakUntil: "quarterfinals",
+  };
+
+  if (!raw || typeof raw !== "object") return fallback;
+  const obj = raw as Record<string, unknown>;
+
+  if (obj.type === "goals") {
+    return {
+      type: "goals",
+      playoffTiebreak: "penalties",
+    };
+  }
+
+  // Handle sets
+  let bestOf: 1 | 3 | 5 = 3;
+  if (obj.bestOf === 1 || obj.bestOf === 3 || obj.bestOf === 5) {
+    bestOf = obj.bestOf;
+  } else if (typeof obj.setsToWin === "number") {
+    bestOf = obj.setsToWin === 1 ? 1 : obj.setsToWin === 3 ? 5 : 3;
+  }
+
+  const decidingSet = obj.decidingSet === "full" ? "full" : "super_tiebreak";
+  const gamesPerSet =
+    typeof obj.gamesPerSet === "number" && obj.gamesPerSet >= 2 && obj.gamesPerSet <= 9
+      ? obj.gamesPerSet
+      : 6;
+  const tiebreak = typeof obj.tiebreak === "boolean" ? obj.tiebreak : true;
+  const superTiebreakPoints =
+    typeof obj.superTiebreakPoints === "number" &&
+    obj.superTiebreakPoints >= 5 &&
+    obj.superTiebreakPoints <= 30
+      ? obj.superTiebreakPoints
+      : 11;
+  const validUntils: SuperTiebreakUntil[] = ["all", "semifinals", "quarterfinals", "groups"];
+  const superTiebreakUntil =
+    typeof obj.superTiebreakUntil === "string" &&
+    validUntils.includes(obj.superTiebreakUntil as SuperTiebreakUntil)
+      ? (obj.superTiebreakUntil as SuperTiebreakUntil)
+      : "quarterfinals";
+
+  return {
+    type: "sets",
+    bestOf,
+    gamesPerSet,
+    tiebreak,
+    decidingSet,
+    superTiebreakPoints,
+    superTiebreakUntil,
+  };
+}
+
 // -----------------------------------------------------------------------------
 // Resultados (matches.result)
 // -----------------------------------------------------------------------------

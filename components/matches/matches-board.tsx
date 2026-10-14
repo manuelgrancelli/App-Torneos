@@ -1,6 +1,16 @@
 "use client";
 
-import { CalendarClock, CheckCheck, ClipboardEdit, Eraser, Lock, MoreVertical, TriangleAlert } from "lucide-react";
+import {
+  Calendar,
+  CalendarClock,
+  CheckCheck,
+  ClipboardEdit,
+  Eraser,
+  LayoutGrid,
+  Lock,
+  MoreVertical,
+  TriangleAlert,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -24,9 +34,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { formatInTimeZone, formatTimeRange } from "@/lib/dates";
+import { formatDayHeading, formatInTimeZone, formatTimeRange, groupByLocalDay } from "@/lib/dates";
 import type { FixedAssignment } from "@/lib/domain/scheduler";
-import { type BoardMatch, playoffRoundCount } from "@/lib/competition-view";
+import { type BoardMatch, compareMatchesChronological, playoffRoundCount } from "@/lib/competition-view";
 import type { ScoringConfig } from "@/lib/domain/scoring";
 import { cn } from "@/lib/utils";
 import { AssignSlotDialog } from "./assign-slot-dialog";
@@ -34,6 +44,7 @@ import { ResultDialog } from "./result-dialog";
 
 
 type Filter = "all" | "unscheduled" | "pending" | "disputed";
+type ViewMode = "schedule" | "stage";
 
 type MatchesBoardProps = {
   tournamentId: string;
@@ -97,24 +108,25 @@ function MatchRow({
   return (
     <li className="flex items-start gap-3 px-3 py-3" data-testid="match-row">
       <div className="min-w-0 flex-1 space-y-1">
-        {match.categoryName ? (
-          <div className="pb-0.5">
+        <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
+          {match.categoryName ? (
             <Badge variant="outline" className="border-primary/40 bg-primary/5 text-primary text-[10px] font-medium tracking-wide">
               {match.categoryName}
             </Badge>
-          </div>
-        ) : null}
+          ) : null}
+          <span className="text-[11px] font-medium text-muted-foreground">{match.section}</span>
+        </div>
         <p className={cn("truncate text-sm", homeWon && "font-semibold")}>{match.homeName}</p>
         <p className={cn("truncate text-sm", awayWon && "font-semibold")}>{match.awayName}</p>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-xs text-muted-foreground">
           {match.startsAt && match.endsAt ? (
-            <span className="inline-flex flex-wrap items-center gap-x-1">
-              <CalendarClock className="size-3.5" aria-hidden="true" />
+            <span className="inline-flex flex-wrap items-center gap-x-1.5">
+              <CalendarClock className="size-3.5 text-muted-foreground" aria-hidden="true" />
               <span className="whitespace-nowrap first-letter:uppercase">
                 {formatInTimeZone(match.startsAt, timezone, "EEE d/M")}
               </span>
-              <span className="whitespace-nowrap tabular-nums">{formatTimeRange(match.startsAt, match.endsAt, timezone)}</span>
-              {match.courtName ? <span className="whitespace-nowrap">· {match.courtName}</span> : null}
+              <span className="whitespace-nowrap tabular-nums font-semibold text-foreground">{formatTimeRange(match.startsAt, match.endsAt, timezone)}</span>
+              {match.courtName ? <span className="whitespace-nowrap font-medium text-foreground">· {match.courtName}</span> : null}
               {match.scheduleLocked ? <Lock className="size-3" aria-label="Horario fijado a mano" /> : null}
             </span>
           ) : ready && !match.result ? (
@@ -176,6 +188,7 @@ function MatchRow({
 export function MatchesBoard(props: MatchesBoardProps) {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
+  const [viewMode, setViewMode] = useState<ViewMode>("schedule");
   const [scheduling, setScheduling] = useState<BoardMatch | null>(null);
   const [editing, setEditing] = useState<BoardMatch | null>(null);
   const [clearing, setClearing] = useState<BoardMatch | null>(null);
@@ -201,7 +214,18 @@ export function MatchesBoard(props: MatchesBoardProps) {
   });
 
   const visible = categoryFiltered.filter((m) => matchesFilter(m, filter));
-  const sections = [...new Set(visible.map((m) => m.section))];
+  const sortedVisible = useMemo(() => {
+    return [...visible].sort(compareMatchesChronological);
+  }, [visible]);
+
+  const dayGroups = useMemo(() => {
+    return groupByLocalDay(sortedVisible, () => props.timezone);
+  }, [sortedVisible, props.timezone]);
+
+  const sections = useMemo(() => {
+    return [...new Set(sortedVisible.map((m) => m.section))];
+  }, [sortedVisible]);
+
   const counts = Object.fromEntries(
     FILTERS.map((f) => [f.value, categoryFiltered.filter((m) => matchesFilter(m, f.value)).length]),
   );
@@ -261,35 +285,108 @@ export function MatchesBoard(props: MatchesBoardProps) {
         </div>
       ) : null}
 
-      <div role="tablist" aria-label="Filtrar partidos" className="flex flex-wrap gap-2">
-        {FILTERS.map((f) => (
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div role="tablist" aria-label="Filtrar partidos" className="flex flex-wrap gap-2">
+          {FILTERS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              role="tab"
+              aria-selected={filter === f.value}
+              onClick={() => setFilter(f.value)}
+              className={cn(
+                "inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-xs font-medium transition-colors md:h-8",
+                filter === f.value ? "border-foreground bg-foreground text-background" : "hover:bg-muted text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {f.label} <span className="tabular-nums opacity-70">{counts[f.value]}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-1 rounded-lg border bg-muted/40 p-1 text-xs self-start sm:self-auto">
           <button
-            key={f.value}
             type="button"
-            role="tab"
-            aria-selected={filter === f.value}
-            onClick={() => setFilter(f.value)}
+            onClick={() => setViewMode("schedule")}
+            aria-pressed={viewMode === "schedule"}
             className={cn(
-              "inline-flex h-10 items-center gap-1 rounded-full border px-4 text-sm md:h-8",
-              filter === f.value ? "border-foreground bg-foreground text-background" : "hover:bg-muted",
+              "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-all",
+              viewMode === "schedule"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {f.label} <span className="tabular-nums opacity-70">{counts[f.value]}</span>
+            <CalendarClock className="size-3.5" aria-hidden="true" />
+            Cronograma
           </button>
-        ))}
+          <button
+            type="button"
+            onClick={() => setViewMode("stage")}
+            aria-pressed={viewMode === "stage"}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-all",
+              viewMode === "stage"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <LayoutGrid className="size-3.5" aria-hidden="true" />
+            Por fase
+          </button>
+        </div>
       </div>
 
-      {visible.length === 0 ? (
+      {sortedVisible.length === 0 ? (
         <EmptyState icon={CheckCheck} title="No hay partidos en esta vista" />
+      ) : viewMode === "schedule" ? (
+        <div className="space-y-6">
+          {dayGroups.map((group) => {
+            const headingId = `dia-${group.day ?? "sin-horario"}`;
+            return (
+              <section key={group.day ?? "sin-horario"} aria-labelledby={headingId} className="space-y-2">
+                <div className="flex items-center justify-between px-0.5">
+                  <h3 id={headingId} className="text-sm font-semibold first-letter:uppercase flex items-center gap-2">
+                    <Calendar className="size-4 text-muted-foreground" aria-hidden="true" />
+                    {group.day ? formatDayHeading(group.day) : "Sin horario asignado"}
+                  </h3>
+                  <Badge variant="secondary" className="text-xs font-normal">
+                    {group.items.length} {group.items.length === 1 ? "partido" : "partidos"}
+                  </Badge>
+                </div>
+                <ul className="divide-y rounded-lg border bg-card">
+                  {group.items.map((match) => (
+                    <MatchRow
+                      key={match.id}
+                      match={match}
+                      timezone={props.timezone}
+                      canEdit={props.canEdit}
+                      tournamentId={props.tournamentId}
+                      onSchedule={() => setScheduling(match)}
+                      onResult={() => setEditing(match)}
+                      onClear={() => setClearing(match)}
+                      onRefresh={() => router.refresh()}
+                    />
+                  ))}
+                </ul>
+              </section>
+            );
+          })}
+        </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {sections.map((section) => (
             <section key={section} aria-labelledby={`sec-${section}`} className="space-y-2">
-              <h3 id={`sec-${section}`} className="text-sm font-semibold">
-                {section}
-              </h3>
-              <ul className="divide-y rounded-lg border">
-                {visible
+              <div className="flex items-center justify-between px-0.5">
+                <h3 id={`sec-${section}`} className="text-sm font-semibold">
+                  {section}
+                </h3>
+                <Badge variant="secondary" className="text-xs font-normal">
+                  {sortedVisible.filter((m) => m.section === section).length}{" "}
+                  {sortedVisible.filter((m) => m.section === section).length === 1 ? "partido" : "partidos"}
+                </Badge>
+              </div>
+              <ul className="divide-y rounded-lg border bg-card">
+                {sortedVisible
                   .filter((m) => m.section === section)
                   .map((match) => (
                     <MatchRow

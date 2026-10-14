@@ -15,6 +15,7 @@ export type FixtureItem = {
   startsAt: string | null;
   endsAt: string | null;
   courtLabel: string | null;
+  courtName?: string | null;
   resultText: string | null;
 };
 

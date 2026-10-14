@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { actionError, actionOk, createAction } from "@/lib/actions/safe-action";
 import { dbErrorMessage } from "@/lib/supabase/errors";
 import { refreshPublicTournament } from "@/lib/public-cache";
+import { ensurePlayoffBracket } from "../cuadro/actions";
 import {
   createCategorySchema,
   deleteCategorySchema,
@@ -19,12 +20,19 @@ function revalidate(tournamentId: string) {
 
 /** Agrega una categoría al torneo integrado (ej. "6ta Caballeros", "4ta Femenino"). */
 export const createCategory = createAction(createCategorySchema, async (input, { supabase }) => {
-  const { data: existing, error: countError } = await (supabase as any)
-    .from("tournament_categories")
-    .select("position")
-    .eq("tournament_id", input.tournamentId)
-    .order("position", { ascending: false })
-    .limit(1);
+  const [{ data: existing, error: countError }, { data: tourney }] = await Promise.all([
+    (supabase as any)
+      .from("tournament_categories")
+      .select("position")
+      .eq("tournament_id", input.tournamentId)
+      .order("position", { ascending: false })
+      .limit(1),
+    (supabase as any)
+      .from("tournaments")
+      .select("scoring_config, standings_config, playoff_config")
+      .eq("id", input.tournamentId)
+      .single(),
+  ]);
 
   if (countError) {
     console.error("[createCategory] countError:", countError);
@@ -32,15 +40,21 @@ export const createCategory = createAction(createCategorySchema, async (input, {
   }
   const nextPos = (existing?.[0]?.position ?? -1) + 1;
 
+  const insertPayload: Record<string, unknown> = {
+    tournament_id: input.tournamentId,
+    name: input.name,
+    max_teams: input.maxTeams,
+    position: nextPos,
+    status: "registration_open",
+  };
+
+  if (tourney?.scoring_config) insertPayload.scoring_config = tourney.scoring_config;
+  if (tourney?.standings_config) insertPayload.standings_config = tourney.standings_config;
+  if (tourney?.playoff_config) insertPayload.playoff_config = tourney.playoff_config;
+
   const { data, error } = await (supabase as any)
     .from("tournament_categories")
-    .insert({
-      tournament_id: input.tournamentId,
-      name: input.name,
-      max_teams: input.maxTeams,
-      position: nextPos,
-      status: "registration_open",
-    })
+    .insert(insertPayload)
     .select("id")
     .single();
 
@@ -116,6 +130,10 @@ export const changeCategoryStatus = createAction(setCategoryStatusSchema, async 
   });
 
   if (error) return actionError(dbErrorMessage(error));
+
+  if (input.status === "playoffs") {
+    await ensurePlayoffBracket(supabase, input.tournamentId, { categoryId: input.categoryId });
+  }
 
   revalidate(input.tournamentId);
   return actionOk(undefined, `Estado de categoría actualizado a ${input.status}.`);

@@ -14,6 +14,7 @@ import {
   buildProjectedBracket,
   buildTeamSeedMap,
   cardsFromMatches,
+  compareMatchesChronological,
   groupStandings,
   matchStageLabel,
   playoffRoundCount,
@@ -174,15 +175,27 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
                 />
               ) : (
                 <div className="grid gap-4 lg:grid-cols-2">
-                  {groupStandings(filteredGroups, filteredMatches, tournament.scoringConfig, tournament.standingsConfig).map(
+                  {groupStandings(
+                    filteredGroups,
+                    filteredMatches,
+                    activeCategory?.scoringConfig ?? tournament.scoringConfig,
+                    activeCategory?.standingsConfig ?? tournament.standingsConfig
+                  ).map(
                     ({ group, rows }) => (
                       <StandingsTable
                         key={group.id}
                         title={group.name}
                         rows={rows}
                         teamNames={teamNames}
-                        scoringType={tournament.scoringConfig.type}
-                        qualifiers={tournament.playoffConfig.qualifiersPerGroup}
+                        scoringType={(activeCategory?.scoringConfig ?? tournament.scoringConfig).type}
+                        qualifiers={
+                          group.teamIds.length === 4
+                            ? 3
+                            : filteredGroups.length === 1 &&
+                              (activeCategory?.playoffConfig?.qualifiersPerGroup ?? tournament.playoffConfig.qualifiersPerGroup) < 2
+                              ? 2
+                              : (activeCategory?.playoffConfig?.qualifiersPerGroup ?? tournament.playoffConfig.qualifiersPerGroup)
+                        }
                       />
                     ),
                   )}
@@ -210,14 +223,17 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
                   buildTeamSeedMap(
                     filteredGroups,
                     filteredMatches,
-                    tournament.scoringConfig,
-                    tournament.standingsConfig,
-                    tournament.playoffConfig.qualifiersPerGroup,
+                    activeCategory?.scoringConfig ?? tournament.scoringConfig,
+                    activeCategory?.standingsConfig ?? tournament.standingsConfig,
+                    filteredGroups.length === 1 &&
+                      (activeCategory?.playoffConfig?.qualifiersPerGroup ?? tournament.playoffConfig.qualifiersPerGroup) < 2
+                      ? 2
+                      : (activeCategory?.playoffConfig?.qualifiersPerGroup ?? tournament.playoffConfig.qualifiersPerGroup),
                   ),
                 )}
                 timezone={timezone}
               />
-            ) : filteredGroups.length >= 2 ? (
+            ) : filteredGroups.length >= 1 ? (
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground">
                   Cuadro proyectado según las posiciones actuales de la fase de grupos {activeCategory ? `(${activeCategory.name})` : ""}.
@@ -227,9 +243,16 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
                     buildProjectedBracket(
                       filteredGroups,
                       filteredMatches,
-                      tournament.scoringConfig,
-                      tournament.standingsConfig,
-                      tournament.playoffConfig,
+                      activeCategory?.scoringConfig ?? tournament.scoringConfig,
+                      activeCategory?.standingsConfig ?? tournament.standingsConfig,
+                      {
+                        thirdPlace: activeCategory?.playoffConfig?.thirdPlace ?? tournament.playoffConfig.thirdPlace,
+                        qualifiersPerGroup:
+                          filteredGroups.length === 1 &&
+                          (activeCategory?.playoffConfig?.qualifiersPerGroup ?? tournament.playoffConfig.qualifiersPerGroup) < 2
+                            ? 2
+                            : (activeCategory?.playoffConfig?.qualifiersPerGroup ?? tournament.playoffConfig.qualifiersPerGroup),
+                      },
                       teamNames,
                     ) ?? []
                   }
@@ -302,7 +325,7 @@ function fixtureItems(
 ): FixtureItem[] {
   const { matches, groups } = tournament.competition;
   const rounds = playoffRoundCount(matches);
-  return matches
+  const items = matches
     .filter((m) => !m.isBye)
     .map((m) => {
       const court = m.courtId ? courts.get(m.courtId) : undefined;
@@ -317,7 +340,9 @@ function fixtureItems(
         startsAt: m.startsAt,
         endsAt: m.endsAt,
         courtLabel: court ? (court.venue ? `${court.name} · ${court.venue}` : court.name) : null,
+        courtName: court?.name ?? null,
         resultText: resultLabel(m),
       };
     });
+  return items.sort(compareMatchesChronological);
 }

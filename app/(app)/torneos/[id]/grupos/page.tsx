@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { groupStandings } from "@/lib/competition-view";
 import { getCompetition, getSchedulingData } from "@/lib/data/competition";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
+import { normalizeStandingsConfig } from "@/lib/domain/standings";
 
 export const metadata: Metadata = { title: "Grupos" };
 
@@ -71,11 +72,15 @@ export default async function GroupsPage({
 
   const canEdit = isCategoryGroupStage && !hasResults;
   const scheduling = canEdit ? await getSchedulingData(tournament.id) : null;
+  const categoryScoring = activeCategory?.scoringConfig ?? tournament.scoringConfig;
+  const categoryStandings = normalizeStandingsConfig(activeCategory?.standingsConfig ?? tournament.standingsConfig);
+  const categoryPlayoff = activeCategory?.playoffConfig ?? tournament.playoffConfig;
+
   const standings = groupStandings(
     groups,
     matches,
-    tournament.scoringConfig,
-    tournament.standingsConfig
+    categoryScoring,
+    categoryStandings
   );
 
   return (
@@ -181,8 +186,14 @@ export default async function GroupsPage({
                 title={group.name}
                 rows={rows}
                 teamNames={teamNames}
-                scoringType={tournament.scoringConfig.type}
-                qualifiers={tournament.playoffConfig.qualifiersPerGroup}
+                scoringType={categoryScoring.type}
+                qualifiers={
+                  group.teamIds.length === 4
+                    ? 3
+                    : groups.length === 1 && categoryPlayoff.qualifiersPerGroup < 2
+                      ? 2
+                      : categoryPlayoff.qualifiersPerGroup
+                }
               />
             ))}
           </div>

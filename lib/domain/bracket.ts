@@ -19,6 +19,26 @@ export const playoffConfigSchema = z.object({
 });
 export type PlayoffConfig = z.infer<typeof playoffConfigSchema>;
 
+/**
+ * Normaliza cualquier configuración de playoffs con valores seguros.
+ */
+export function normalizePlayoffConfig(raw: unknown): PlayoffConfig {
+  const fallback: PlayoffConfig = {
+    qualifiersPerGroup: 2,
+    thirdPlace: false,
+  };
+  if (!raw || typeof raw !== "object") return fallback;
+  const obj = raw as Record<string, unknown>;
+  const qualifiersPerGroup =
+    typeof obj.qualifiersPerGroup === "number" &&
+    obj.qualifiersPerGroup >= 1 &&
+    obj.qualifiersPerGroup <= 8
+      ? obj.qualifiersPerGroup
+      : 2;
+  const thirdPlace = Boolean(obj.thirdPlace);
+  return { qualifiersPerGroup, thirdPlace };
+}
+
 export const MAX_BRACKET_SIZE = 32;
 
 export type Side = "home" | "away";
@@ -129,14 +149,17 @@ function placeSeeds(seeds: Qualifier[], size: number): (Qualifier | null)[] {
     }
 
     const half = size / 2;
+    const hasMultipleGroups = new Set(seeds.map((s) => s.group)).size > 1;
     const penaltyFor = (team: Qualifier, position: number): number => {
       let penalty = 0;
-      const opponent = slots[position ^ 1];
-      if (opponent && opponent.group === team.group) penalty += 1000;
-      const sameHalf = slots.some(
-        (other, index) => other && other.group === team.group && index < half === position < half,
-      );
-      if (sameHalf) penalty += 1;
+      if (hasMultipleGroups) {
+        const opponent = slots[position ^ 1];
+        if (opponent && opponent.group === team.group) penalty += 1000;
+        const sameHalf = slots.some(
+          (other, index) => other && other.group === team.group && index < half === position < half,
+        );
+        if (sameHalf) penalty += 1;
+      }
       return penalty;
     };
 

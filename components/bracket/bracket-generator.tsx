@@ -17,6 +17,7 @@ import { BracketView } from "./bracket-view";
 
 type BracketGeneratorProps = {
   tournamentId: string;
+  categoryId?: string;
   timezone: string;
   /** Todos los equipos de cada grupo, en orden de la tabla (con su rating). */
   candidates: Qualifier[];
@@ -37,14 +38,20 @@ export function BracketGenerator(props: BracketGeneratorProps) {
   const names = useMemo(() => new Map(Object.entries(props.teamNames)), [props.teamNames]);
 
   const preview = useMemo(() => {
-    const qualifiers = props.candidates.filter((c) => c.place <= perGroup);
+    const effective = props.groupCount === 1 && perGroup < 2 ? 2 : perGroup;
+    const qualifiers = props.candidates.filter((c) => c.place <= effective);
     if (qualifiers.length < 2 || qualifiers.length > 32) return null;
     return buildBracket(qualifiers, { thirdPlace });
-  }, [props.candidates, perGroup, thirdPlace]);
+  }, [props.candidates, props.groupCount, perGroup, thirdPlace]);
 
   function generate() {
     startTransition(async () => {
-      const result = await generateBracket({ tournamentId: props.tournamentId, qualifiersPerGroup: perGroup, thirdPlace });
+      const result = await generateBracket({
+        tournamentId: props.tournamentId,
+        categoryId: props.categoryId,
+        qualifiersPerGroup: perGroup,
+        thirdPlace,
+      });
       if (!result.ok) {
         toast.error(result.error);
         return;

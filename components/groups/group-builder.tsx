@@ -120,7 +120,7 @@ function GroupColumn({
       <h3 id={`group-title-${index}`} className="flex items-baseline justify-between text-sm font-semibold">
         {groupName(index)}
         <span className="font-normal text-muted-foreground">
-          {teams.length} equipos · {roundRobinMatchCount(teams.length)} partidos
+          {teams.length} {teams.length === 1 ? "equipo" : "equipos"} · {teams.length === 4 ? "4 partidos (pasan 3)" : `${roundRobinMatchCount(teams.length)} partidos`}
         </span>
       </h3>
       <ul className="min-h-12 space-y-1.5">
@@ -215,7 +215,7 @@ export function GroupBuilder({
           {teams.length === 0 ? (
             "No hay parejas aprobadas en esta categoría para sortear."
           ) : (
-            `Sorteá las ${teams.length} parejas aprobadas respetando su disponibilidad horaria y, si querés, acomodalas a mano antes de confirmar. Se generan los partidos todos contra todos dentro de cada grupo.`
+            `Sorteá las ${teams.length} parejas aprobadas respetando su disponibilidad horaria y, si querés, acomodalas a mano antes de confirmar. En grupos de 4 parejas, se juegan 4 partidos y clasifican los 3 mejores a playoffs (cruces entre ganadores y perdedores).`
           )}
         </CardDescription>
       </CardHeader>

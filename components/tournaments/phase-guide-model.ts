@@ -62,6 +62,13 @@ function stepsFor(status: TournamentStatus, counts: TournamentCounts, teamSize: 
     case "draft":
       return [
         {
+          label: "Configurar categorías",
+          done: counts.categories > 0,
+          detail: count(counts.categories, "categoría", "categorías"),
+          href: `${base}/categorias`,
+          actionLabel: "Ir a categorías",
+        },
+        {
           label: "Cargar canchas",
           done: counts.courts > 0,
           detail: count(counts.courts, "cancha", "canchas"),

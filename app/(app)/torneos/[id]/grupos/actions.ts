@@ -4,26 +4,21 @@ import { revalidatePath } from "next/cache";
 import { actionError, actionOk, createAction } from "@/lib/actions/safe-action";
 import { refreshPublicTournament } from "@/lib/public-cache";
 import { groupName } from "@/lib/domain/groups";
-import { generateRoundRobin } from "@/lib/domain/round-robin";
+import { generateGroupInitialMatches, groupTotalMatchCount } from "@/lib/domain/round-robin";
 import { dbErrorMessage } from "@/lib/supabase/errors";
 import { saveGroupsSchema } from "@/lib/validation/competition";
 
 /**
- * Guarda los grupos y genera su fixture todos contra todos. El fixture se
- * calcula acá (lib/domain) y la RPC valida y persiste todo junto (D-036).
+ * Guarda los grupos y genera su fixture:
+ * - Para grupos de 4 parejas (formato padel GSL): 2 partidos en fecha 1 (T0 vs T1, T2 vs T3)
+ *   y 2 partidos en fecha 2 (definición 1°/2° y 3°/eliminado) que se completan dinámicamente.
+ * - Para grupos de otros tamaños: fixture todos contra todos tradicional (Round Robin).
  */
 export const saveGroups = createAction(saveGroupsSchema, async ({ tournamentId, categoryId, groups }, { supabase }) => {
   const payload = groups.map((teamIds, index) => ({
     name: groupName(index),
     teamIds,
-    matches: generateRoundRobin(teamIds).flatMap((round) =>
-      round.pairings.map((pairing, position) => ({
-        round: round.round,
-        position,
-        home: pairing.home,
-        away: pairing.away,
-      })),
-    ),
+    matches: generateGroupInitialMatches(teamIds),
   }));
 
   // 1. Intentar llamar con p_category_id explícito (incluso si es null) para desambiguar
@@ -49,8 +44,60 @@ export const saveGroups = createAction(saveGroupsSchema, async ({ tournamentId, 
     return actionError(dbErrorMessage(error));
   }
 
+  // 3. Para grupos de 4 parejas, insertar los 2 partidos de Fecha 2 (Definición 1°/2° y 3°/eliminado)
+  const has4TeamGroups = groups.some((teamIds) => teamIds.length === 4);
+  if (has4TeamGroups) {
+    let query = supabase
+      .from("tournament_groups")
+      .select("id, position")
+      .eq("tournament_id", tournamentId);
+    if (categoryId) {
+      query = (query as any).eq("category_id", categoryId);
+    }
+    const { data: dbGroups } = await query;
+    if (dbGroups) {
+      const r2MatchesToInsert = groups
+        .map((teamIds, index) => {
+          if (teamIds.length !== 4) return null;
+          const dbGroup = dbGroups.find((g) => g.position === index);
+          if (!dbGroup) return null;
+          return [
+            {
+              tournament_id: tournamentId,
+              category_id: categoryId ?? null,
+              stage: "group" as const,
+              group_id: dbGroup.id,
+              round: 2,
+              position: 0, // Ganadores (1° vs 2° puesto)
+              home_team_id: null,
+              away_team_id: null,
+            },
+            {
+              tournament_id: tournamentId,
+              category_id: categoryId ?? null,
+              stage: "group" as const,
+              group_id: dbGroup.id,
+              round: 2,
+              position: 1, // Perdedores (3° puesto vs eliminado)
+              home_team_id: null,
+              away_team_id: null,
+            },
+          ];
+        })
+        .filter(Boolean)
+        .flat();
+
+      if (r2MatchesToInsert.length > 0) {
+        const { error: r2Error } = await (supabase as any).from("matches").insert(r2MatchesToInsert);
+        if (r2Error) {
+          console.error("[saveGroups round2Matches insert error]:", r2Error);
+        }
+      }
+    }
+  }
+
   revalidatePath(`/torneos/${tournamentId}`, "layout");
   refreshPublicTournament(tournamentId);
-  const matches = payload.reduce((sum, group) => sum + group.matches.length, 0);
-  return actionOk(undefined, `Guardamos ${groups.length} ${groups.length === 1 ? "grupo" : "grupos"} y ${matches} partidos.`);
+  const totalMatches = groups.reduce((sum, group) => sum + groupTotalMatchCount(group.length), 0);
+  return actionOk(undefined, `Guardamos ${groups.length} ${groups.length === 1 ? "grupo" : "grupos"} y ${totalMatches} partidos.`);
 });

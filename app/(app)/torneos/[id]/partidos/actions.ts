@@ -62,7 +62,7 @@ export const recordResult = createAction(recordResultSchema, async (input, { sup
   const { data: match, error: matchError } = await (supabase as any)
     .from("matches")
     .select(
-      "id, stage, round, is_third_place, category_id, home_team_id, away_team_id, next_match_id, loser_next_match_id, tournaments!matches_tournament_id_fkey(scoring_config)",
+      "id, stage, round, position, group_id, is_third_place, category_id, home_team_id, away_team_id, next_match_id, loser_next_match_id, tournaments!matches_tournament_id_fkey(scoring_config)",
     )
     .eq("id", input.matchId)
     .eq("tournament_id", input.tournamentId)
@@ -145,9 +145,60 @@ export const recordResult = createAction(recordResultSchema, async (input, { sup
   });
   if (error) return actionError(dbErrorMessage(error, NOT_FOUND));
 
+  let scheduledNext = 0;
+
+  // Fase de grupos (formato 4 parejas): el ganador avanza a la final de grupo (pos 0)
+  // y el perdedor al duelo por el 3° puesto (pos 1).
+  if (match.stage === "group" && match.round === 1 && match.group_id && winnerTeamId) {
+    const loserTeamId = match.home_team_id === winnerTeamId ? match.away_team_id : match.home_team_id;
+    const { data: r2Matches } = await (supabase as any)
+      .from("matches")
+      .select("id, position, home_team_id, away_team_id")
+      .eq("group_id", match.group_id)
+      .eq("round", 2);
+
+    if (r2Matches && r2Matches.length > 0) {
+      const winMatch = r2Matches.find((m: any) => m.position === 0);
+      const loseMatch = r2Matches.find((m: any) => m.position === 1);
+      const slotField = match.position === 0 ? "home_team_id" : "away_team_id";
+
+      if (winMatch) {
+        await (supabase as any)
+          .from("matches")
+          .update({ [slotField]: winnerTeamId })
+          .eq("id", winMatch.id);
+      }
+      if (loseMatch && loserTeamId) {
+        await (supabase as any)
+          .from("matches")
+          .update({ [slotField]: loserTeamId })
+          .eq("id", loseMatch.id);
+      }
+
+      // Si algún partido de R2 ya tiene sus 2 equipos y no tiene franja, intentar programarlo
+      const checkIds = [winMatch?.id, loseMatch?.id].filter(Boolean);
+      if (checkIds.length > 0) {
+        const { data: readyR2 } = await (supabase as any)
+          .from("matches")
+          .select("id, home_team_id, away_team_id")
+          .in("id", checkIds)
+          .is("result_status", null)
+          .is("slot_id", null);
+
+        const readyIds = (readyR2 ?? [])
+          .filter((m: any) => m.home_team_id && m.away_team_id)
+          .map((m: any) => m.id);
+
+        if (readyIds.length > 0) {
+          const scheduled = await runAutoSchedule(supabase, input.tournamentId, "unscheduled", readyIds);
+          if (scheduled.ok) scheduledNext += scheduled.outcome.assigned;
+        }
+      }
+    }
+  }
+
   // Playoffs: si el partido siguiente (o el del 3er puesto) ya tiene sus dos
   // equipos y no tiene horario, se intenta programarlo (D-039).
-  let scheduledNext = 0;
   const targets = [match.next_match_id, match.loser_next_match_id].filter((id): id is string => Boolean(id));
   if (targets.length > 0) {
     const { data: next } = await supabase
@@ -159,7 +210,7 @@ export const recordResult = createAction(recordResultSchema, async (input, { sup
     const ready = (next ?? []).filter((m) => m.home_team_id && m.away_team_id).map((m) => m.id);
     if (ready.length > 0) {
       const scheduled = await runAutoSchedule(supabase, input.tournamentId, "unscheduled", ready);
-      if (scheduled.ok) scheduledNext = scheduled.outcome.assigned;
+      if (scheduled.ok) scheduledNext += scheduled.outcome.assigned;
     }
   }
 
@@ -172,10 +223,40 @@ export const recordResult = createAction(recordResultSchema, async (input, { sup
   );
 });
 
-/** Borra un resultado (para corregirlo); en playoffs deshace el avance. */
+/** Borra un resultado (para corregirlo); en playoffs y grupos de 4 deshace el avance. */
 export const clearResult = createAction(matchActionSchema, async ({ tournamentId, matchId }, { supabase }) => {
+  const { data: match } = await (supabase as any)
+    .from("matches")
+    .select("id, stage, round, position, group_id")
+    .eq("id", matchId)
+    .maybeSingle();
+
+  if (match?.stage === "group" && match?.round === 1 && match?.group_id) {
+    const { data: r2Matches } = await (supabase as any)
+      .from("matches")
+      .select("id, result_status")
+      .eq("group_id", match.group_id)
+      .eq("round", 2)
+      .not("result_status", "is", null);
+
+    if (r2Matches && r2Matches.length > 0) {
+      return actionError("El partido definitorio de la fecha 2 ya tiene resultado: borralo antes de corregir este.");
+    }
+  }
+
   const { error } = await supabase.rpc("clear_match_result", { p_match_id: matchId });
   if (error) return actionError(dbErrorMessage(error, NOT_FOUND));
+
+  // Si fue un partido de fecha 1 de grupo, quitar los equipos que habían avanzado a fecha 2
+  if (match?.stage === "group" && match?.round === 1 && match?.group_id) {
+    const slotField = match.position === 0 ? "home_team_id" : "away_team_id";
+    await (supabase as any)
+      .from("matches")
+      .update({ [slotField]: null })
+      .eq("group_id", match.group_id)
+      .eq("round", 2);
+  }
+
   revalidate(tournamentId);
   return actionOk(undefined, "Borramos el resultado.");
 });
@@ -218,29 +299,51 @@ export const simulateTournamentResults = createAction(
     let simulatedCount = 0;
 
     if (tournament.status === "group_stage") {
-      const { data: matches, error: matchError } = await supabase
-        .from("matches")
-        .select("id, stage, round, home_team_id, away_team_id")
-        .eq("tournament_id", tournamentId)
-        .eq("stage", "group")
-        .is("result_status", null);
+      while (true) {
+        const { data: matches, error: matchError } = await (supabase as any)
+          .from("matches")
+          .select("id, stage, round, position, group_id, home_team_id, away_team_id")
+          .eq("tournament_id", tournamentId)
+          .eq("stage", "group")
+          .is("result_status", null);
 
-      if (matchError) return actionError(dbErrorMessage(matchError));
+        if (matchError) return actionError(dbErrorMessage(matchError));
 
-      const pending = (matches ?? []).filter((m) => m.home_team_id && m.away_team_id);
-      for (const match of pending) {
-        const { result, winner } = generateSimulatedMatchResult(scoringConfig, { stage: "group" });
-        const winnerTeamId = winner === "home" ? match.home_team_id : match.away_team_id;
+        const pending = (matches ?? []).filter((m: any) => m.home_team_id && m.away_team_id);
+        if (pending.length === 0) break;
 
-        const { error } = await supabase.rpc("record_match_result", {
-          p_match_id: match.id,
-          p_result: result,
-          p_winner_team_id: winnerTeamId as string,
-          p_is_draw: false,
-          p_is_walkover: false,
-        });
-        if (error) return actionError(dbErrorMessage(error));
-        simulatedCount++;
+        for (const match of pending) {
+          const { result, winner } = generateSimulatedMatchResult(scoringConfig, { stage: "group" });
+          const winnerTeamId = winner === "home" ? match.home_team_id : match.away_team_id;
+          const loserTeamId = winner === "home" ? match.away_team_id : match.home_team_id;
+
+          const { error } = await supabase.rpc("record_match_result", {
+            p_match_id: match.id,
+            p_result: result,
+            p_winner_team_id: winnerTeamId as string,
+            p_is_draw: false,
+            p_is_walkover: false,
+          });
+          if (error) return actionError(dbErrorMessage(error));
+          simulatedCount++;
+
+          // Si es fecha 1 de grupo con partidos de ronda 2 creados, propagar a ronda 2
+          if (match.round === 1 && match.group_id) {
+            const slotField = match.position === 0 ? "home_team_id" : "away_team_id";
+            await (supabase as any)
+              .from("matches")
+              .update({ [slotField]: winnerTeamId })
+              .eq("group_id", match.group_id)
+              .eq("round", 2)
+              .eq("position", 0);
+            await (supabase as any)
+              .from("matches")
+              .update({ [slotField]: loserTeamId })
+              .eq("group_id", match.group_id)
+              .eq("round", 2)
+              .eq("position", 1);
+          }
+        }
       }
 
       revalidate(tournamentId);

@@ -12,13 +12,13 @@ import { createTournament } from "@/app/(app)/torneos/actions";
 import { WizardSteps } from "@/components/shared/wizard-steps";
 import { Button } from "@/components/ui/button";
 import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { DEFAULT_TIMEZONE } from "@/lib/dates";
 import { applyServerErrors } from "@/lib/forms";
 import { type CreateTournamentInput, createTournamentSchema } from "@/lib/validation/tournament";
 import { RulesSections } from "./rules-sections";
+import { SportSelector } from "./sport-selector";
 import {
   ConfirmationField,
   CourtCountField,
@@ -58,9 +58,10 @@ function stepOfFirstError(names: readonly string[]): number {
 }
 
 /**
- * Asistente de alta de torneo en 4 pasos (D-054): básico → fechas y cupo → reglas → revisión.
+ * Asistente de alta de torneo en 4 pasos (D-054, D-072): básico → fechas y cupo → reglas → revisión.
  * Un solo formulario de React Hook Form: los valores se conservan al ir y volver, y cada
- * paso valida solo sus campos. El esquema y la Server Action son los de siempre.
+ * paso valida solo sus campos. Con microinteracciones, selección sensorial de deportes
+ * y acento esmeralda SaaS.
  */
 export function TournamentWizard({ sports }: { sports: SportOption[] }) {
   const router = useRouter();
@@ -127,8 +128,8 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
           toast.error(result.error);
           return;
         }
-        toast.success(result.message ?? "Torneo creado.");
-        router.push(`/torneos/${result.data.tournamentId}`);
+        toast.success(result.message ? `${result.message} Ahora configurá las categorías.` : "Torneo creado. Ahora configurá las categorías.");
+        router.push(`/torneos/${result.data.tournamentId}/categorias?asistente=1`);
       });
     },
     // Si algo de un paso anterior quedó inválido, se vuelve a ese paso.
@@ -151,112 +152,134 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
     <form onSubmit={onSubmit} noValidate className="space-y-6">
       <WizardSteps steps={STEPS} current={step} onSelect={setStep} />
 
-      <section aria-labelledby="wizard-step-title" className="space-y-5">
-        <div className="space-y-1">
-          <h2 id="wizard-step-title" ref={headingRef} tabIndex={-1} className="text-xl font-semibold outline-none">
-            {header.title}
-          </h2>
-          <p className="text-sm text-muted-foreground">{header.description}</p>
+      <section aria-labelledby="wizard-step-title" className="space-y-6">
+        <div key={step} className="space-y-6 animate-in fade-in-50 slide-in-from-right-3 duration-200">
+          <div className="space-y-1">
+            <h2
+              id="wizard-step-title"
+              ref={headingRef}
+              tabIndex={-1}
+              className="text-2xl font-extrabold tracking-tight text-foreground outline-none"
+            >
+              {header.title}
+            </h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">{header.description}</p>
+          </div>
+
+          {step === 0 ? (
+            <FieldGroup>
+              <NameField form={form} />
+              <Controller
+                name="sportId"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <div className="space-y-1">
+                      <FieldLabel htmlFor="t-sport" className="text-sm font-bold text-foreground">
+                        Deporte
+                      </FieldLabel>
+                      <FieldDescription className="text-xs text-muted-foreground">
+                        Elegí la disciplina del torneo. Configura automáticamente las reglas, tanteos y desempates recomendados.
+                      </FieldDescription>
+                    </div>
+                    <SportSelector
+                      sports={sports}
+                      value={field.value}
+                      onChange={(nextSportId) => {
+                        const next = sports.find((s) => s.id === nextSportId);
+                        field.onChange(nextSportId);
+                        if (next) {
+                          form.setValue("scoringConfig", next.defaultScoringConfig);
+                          form.setValue("standingsConfig", next.defaultStandingsConfig);
+                        }
+                      }}
+                    />
+                    {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                  </Field>
+                )}
+              />
+              <DescriptionField form={form} />
+            </FieldGroup>
+          ) : null}
+
+          {step === 1 ? (
+            <FieldGroup>
+              <DateFields form={form} />
+              <TimezoneField form={form} />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <MaxTeamsField form={form} teamSize={sport.minTeamSize} />
+                <CourtCountField form={form} />
+              </div>
+            </FieldGroup>
+          ) : null}
+
+          {step === 2 ? (
+            <div className="space-y-4">
+              <ConfirmationField form={form} />
+              <div className="space-y-3">
+                <RulesSections form={form} />
+              </div>
+            </div>
+          ) : null}
+
+          {step === 3 ? (
+            <div className="space-y-5">
+              <TournamentReview
+                values={values}
+                sportName={sport.name}
+                teamSize={sport.minTeamSize}
+                onEdit={setStep}
+              />
+              <Field orientation="horizontal">
+                <Switch id="t-test-mode" checked={isTestTournament} onCheckedChange={setIsTestTournament} />
+                <FieldContent>
+                  <FieldLabel htmlFor="t-test-mode">Crear como torneo privado de prueba</FieldLabel>
+                  <FieldDescription>
+                    No se muestra en páginas públicas ni acepta inscripciones reales. Vas a poder completar los cupos con
+                    parejas ficticias para probar grupos, fixture y cuadro.
+                  </FieldDescription>
+                </FieldContent>
+              </Field>
+            </div>
+          ) : null}
         </div>
-
-        {step === 0 ? (
-          <FieldGroup>
-            <NameField form={form} />
-            <Controller
-              name="sportId"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="t-sport">Deporte</FieldLabel>
-                  <NativeSelect
-                    id="t-sport"
-                    className="w-full"
-                    value={field.value}
-                    onChange={(e) => {
-                      const next = sports.find((s) => s.id === e.target.value);
-                      field.onChange(e.target.value);
-                      // Cada deporte trae su puntuación y desempates por defecto.
-                      if (next) {
-                        form.setValue("scoringConfig", next.defaultScoringConfig);
-                        form.setValue("standingsConfig", next.defaultStandingsConfig);
-                      }
-                    }}
-                  >
-                    {sports.map((s) => (
-                      <NativeSelectOption key={s.id} value={s.id}>
-                        {s.name} ({s.minTeamSize === 2 ? "parejas" : `equipos de ${s.minTeamSize}`})
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                  {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
-                </Field>
-              )}
-            />
-            <DescriptionField form={form} />
-          </FieldGroup>
-        ) : null}
-
-        {step === 1 ? (
-          <FieldGroup>
-            <DateFields form={form} />
-            <TimezoneField form={form} />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <MaxTeamsField form={form} teamSize={sport.minTeamSize} />
-              <CourtCountField form={form} />
-            </div>
-          </FieldGroup>
-        ) : null}
-
-        {step === 2 ? (
-          <div className="space-y-4">
-            <ConfirmationField form={form} />
-            <div className="space-y-3">
-              <RulesSections form={form} />
-            </div>
-          </div>
-        ) : null}
-
-        {step === 3 ? (
-          <div className="space-y-5">
-            <TournamentReview
-              values={values}
-              sportName={sport.name}
-              teamSize={sport.minTeamSize}
-              onEdit={setStep}
-            />
-            <Field orientation="horizontal">
-              <Switch id="t-test-mode" checked={isTestTournament} onCheckedChange={setIsTestTournament} />
-              <FieldContent>
-                <FieldLabel htmlFor="t-test-mode">Crear como torneo privado de prueba</FieldLabel>
-                <FieldDescription>
-                  No se muestra en páginas públicas ni acepta inscripciones reales. Vas a poder completar los cupos con
-                  parejas ficticias para probar grupos, fixture y cuadro.
-                </FieldDescription>
-              </FieldContent>
-            </Field>
-          </div>
-        ) : null}
       </section>
 
-      <div className="sticky bottom-20 z-10 flex items-center justify-between gap-2 rounded-xl border bg-background/95 p-2 shadow-sm backdrop-blur md:bottom-4">
+      <div className="sticky bottom-20 z-10 flex items-center justify-between gap-3 rounded-2xl border border-border/80 bg-background/95 p-3 shadow-md backdrop-blur-md md:bottom-4">
         {step === 0 ? (
-          <Button asChild variant="ghost" size="lg">
+          <Button asChild variant="ghost" size="lg" className="hover:bg-muted font-medium">
             <Link href="/torneos">Cancelar</Link>
           </Button>
         ) : (
-          <Button type="button" variant="outline" size="lg" onClick={() => setStep(step - 1)} disabled={isPending}>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={() => setStep(step - 1)}
+            disabled={isPending}
+            className="border-border/80 hover:bg-muted font-medium transition-all"
+          >
             <ArrowLeft aria-hidden="true" />
             Volver
           </Button>
         )}
 
         {step < LAST_STEP ? (
-          <Button type="submit" size="lg">
+          <Button
+            type="submit"
+            size="lg"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-xs hover:shadow-md hover:shadow-emerald-600/20 active:scale-[0.98] transition-all duration-150"
+          >
             Continuar
             <ArrowRight aria-hidden="true" />
           </Button>
         ) : (
-          <Button type="submit" size="lg" disabled={isPending}>
+          <Button
+            type="submit"
+            size="lg"
+            disabled={isPending}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-xs hover:shadow-md hover:shadow-emerald-600/20 active:scale-[0.98] transition-all duration-150"
+          >
             {isPending ? <Spinner /> : <Check aria-hidden="true" />}
             Crear torneo
           </Button>

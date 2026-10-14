@@ -7,6 +7,7 @@ import { InviteCard } from "@/components/tournaments/invite-card";
 import { PhaseGuide, type TransitionOption } from "@/components/tournaments/phase-guide";
 import { buildPhaseGuide } from "@/components/tournaments/phase-guide-model";
 import { TournamentBannerManager } from "@/components/tournaments/tournament-banner-manager";
+import { TournamentSetupStepper } from "@/components/tournaments/tournament-setup-stepper";
 import { Button } from "@/components/ui/button";
 import { getTournamentCategories } from "@/lib/data/categories";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
@@ -67,6 +68,20 @@ export default async function TournamentSummaryPage({ params }: PageProps<"/torn
           <Trophy className="size-5 text-amber-600" aria-hidden="true" />
           Campeón: {championName}
         </p>
+      ) : null}
+
+      {tournament.status === "draft" ? (
+        <TournamentSetupStepper
+          tournamentId={tournament.id}
+          currentStep="torneo"
+          counts={{
+            categories: categories.length,
+            slots: counts.slots,
+            courts: counts.courts,
+            approvedTeams: counts.approvedTeams,
+          }}
+          isRegistrationOpen={false}
+        />
       ) : null}
 
       <PhaseGuide tournamentId={tournament.id} status={tournament.status} guide={guide} options={options} />

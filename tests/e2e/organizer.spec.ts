@@ -22,10 +22,10 @@ test.describe("organizador: torneos (F4)", () => {
     await page.locator("summary", { hasText: "Puntuación" }).click();
     await page.getByLabel("Set decisivo").selectOption("full");
     await page.getByRole("button", { name: "Continuar" }).click();
-    await expect(page.getByRole("heading", { name: "Revisá y creá el torneo" })).toBeVisible();
     await page.getByRole("button", { name: "Crear torneo" }).click();
-    await expectToast(page, "Torneo creado.");
-    await page.waitForURL(/\/torneos\/[0-9a-f-]{36}$/);
+    await expectToast(page, /Torneo creado/);
+    await page.waitForURL(/\/torneos\/[0-9a-f-]{36}\/categorias/);
+    await page.getByRole("link", { name: "Resumen" }).click();
     await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
     await expect(page.getByText("Borrador").first()).toBeVisible();
 
@@ -104,8 +104,9 @@ test.describe("organizador: torneos (F4)", () => {
     await page.getByRole("button", { name: "Continuar" }).click();
     await page.getByRole("button", { name: "Continuar" }).click();
     await page.getByRole("button", { name: "Crear torneo" }).click();
-    await expectToast(page, "Torneo creado.");
-    await page.waitForURL(/\/torneos\/[0-9a-f-]{36}$/);
+    await expectToast(page, /Torneo creado/);
+    await page.waitForURL(/\/torneos\/[0-9a-f-]{36}\/categorias/);
+    await page.getByRole("link", { name: "Resumen" }).click();
     const panelUrl = page.url();
 
     // Otro usuario ve "no encontrado" en el panel ajeno (no se revela que existe).

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateRoundRobin, roundRobinMatchCount } from "./round-robin";
+import { generateGroupInitialMatches, generateRoundRobin, groupTotalMatchCount, roundRobinMatchCount } from "./round-robin";
 
 const teams = (n: number) => Array.from({ length: n }, (_, i) => `t${i + 1}`);
 const pairKey = (a: string, b: string) => [a, b].sort().join("-");
@@ -49,3 +49,23 @@ describe("generateRoundRobin", () => {
     expect(roundRobinMatchCount(4)).toBe(6);
   });
 });
+
+describe("generateGroupInitialMatches & groupTotalMatchCount", () => {
+  it("con 4 equipos genera exactamente 2 partidos en fecha 1 (T0 vs T1 y T2 vs T3) y 4 partidos en total", () => {
+    const t = ["p1", "p2", "p3", "p4"];
+    const matches = generateGroupInitialMatches(t);
+    expect(matches).toEqual([
+      { round: 1, position: 0, home: "p1", away: "p2" },
+      { round: 1, position: 1, home: "p3", away: "p4" },
+    ]);
+    expect(groupTotalMatchCount(4)).toBe(4);
+  });
+
+  it("con 3 equipos genera round-robin tradicional (3 partidos)", () => {
+    const t = ["p1", "p2", "p3"];
+    const matches = generateGroupInitialMatches(t);
+    expect(matches).toHaveLength(3);
+    expect(groupTotalMatchCount(3)).toBe(3);
+  });
+});
+

@@ -5,8 +5,8 @@ import { actionError, actionOk, createAction } from "@/lib/actions/safe-action";
 import { refreshPublicTournament } from "@/lib/public-cache";
 import { groupStandings } from "@/lib/competition-view";
 import { getCompetition } from "@/lib/data/competition";
-import { scoringConfigSchema } from "@/lib/domain/scoring";
-import { standingsConfigSchema } from "@/lib/domain/standings";
+import { normalizeScoringConfig } from "@/lib/domain/scoring";
+import { normalizeStandingsConfig } from "@/lib/domain/standings";
 import { dbErrorMessage } from "@/lib/supabase/errors";
 import {
   changeStatusSchema,
@@ -80,8 +80,8 @@ export const changeTournamentStatus = createAction(changeStatusSchema, async (in
         const [table] = groupStandings(
           competition.groups,
           competition.matches,
-          scoringConfigSchema.parse(tournament.scoring_config),
-          standingsConfigSchema.parse(tournament.standings_config),
+          normalizeScoringConfig(tournament.scoring_config),
+          normalizeStandingsConfig(tournament.standings_config),
         );
         championTeamId = table?.rows[0]?.teamId;
       }

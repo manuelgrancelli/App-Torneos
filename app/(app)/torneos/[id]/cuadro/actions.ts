@@ -7,9 +7,9 @@ import { refreshPublicTournament } from "@/lib/public-cache";
 import { groupStandings, qualifiersFromStandings } from "@/lib/competition-view";
 import { getCompetition } from "@/lib/data/competition";
 import type { SupabaseServerClient } from "@/lib/supabase/server";
-import { buildBracket, playoffConfigSchema } from "@/lib/domain/bracket";
-import { scoringConfigSchema } from "@/lib/domain/scoring";
-import { standingsConfigSchema } from "@/lib/domain/standings";
+import { buildBracket, normalizePlayoffConfig, playoffConfigSchema } from "@/lib/domain/bracket";
+import { normalizeScoringConfig, scoringConfigSchema } from "@/lib/domain/scoring";
+import { normalizeStandingsConfig, standingsConfigSchema } from "@/lib/domain/standings";
 import { runAutoSchedule } from "@/lib/scheduling";
 import { dbErrorMessage } from "@/lib/supabase/errors";
 
@@ -53,33 +53,89 @@ export async function ensurePlayoffBracket(
     .maybeSingle();
   if (tourError || !tournament) return { ok: false, error: "No encontramos el torneo." };
 
+  const competition = await getCompetition(tournamentId);
+
+  // Si el torneo tiene múltiples categorías y no se especificó una en particular,
+  // aseguramos el cuadro de playoffs de cada categoría individualmente.
+  if (!options?.categoryId && competition.categories.length > 0) {
+    let totalMatches = 0;
+    const allWarnings: string[] = [];
+    for (const cat of competition.categories) {
+      const catGroupMatches = competition.matches.filter((m) => m.categoryId === cat.id && m.stage === "group");
+      const catAllDone = catGroupMatches.length > 0 && catGroupMatches.every((m) => m.resultStatus !== null);
+      if (cat.status === "playoffs" || tournament.status === "playoffs" || catAllDone) {
+        const res = await ensurePlayoffBracket(supabase, tournamentId, {
+          categoryId: cat.id,
+          qualifiersPerGroup: options?.qualifiersPerGroup ?? cat.playoffConfig?.qualifiersPerGroup,
+          thirdPlace: options?.thirdPlace ?? cat.playoffConfig?.thirdPlace,
+        });
+        if (res.ok) {
+          totalMatches += res.count ?? 0;
+          if (res.warnings) allWarnings.push(...res.warnings);
+        }
+      }
+    }
+    return { ok: true, count: totalMatches, warnings: allWarnings };
+  }
+
+  let categoryPlayoffConfig = tournament.playoff_config;
+  let categoryScoringConfig = tournament.scoring_config;
+  let categoryStandingsConfig = tournament.standings_config;
+
   let canBuildPlayoffs = tournament.status === "playoffs";
+  let catStatus: string = tournament.status;
   if (options?.categoryId) {
     const { data: cat } = await (supabase as any)
       .from("tournament_categories")
-      .select("id, status")
+      .select("id, status, scoring_config, standings_config, playoff_config")
       .eq("id", options.categoryId)
       .maybeSingle();
-    if (cat && (cat.status === "playoffs" || tournament.status === "playoffs")) {
-      canBuildPlayoffs = true;
+    if (cat) {
+      catStatus = cat.status;
+      if (cat.status === "playoffs" || tournament.status === "playoffs") {
+        canBuildPlayoffs = true;
+      }
+      if (cat.playoff_config) categoryPlayoffConfig = cat.playoff_config;
+      if (cat.scoring_config) categoryScoringConfig = cat.scoring_config;
+      if (cat.standings_config) categoryStandingsConfig = cat.standings_config;
     }
   }
-  if (!canBuildPlayoffs) return { ok: false, error: "El torneo no está en playoffs." };
 
-  const scoring = scoringConfigSchema.parse(tournament.scoring_config);
-  const standingsConfig = standingsConfigSchema.parse(tournament.standings_config);
-  const defaultPlayoffConfig = playoffConfigSchema.parse(tournament.playoff_config);
-
-  const qualifiersPerGroup = options?.qualifiersPerGroup ?? defaultPlayoffConfig.qualifiersPerGroup;
-  const thirdPlace = options?.thirdPlace ?? defaultPlayoffConfig.thirdPlace;
-
-  const competition = await getCompetition(tournamentId);
   const groups = options?.categoryId
     ? competition.groups.filter((g) => g.categoryId === options.categoryId)
     : competition.groups;
   const matches = options?.categoryId
     ? competition.matches.filter((m) => m.categoryId === options.categoryId)
     : competition.matches;
+
+  const groupMatches = matches.filter((m) => m.stage === "group");
+  const allGroupMatchesFinished =
+    groupMatches.length > 0 && groupMatches.every((m) => m.resultStatus !== null);
+
+  // Se permite generar playoffs si ya está en playoffs, si terminaron todos los partidos de grupo,
+  // o si el organizador solicitó explícitamente armar el cuadro
+  if (allGroupMatchesFinished || options?.qualifiersPerGroup !== undefined) {
+    canBuildPlayoffs = true;
+    if (options?.categoryId && catStatus !== "playoffs") {
+      await (supabase as any)
+        .from("tournament_categories")
+        .update({ status: "playoffs" })
+        .eq("id", options.categoryId);
+    }
+  }
+
+  if (!canBuildPlayoffs) return { ok: false, error: "La fase de grupos todavía tiene partidos pendientes de resultado." };
+
+  const scoring = normalizeScoringConfig(categoryScoringConfig);
+  const standingsConfig = normalizeStandingsConfig(categoryStandingsConfig);
+  const defaultPlayoffConfig = normalizePlayoffConfig(categoryPlayoffConfig);
+
+  let qualifiersPerGroup = options?.qualifiersPerGroup ?? defaultPlayoffConfig.qualifiersPerGroup;
+  // Si la categoría tiene un único grupo (zona única), deben clasificar al menos 2 parejas para poder jugar la final
+  if (groups.length === 1 && qualifiersPerGroup < 2) {
+    qualifiersPerGroup = 2;
+  }
+  const thirdPlace = options?.thirdPlace ?? defaultPlayoffConfig.thirdPlace;
 
   const standings = groupStandings(groups, matches, scoring, standingsConfig);
   const qualifiers = qualifiersFromStandings(standings, qualifiersPerGroup, scoring.type);

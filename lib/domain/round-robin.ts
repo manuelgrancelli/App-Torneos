@@ -56,3 +56,43 @@ export function generateRoundRobin(teamIds: readonly string[]): RoundRobinRound[
 export function roundRobinMatchCount(teamCount: number): number {
   return teamCount < 2 ? 0 : (teamCount * (teamCount - 1)) / 2;
 }
+
+export type GroupInitialMatch = {
+  round: number;
+  position: number;
+  home: string;
+  away: string;
+};
+
+/**
+ * Genera los partidos iniciales para un grupo según su tamaño.
+ * - En grupos de 4 parejas (formato padel GSL / doble eliminación simplificada):
+ *   Fecha 1: Partido 0 (Pareja 0 vs Pareja 1), Partido 1 (Pareja 2 vs Pareja 3).
+ *   Fecha 2: Ganadores por 1° y 2° puesto; Perdedores por 3° clasificado y 4° eliminado.
+ * - En grupos de otros tamaños:
+ *   Todos contra todos tradicional (Round Robin).
+ */
+export function generateGroupInitialMatches(teamIds: readonly string[]): GroupInitialMatch[] {
+  if (teamIds.length === 4) {
+    return [
+      { round: 1, position: 0, home: teamIds[0]!, away: teamIds[1]! },
+      { round: 1, position: 1, home: teamIds[2]!, away: teamIds[3]! },
+    ];
+  }
+
+  return generateRoundRobin(teamIds).flatMap((round) =>
+    round.pairings.map((pairing, position) => ({
+      round: round.round,
+      position,
+      home: pairing.home,
+      away: pairing.away,
+    })),
+  );
+}
+
+/** Cantidad total de partidos que se disputarán en un grupo de n equipos. */
+export function groupTotalMatchCount(teamCount: number): number {
+  if (teamCount < 2) return 0;
+  if (teamCount === 4) return 4;
+  return roundRobinMatchCount(teamCount);
+}

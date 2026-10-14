@@ -188,12 +188,13 @@ export type TournamentCounts = {
   playoffMatches: number;
   pendingPlayoffMatches: number;
   finalDecided: boolean;
+  categories: number;
 };
 
 /** Números del panel del organizador y contexto para validar transiciones de estado. */
 export const getTournamentCounts = cache(async (tournamentId: string): Promise<TournamentCounts> => {
   const supabase = await createClient();
-  const [courts, slots, teams, matches] = await Promise.all([
+  const [courts, slots, teams, matches, categories] = await Promise.all([
     supabase.from("courts").select("id", { count: "exact", head: true }).eq("tournament_id", tournamentId),
     supabase.from("time_slots").select("id", { count: "exact", head: true }).eq("tournament_id", tournamentId),
     supabase.from("teams").select("status").eq("tournament_id", tournamentId),
@@ -201,8 +202,10 @@ export const getTournamentCounts = cache(async (tournamentId: string): Promise<T
       .from("matches")
       .select("stage, result_status, is_third_place, next_match_id, winner_team_id, slot_id")
       .eq("tournament_id", tournamentId),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from("tournament_categories").select("id", { count: "exact", head: true }).eq("tournament_id", tournamentId),
   ]);
-  for (const result of [courts, slots, teams, matches]) {
+  for (const result of [courts, slots, teams, matches, categories]) {
     if (result.error) throw result.error;
   }
 
@@ -226,6 +229,7 @@ export const getTournamentCounts = cache(async (tournamentId: string): Promise<T
     finalDecided: matchRows.some(
       (m) => m.stage === "playoff" && !m.is_third_place && m.next_match_id === null && m.winner_team_id !== null,
     ),
+    categories: categories.count ?? 0,
   };
 });
 

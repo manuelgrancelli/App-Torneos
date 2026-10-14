@@ -49,6 +49,38 @@ describe("bracketSize / seedPositions / roundName", () => {
 });
 
 describe("buildBracket", () => {
+  it("1 grupo único × 2 clasificados: final directa 1° vs 2°", () => {
+    const q: Qualifier[] = [
+      { teamId: "1A", group: 0, place: 1 },
+      { teamId: "2A", group: 0, place: 2 },
+    ];
+    const plan = buildBracket(q, { thirdPlace: false });
+    expect(plan.size).toBe(2);
+    expect(plan.rounds).toBe(1);
+    expect(plan.matches).toHaveLength(1);
+    expect(plan.matches[0]).toMatchObject({
+      round: 1,
+      position: 0,
+      home: "1A",
+      away: "2A",
+      isBye: false,
+    });
+  });
+
+  it("1 grupo único × 4 clasificados: semifinales 1° vs 4° y 2° vs 3°", () => {
+    const q: Qualifier[] = [
+      { teamId: "1A", group: 0, place: 1 },
+      { teamId: "2A", group: 0, place: 2 },
+      { teamId: "3A", group: 0, place: 3 },
+      { teamId: "4A", group: 0, place: 4 },
+    ];
+    const plan = buildBracket(q, { thirdPlace: false });
+    expect(plan.size).toBe(4);
+    expect(plan.rounds).toBe(2);
+    expect(firstRound(plan)).toEqual([["1A", "4A"], ["2A", "3A"]]);
+    expect(plan.matches).toHaveLength(3);
+  });
+
   it("2 grupos × 2: cruce clásico 1°A vs 2°B y 1°B vs 2°A", () => {
     const plan = buildBracket(qualifiers(2, 2), { thirdPlace: false });
     expect(plan.size).toBe(4);
@@ -262,9 +294,18 @@ describe("buildProjectedBracket & buildTeamSeedMap", () => {
     expect(r1[1]!.away?.seedBadge).toBe("2A");
   });
 
-  it("devuelve null si hay menos de 2 grupos", () => {
+  it("buildProjectedBracket arma final directa para categoría de 1 solo grupo y 2 clasificados", () => {
     const oneGroup = [{ id: "g1", name: "Grupo Único", position: 1, tiebreakSeed: 1, teamIds: ["t1", "t2"] }];
     const cards = buildProjectedBracket(oneGroup, [], scoring, standingsConfig, playoffConfig, new Map());
+    expect(cards).not.toBeNull();
+    expect(cards).toHaveLength(1);
+    expect(cards![0]!.round).toBe(1);
+    expect(cards![0]!.home?.seedBadge).toBe("1A");
+    expect(cards![0]!.away?.seedBadge).toBe("2A");
+  });
+
+  it("devuelve null si no hay grupos", () => {
+    const cards = buildProjectedBracket([], [], scoring, standingsConfig, playoffConfig, new Map());
     expect(cards).toBeNull();
   });
 });

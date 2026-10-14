@@ -8,8 +8,8 @@ import { playoffSummary, scoringSummary, standingsSummary } from "./config-summa
 type ReviewRow = { label: string; value: string; step: number };
 
 /**
- * Resumen de todo lo cargado antes de crear el torneo (D-054). Cada fila lleva un
- * "Editar" que vuelve al paso donde se completa ese dato. Es de presentación.
+ * Resumen de todo lo cargado antes de crear el torneo (D-054, D-072). Cada fila lleva un
+ * "Editar" que vuelve al paso donde se completa ese dato. Estética SaaS limpia.
  */
 export function TournamentReview({
   values,
@@ -44,19 +44,30 @@ export function TournamentReview({
   ];
 
   return (
-    <dl className="divide-y rounded-xl bg-card ring-1 ring-foreground/10">
+    <dl className="divide-y divide-border/60 overflow-hidden rounded-2xl border border-border/80 bg-card shadow-xs">
       {rows.map((row) => (
-        <div key={row.label} className="flex items-start gap-3 px-4 py-3">
-          <div className="min-w-0 flex-1 space-y-0.5">
-            <dt className="text-xs font-medium text-muted-foreground">{row.label}</dt>
-            <dd className="text-sm break-words">{row.value}</dd>
+        <div
+          key={row.label}
+          className="group flex items-start justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-muted/40 sm:px-5"
+        >
+          <div className="min-w-0 flex-1 space-y-1">
+            <dt className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{row.label}</dt>
+            <dd className="text-sm font-medium text-foreground break-words">{row.value}</dd>
           </div>
-          <Button type="button" variant="ghost" size="sm" onClick={() => onEdit(row.step)}>
-            <Pencil aria-hidden="true" />
-            Editar<span className="sr-only"> {row.label.toLowerCase()}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onEdit(row.step)}
+            className="text-xs text-muted-foreground transition-all duration-150 hover:bg-emerald-500/10 hover:text-emerald-700 dark:hover:text-emerald-300"
+          >
+            <Pencil className="size-3.5" aria-hidden="true" />
+            <span>Editar</span>
+            <span className="sr-only"> {row.label.toLowerCase()}</span>
           </Button>
         </div>
       ))}
     </dl>
   );
 }
+

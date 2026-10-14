@@ -54,6 +54,7 @@ export default async function TournamentPanelLayout({ children, params }: Layout
         <TournamentProgress status={tournament.status} detail={guide.progress.short || undefined} />
         <TournamentNav
           tournamentId={tournament.id}
+          status={tournament.status}
           recommended={RECOMMENDED_TAB[tournament.status]}
           badges={{
             categorias: categories.length,

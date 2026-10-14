@@ -1,7 +1,7 @@
 import type { ConfirmationView, GroupView, MatchView } from "@/lib/data/competition";
 import { type BracketPlan, type Qualifier, buildBracket, roundName } from "@/lib/domain/bracket";
 import { type MatchResult, type ScoringConfig, formatResult } from "@/lib/domain/scoring";
-import { type StandingRow, type StandingsConfig, computeStandings } from "@/lib/domain/standings";
+import { type StandingRow, type StandingsConfig, computeStandings, normalizeStandingsConfig } from "@/lib/domain/standings";
 
 /**
  * Armado de vistas de la competencia a partir de las filas de la base
@@ -15,6 +15,7 @@ export function groupStandings(
   scoring: ScoringConfig,
   config: StandingsConfig,
 ): { group: GroupView; rows: StandingRow[] }[] {
+  const safeConfig = normalizeStandingsConfig(config);
   return groups.map((group) => ({
     group,
     rows: computeStandings({
@@ -27,9 +28,11 @@ export function groupStandings(
           winnerTeamId: m.winnerTeamId,
           isDraw: m.isDraw,
           result: m.result,
+          round: m.round,
+          position: m.position,
         })),
       scoring,
-      config,
+      config: safeConfig,
       seed: group.tiebreakSeed,
     }),
   }));
@@ -39,6 +42,12 @@ export function groupStandings(
 export function matchStageLabel(match: MatchView, groups: GroupView[], playoffRounds: number): string {
   if (match.stage === "group") {
     const group = groups.find((g) => g.id === match.groupId);
+    if (group && group.teamIds.length === 4 && match.round === 2) {
+      const gName = group.name ?? "Grupo";
+      return match.position === 0
+        ? `${gName} · Final (1° y 2° puesto)`
+        : `${gName} · Duelo 3° puesto (Pasa a playoff)`;
+    }
     return `${group?.name ?? "Grupo"} · Fecha ${match.round}`;
   }
   if (match.isThirdPlace) return "3er puesto";
@@ -69,6 +78,7 @@ export type BoardMatch = {
   categoryName: string | null;
   stage: "group" | "playoff";
   round: number;
+  position: number;
   isThirdPlace: boolean;
   section: string;
   homeTeamId: string | null;
@@ -89,7 +99,65 @@ export type BoardMatch = {
   disputes: string[];
 };
 
-/** Arma las filas del tablero (nombres, cancha, marcador y objeciones) a partir de la base. */
+/**
+ * Comparador cronológico para listas y fixtures de partidos:
+ * 1. Partidos con fecha/horario asignado van primero, sin horario al final.
+ * 2. Ordenados por startsAt (fecha y hora) de menor a mayor (del primero al último).
+ * 3. En caso de coincidir fecha y hora (ej. 10:00 a 11:00), se desempata por cancha de manera natural
+ *    (Cancha 1 antes que Cancha 2, Cancha 10 después).
+ * 4. Desempate secundario por fase (grupos antes de playoffs), ronda y posición.
+ */
+export function compareMatchesChronological<T extends {
+  startsAt: string | null;
+  courtName?: string | null;
+  courtLabel?: string | null;
+  stage?: string;
+  round?: number;
+  position?: number;
+  section?: string;
+  id?: string;
+}>(a: T, b: T): number {
+  if (a.startsAt && !b.startsAt) return -1;
+  if (!a.startsAt && b.startsAt) return 1;
+
+  if (a.startsAt && b.startsAt) {
+    const timeA = new Date(a.startsAt).getTime();
+    const timeB = new Date(b.startsAt).getTime();
+    if (timeA !== timeB) return timeA - timeB;
+
+    const courtA = a.courtName ?? a.courtLabel ?? "";
+    const courtB = b.courtName ?? b.courtLabel ?? "";
+    if (courtA && courtB) {
+      const cmp = courtA.localeCompare(courtB, undefined, { numeric: true, sensitivity: "base" });
+      if (cmp !== 0) return cmp;
+    } else if (courtA) {
+      return -1;
+    } else if (courtB) {
+      return 1;
+    }
+  }
+
+  if (a.stage && b.stage && a.stage !== b.stage) {
+    if (a.stage === "group") return -1;
+    if (b.stage === "group") return 1;
+  }
+
+  if (a.round !== undefined && b.round !== undefined && a.round !== b.round) {
+    return a.round - b.round;
+  }
+
+  if (a.position !== undefined && b.position !== undefined && a.position !== b.position) {
+    return a.position - b.position;
+  }
+
+  if (a.section && b.section && a.section !== b.section) {
+    return a.section.localeCompare(b.section, undefined, { numeric: true });
+  }
+
+  return (a.id ?? "").localeCompare(b.id ?? "");
+}
+
+/** Arma las filas del tablero (nombres, cancha, marcador y objeciones) a partir de la base, ordenadas cronológicamente. */
 export function buildBoardMatches(
   matches: MatchView[],
   groups: GroupView[],
@@ -108,7 +176,7 @@ export function buildBoardMatches(
     }
   }
 
-  return matches
+  const items = matches
     .filter((m) => !m.isBye)
     .map((m) => {
       const rounds = m.stage === "playoff" ? (categoryRoundsMap.get(m.categoryId ?? null) ?? globalRounds) : globalRounds;
@@ -118,27 +186,42 @@ export function buildBoardMatches(
         categoryName: m.categoryId && categoryNames ? (categoryNames.get(m.categoryId) ?? null) : null,
         stage: m.stage,
         round: m.round,
+        position: m.position,
         isThirdPlace: m.isThirdPlace,
         section: matchStageLabel(m, groups, rounds),
-      homeTeamId: m.homeTeamId,
-      awayTeamId: m.awayTeamId,
-      homeName: m.homeTeamId ? (teamNames.get(m.homeTeamId) ?? "Equipo") : "A definir",
-      awayName: m.awayTeamId ? (teamNames.get(m.awayTeamId) ?? "Equipo") : "A definir",
-      slotId: m.slotId,
-      courtId: m.courtId,
-      courtName: m.courtId ? (courtNames.get(m.courtId) ?? null) : null,
-      startsAt: m.startsAt,
-      endsAt: m.endsAt,
-      scheduleLocked: m.scheduleLocked,
-      result: m.result,
-      resultText: resultLabel(m),
-      isWalkover: m.isWalkover,
-      winnerTeamId: m.winnerTeamId,
-      resultStatus: m.resultStatus,
-      // Los comentarios solo importan mientras el resultado sigue objetado.
-      disputes: m.resultStatus === "disputed" ? disputeComments(m.id, confirmations) : [],
-    };
-  });
+        homeTeamId: m.homeTeamId,
+        awayTeamId: m.awayTeamId,
+        homeName: m.homeTeamId
+          ? (teamNames.get(m.homeTeamId) ?? "Equipo")
+          : m.stage === "group" && m.round === 2
+            ? m.position === 0
+              ? "Ganador P1"
+              : "Perdedor P1"
+            : "A definir",
+        awayName: m.awayTeamId
+          ? (teamNames.get(m.awayTeamId) ?? "Equipo")
+          : m.stage === "group" && m.round === 2
+            ? m.position === 0
+              ? "Ganador P2"
+              : "Perdedor P2"
+            : "A definir",
+        slotId: m.slotId,
+        courtId: m.courtId,
+        courtName: m.courtId ? (courtNames.get(m.courtId) ?? null) : null,
+        startsAt: m.startsAt,
+        endsAt: m.endsAt,
+        scheduleLocked: m.scheduleLocked,
+        result: m.result,
+        resultText: resultLabel(m),
+        isWalkover: m.isWalkover,
+        winnerTeamId: m.winnerTeamId,
+        resultStatus: m.resultStatus,
+        // Los comentarios solo importan mientras el resultado sigue objetado.
+        disputes: m.resultStatus === "disputed" ? disputeComments(m.id, confirmations) : [],
+      };
+    });
+
+  return items.sort(compareMatchesChronological);
 }
 
 /** Partidos de un equipo vistos por sus integrantes (rival, horario, resultado desde su lado). */
@@ -153,7 +236,7 @@ export function buildTeamMatches(
   const rounds = playoffRoundCount(matches);
   return matches
     .filter((m) => !m.isBye && (m.homeTeamId === teamId || m.awayTeamId === teamId))
-    .sort((a, b) => (a.startsAt ?? "9999").localeCompare(b.startsAt ?? "9999") || a.round - b.round)
+    .sort(compareMatchesChronological)
     .map((m) => {
       const rivalId = m.homeTeamId === teamId ? m.awayTeamId : m.homeTeamId;
       const outcome: "win" | "loss" | "draw" | null = m.isDraw
@@ -193,8 +276,9 @@ export function qualifiersFromStandings(
   perGroup: number,
   scoringType: "sets" | "goals",
 ): Qualifier[] {
-  return standings.flatMap(({ rows }, groupIndex) =>
-    rows.slice(0, perGroup).map((row) => {
+  return standings.flatMap(({ group, rows }, groupIndex) => {
+    const effectiveQualifiers = group.teamIds.length === 4 ? 3 : perGroup;
+    return rows.slice(0, effectiveQualifiers).map((row) => {
       const played = Math.max(row.played, 1);
       const diff = scoringType === "sets" ? row.setsFor - row.setsAgainst : row.goalsFor - row.goalsAgainst;
       const scored = scoringType === "sets" ? row.gamesFor : row.goalsFor;
@@ -204,8 +288,8 @@ export function qualifiersFromStandings(
         place: row.position,
         rating: [row.points / played, diff / played, scored / played],
       };
-    }),
-  );
+    });
+  });
 }
 
 /** Integrante o equipo en una tarjeta del cuadro. */
@@ -270,9 +354,11 @@ export function buildTeamSeedMap(
   const standings = groupStandings(groups, matches, scoring, standingsConfig);
   groups.forEach((group, g) => {
     const rawLetter = group.name.replace(/grupo\s*/i, "").trim();
-    const groupLetter = rawLetter || String.fromCharCode(65 + g);
+    const groupLetter = (rawLetter.length <= 2 ? rawLetter : "") || String.fromCharCode(65 + g);
     const rows = standings[g]?.rows ?? [];
-    for (let i = 0; i < Math.min(perGroup, rows.length); i++) {
+    const effectivePerGroup =
+      group.teamIds.length === 4 ? 3 : groups.length === 1 && perGroup < 2 ? 2 : perGroup;
+    for (let i = 0; i < Math.min(effectivePerGroup, rows.length); i++) {
       const row = rows[i];
       if (row) {
         map.set(row.teamId, `${i + 1}${groupLetter}`);
@@ -294,9 +380,12 @@ export function buildProjectedBracket(
   playoffConfig: { qualifiersPerGroup: number; thirdPlace: boolean },
   teamNames: Map<string, string>,
 ): BracketCard[] | null {
-  if (groups.length < 2) return null;
-  const perGroup = Math.max(1, playoffConfig.qualifiersPerGroup);
-  const totalQualifiers = groups.length * perGroup;
+  if (groups.length === 0) return null;
+  const rawPerGroup = Math.max(1, playoffConfig.qualifiersPerGroup);
+  const groupEffectiveQualifiers = (g: GroupView) =>
+    g.teamIds.length === 4 ? 3 : groups.length === 1 && rawPerGroup < 2 ? 2 : rawPerGroup;
+
+  const totalQualifiers = groups.reduce((acc, g) => acc + groupEffectiveQualifiers(g), 0);
   if (totalQualifiers < 2 || totalQualifiers > 32) return null;
 
   const standings = groupStandings(groups, matches, scoring, standingsConfig);
@@ -313,15 +402,16 @@ export function buildProjectedBracket(
 
   const virtualQualifiers: Qualifier[] = groups.flatMap((group, g) => {
     const rawLetter = group.name.replace(/grupo\s*/i, "").trim();
-    const groupLetter = rawLetter || String.fromCharCode(65 + g);
+    const groupLetter = (rawLetter.length <= 2 ? rawLetter : "") || String.fromCharCode(65 + g);
     const groupStanding = standings[g];
     const groupMatches = matches.filter((m) => m.groupId === group.id);
     const groupFinished = groupMatches.length > 0 && groupMatches.every((m) => m.resultStatus !== null);
+    const effectivePerGroup = groupEffectiveQualifiers(group);
 
-    return Array.from({ length: perGroup }, (_, i) => {
+    return Array.from({ length: effectivePerGroup }, (_, i) => {
       const p = i + 1;
       const seedCode = `${p}${groupLetter}`;
-      const seedLabel = `${p}° ${group.name || `Grupo ${groupLetter}`}`;
+      const seedLabel = groups.length === 1 ? `${p}° ${group.name}` : `${p}° ${group.name || `Grupo ${groupLetter}`}`;
       const row = groupStanding?.rows[i];
 
       let teamId: string | null = null;

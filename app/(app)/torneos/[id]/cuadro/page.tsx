@@ -18,6 +18,9 @@ import {
 import { getCompetition, getSchedulingData } from "@/lib/data/competition";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
 import { createClient } from "@/lib/supabase/server";
+import { normalizePlayoffConfig } from "@/lib/domain/bracket";
+import { normalizeScoringConfig } from "@/lib/domain/scoring";
+import { normalizeStandingsConfig } from "@/lib/domain/standings";
 import { ensurePlayoffBracket } from "./actions";
 
 export const metadata: Metadata = { title: "Cuadro" };
@@ -32,7 +35,7 @@ export default async function BracketPage({
   const tournament = await requireOrganizerTournament(id);
   const supabase = await createClient();
 
-  const [competition, scheduling] = await Promise.all([
+  let [competition, scheduling] = await Promise.all([
     getCompetition(tournament.id),
     getSchedulingData(tournament.id),
   ]);
@@ -42,17 +45,26 @@ export default async function BracketPage({
     ? competition.categories.find((c) => c.id === cat) ?? competition.categories[0]
     : null;
 
-  // Si está en playoffs para esta categoría o el torneo general, asegurar el cuadro
+  const groupMatches = competition.matches.filter(
+    (m) => (!activeCategory || m.categoryId === activeCategory.id) && m.stage === "group"
+  );
+  const allGroupMatchesFinished =
+    groupMatches.length > 0 && groupMatches.every((m) => m.resultStatus !== null);
+
+  // Si está en playoffs para esta categoría o el torneo general, o concluyeron todos los partidos de zona
   const isPlayoffs = activeCategory
-    ? activeCategory.status === "playoffs" || tournament.status === "playoffs"
-    : tournament.status === "playoffs";
+    ? activeCategory.status === "playoffs" || tournament.status === "playoffs" || allGroupMatchesFinished
+    : tournament.status === "playoffs" || allGroupMatchesFinished;
 
   if (isPlayoffs) {
-    await ensurePlayoffBracket(
+    const res = await ensurePlayoffBracket(
       supabase,
       tournament.id,
       activeCategory ? { categoryId: activeCategory.id } : undefined
     );
+    if (res.ok && (res.count ?? 0) > 0) {
+      competition = await getCompetition(tournament.id);
+    }
   }
 
   const teamNames = new Map(competition.teams.map((t) => [t.id, t.name]));
@@ -69,8 +81,8 @@ export default async function BracketPage({
   const championId = activeCategory?.championTeamId ?? tournament.championTeamId;
   const champion = championId ? teamNames.get(championId) : null;
 
-  // Si no hay grupos creados todavía para esta categoría
-  if (groups.length < 2) {
+  // Si no hay grupos creados todavía para esta categoría ni partidos de playoff
+  if (groups.length === 0 && playoffMatches.length === 0) {
     return (
       <div className="space-y-6">
         {hasCategories ? (
@@ -109,21 +121,33 @@ export default async function BracketPage({
   }
 
   const hasPlayoffMatches = playoffMatches.length > 0;
+  const categoryScoring = normalizeScoringConfig(activeCategory?.scoringConfig ?? tournament.scoringConfig);
+  const categoryStandings = normalizeStandingsConfig(activeCategory?.standingsConfig ?? tournament.standingsConfig);
+  const categoryPlayoff = normalizePlayoffConfig(activeCategory?.playoffConfig ?? tournament.playoffConfig);
+
+  // Solo se pueden cargar resultados de playoffs cuando la fase de grupos esté concluida
+  const canEditPlayoffs = hasPlayoffMatches && (groupMatches.length === 0 || allGroupMatchesFinished);
+
+  const effectiveQualifiers =
+    groups.length === 1 && categoryPlayoff.qualifiersPerGroup < 2
+      ? 2
+      : categoryPlayoff.qualifiersPerGroup;
+
   const seedMap = buildTeamSeedMap(
     groups,
     categoryMatches,
-    tournament.scoringConfig,
-    tournament.standingsConfig,
-    tournament.playoffConfig.qualifiersPerGroup
+    categoryScoring,
+    categoryStandings,
+    effectiveQualifiers
   );
 
   const projectedCards = !hasPlayoffMatches
     ? buildProjectedBracket(
         groups,
         categoryMatches,
-        tournament.scoringConfig,
-        tournament.standingsConfig,
-        tournament.playoffConfig,
+        categoryScoring,
+        categoryStandings,
+        { ...categoryPlayoff, qualifiersPerGroup: effectiveQualifiers },
         teamNames
       )
     : null;
@@ -179,7 +203,7 @@ export default async function BracketPage({
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            Los cruces quedan definidos por las posiciones de grupo (ej. 1°A vs 2°B). Las parejas se actualizan automáticamente en tiempo real a medida que se cargan los resultados de la fase de grupos.
+            Los cruces quedan definidos por las posiciones de grupo (ej. 1°A vs 2°B). Las parejas se actualizan automáticamente en tiempo real a medida que se cargan los resultados de la fase de grupos. Una vez terminados todos los partidos de zona, se armará el cuadro final y se habilitará la carga de resultados.
           </p>
         </div>
       ) : null}
@@ -200,9 +224,13 @@ export default async function BracketPage({
               {hasPlayoffMatches ? "Cuadro de playoffs" : "Cruces proyectados"}{" "}
               {activeCategory ? `— ${activeCategory.name}` : ""}
             </h2>
-            {hasPlayoffMatches && isPlayoffs ? (
+            {hasPlayoffMatches && canEditPlayoffs ? (
               <p className="hidden text-xs text-muted-foreground sm:block">
                 Cargá o editá resultados directamente en cada partido del cuadro.
+              </p>
+            ) : hasPlayoffMatches && !canEditPlayoffs ? (
+              <p className="hidden text-xs text-amber-600 sm:block">
+                Completá los resultados de la fase de grupos para habilitar la carga en playoffs.
               </p>
             ) : null}
           </div>
@@ -219,9 +247,9 @@ export default async function BracketPage({
         <BracketView
           cards={cards}
           timezone={tournament.timezone}
-          scoring={activeCategory?.scoringConfig ?? tournament.scoringConfig}
+          scoring={categoryScoring}
           tournamentId={tournament.id}
-          canEdit={isPlayoffs}
+          canEdit={canEditPlayoffs}
         />
       </section>
 
@@ -234,12 +262,12 @@ export default async function BracketPage({
           <MatchesBoard
             tournamentId={tournament.id}
             timezone={tournament.timezone}
-            scoring={tournament.scoringConfig}
+            scoring={categoryScoring}
             matches={board}
             slots={scheduling.slots}
             courts={scheduling.courts}
             availability={scheduling.availability}
-            canEdit={isPlayoffs}
+            canEdit={canEditPlayoffs}
           />
         </CollapsibleSection>
       ) : null}

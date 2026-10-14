@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import type { PlayoffConfig } from "@/lib/domain/bracket";
 import type { ScoringConfig } from "@/lib/domain/scoring";
-import type { StandingsConfig } from "@/lib/domain/standings";
+import { type StandingsConfig, normalizeStandingsConfig } from "@/lib/domain/standings";
 import type { TournamentStatus } from "@/lib/domain/tournament-status";
 import { createClient } from "@/lib/supabase/server";
 
@@ -56,7 +56,7 @@ export const getTournamentCategories = cache(async (tournamentId: string): Promi
       status: row.status as TournamentStatus,
       maxTeams: row.max_teams,
       scoringConfig: row.scoring_config as ScoringConfig,
-      standingsConfig: row.standings_config as StandingsConfig,
+      standingsConfig: normalizeStandingsConfig(row.standings_config),
       playoffConfig: row.playoff_config as PlayoffConfig,
       championTeamId: row.champion_team_id,
       approvedTeamsCount: 0,
@@ -74,7 +74,7 @@ export const getTournamentCategories = cache(async (tournamentId: string): Promi
       status: row.status as TournamentStatus,
       maxTeams: row.max_teams,
       scoringConfig: row.scoring_config as ScoringConfig,
-      standingsConfig: row.standings_config as StandingsConfig,
+      standingsConfig: normalizeStandingsConfig(row.standings_config),
       playoffConfig: row.playoff_config as PlayoffConfig,
       championTeamId: row.champion_team_id,
       approvedTeamsCount: teams.filter((t: any) => t.status === "approved").length,
@@ -82,3 +82,4 @@ export const getTournamentCategories = cache(async (tournamentId: string): Promi
     };
   });
 });
+

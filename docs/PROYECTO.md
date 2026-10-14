@@ -934,4 +934,171 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** solucionar el error genérico "No pudimos completar la operación. Probá de nuevo." al confirmar el sorteo de grupos y generar los partidos.
 - **Cómo aplicar:** cambios ya aplicados en la app. Si se desea limpiar la base en Supabase, ejecutar en el SQL Editor: `drop function if exists public.apply_groups(uuid, jsonb); drop function if exists public.apply_bracket(uuid, jsonb);`.
 
+### D-069 — Asistente de configuración paso a paso con divulgación progresiva (Wizard / Stepper de Preparación) (2026-10-14)
+- **Decisión:**
+  - **Asistente continuo de configuración inicial (amplía y conecta D-054 y D-064):**
+    - Al crear un torneo en `/torneos/nuevo`, el alta persiste la fila en la base de datos y redirige inmediatamente al paso 2: Categorías (`/torneos/[id]/categorias?asistente=1`).
+    - Flujo guiado en 4 etapas:
+      1. **Datos del torneo (`/torneos/nuevo`):** creación con datos esenciales y reglas recomendadas plegadas (divulgación progresiva).
+      2. **Categorías (`/torneos/[id]/categorias`):** el organizador define las divisiones o niveles que competirán (ej. 6ta Caballeros, 8va Damas), o continúa con categoría general única. Botón directo de avance: *"Siguiente paso: Franjas horarias →"*.
+      3. **Franjas horarias (`/torneos/[id]/canchas-franjas`):** el organizador verifica las canchas y genera los turnos de juego en lote. Botón directo de avance: *"Siguiente paso: Inscripciones →"*.
+      4. **Inscripciones (`/torneos/[id]/inscripciones`):** incluye el componente `OpenRegistrationCard` para abrir la inscripción al público en 1 clic directamente desde la pantalla de inscripciones sin tener que volver al Resumen. Despliega el link y código para compartir (`InviteCard`), permitiendo además anotar parejas de forma manual o de prueba.
+  - **Componente Stepper (`TournamentSetupStepper`):**
+    - Muestra los 4 pasos secuenciales con numeración, tildes de completado, estado activo y enlaces interactivos para volver a pasos completados.
+    - Tarjeta contextual explicativa que reporta el estado actual (ej. cantidad de categorías creadas, franjas horarias listas, estado de inscripción) y los botones para avanzar o volver.
+    - Se despliega automáticamente en las páginas de preparación (`categorias`, `canchas-franjas`, `inscripciones` y `resumen`) mientras el torneo esté en borrador o con el parámetro `?asistente=1`.
+  - **Divulgación progresiva en la navegación (`TournamentNav`):**
+    - Durante el estado de borrador (`status === "draft"`), la pestaña "Competencia" (Grupos, Partidos, Cuadro) se mantiene oculta para evitar abrumar al usuario con secciones vacías que no aplican a la fase de preparación.
+  - **Guía de fase (`phase-guide-model.ts`):**
+    - La fase de preparación (`draft`) incorpora "Configurar categorías" como primer paso obligatorio/recomendado junto a la carga de canchas y franjas.
+- **Motivo:** guiar al organizador en una experiencia fluida, clara y asistida desde la creación hasta la apertura de inscripciones, aplicando divulgación progresiva para mostrar solo lo necesario en cada momento.
+- **Cómo aplicar:** cambios integrados en `tournament-wizard.tsx`, `tournament-setup-stepper.tsx`, `open-registration-card.tsx`, `tournament-nav.tsx`, `phase-guide-model.ts` y en las pantallas `/categorias`, `/canchas-franjas`, `/inscripciones` y `/torneos/[id]`.
+
+### D-070 — Cuadros adaptativos por categoría y soporte para llaves directas (final de 2 parejas en zonas únicas) (2026-10-14)
+- **Decisión:**
+  - **Soporte para categorías de grupo único (zona única):**
+    - En categorías con 1 solo grupo donde clasifican 2 parejas, el cuadro se adapta para conformar directamente la **Final** (1 ronda: 1° vs 2°). Si clasifican 4 de un grupo único, conforma semifinales clásicas (1° vs 4°, 2° vs 3°) y final.
+    - Se elimina la restricción que requería tener al menos 2 grupos (`groups.length < 2`) que impedía proyectar o mostrar el cuadro en categorías de grupo único en `/torneos/[id]/cuadro`, `lib/competition-view.ts` (`buildProjectedBracket`), `BracketGenerator` y en la vista pública `/t/[slug]`. Ahora se proyecta y visualiza correctamente siempre que exista al menos 1 grupo y al menos 2 clasificados.
+  - **Acomodación de siembra sin penalizaciones cruzadas en grupo único (`lib/domain/bracket.ts`):**
+    - En `placeSeeds`, se verifica si los clasificados pertenecen a múltiples grupos (`hasMultipleGroups`). Si provienen de un grupo único (o zona única), se omiten las penalizaciones de enfrentamiento del mismo grupo, preservando el ordenamiento natural de siembra deportiva (1° vs 2° en final directa, o 1° vs 4° y 2° vs 3° en semis).
+  - **Aislamiento y configuración independiente de playoffs por categoría:**
+    - Al pasar una categoría a playoffs (`changeCategoryStatus`), se invoca automáticamente `ensurePlayoffBracket` con su `categoryId` específico.
+    - Cuando `ensurePlayoffBracket` se ejecuta sin `categoryId` en un torneo integrado con categorías, itera y asegura el cuadro de cada categoría individualmente para no mezclar zonas o clasificados entre categorías dispares.
+    - En la vista del cuadro (`cuadro/page.tsx`), en la vista de grupos (`grupos/page.tsx`) y en la página pública (`/t/[slug]`), se utilizan las configuraciones de puntuación, desempate y playoffs de la categoría activa (`activeCategory.playoffConfig`, `scoringConfig`, `standingsConfig`), aplicando un mínimo adaptativo de 2 clasificados si la categoría tiene grupo único para asegurar la disputa de la final.
+- **Motivo:** permitir torneos con categorías heterogéneas (por ejemplo, dos categorías con 2 grupos que clasifican a 4 parejas arrancando en semifinales, y una categoría con 1 grupo que clasifica a 2 parejas arrancando directamente en la final).
+- **Cómo aplicar:** cambios aplicados en `bracket.ts`, `competition-view.ts`, `cuadro/page.tsx`, `cuadro/actions.ts`, `categorias/actions.ts`, `grupos/page.tsx`, `t/[slug]/page.tsx`, `bracket-generator.tsx` y cubiertos con tests unitarios en `bracket.test.ts`.
+
+### D-071 — Cupos máximos por categoría y formato de 4 parejas (GSL / clasifican 3 a playoffs) (2026-10-14)
+- **Decisión:**
+  - **Cupos máximos configurables por categoría (`maxTeams`):**
+    - En el alta de categorías (`CategoriesManager`), se expone el campo de cupo máximo con selector de atajos rápidos (`[4, 8, 12, 16, 24, 32] parejas`).
+    - Nuevo diálogo modal `EditCategoryDialog` (accesible mediante botón con icono de lápiz en cada fila de categoría) que permite actualizar en cualquier momento el nombre y el cupo máximo de la categoría (`updateCategory` en `categorias/actions.ts`), validando que el nuevo cupo nunca sea inferior a la cantidad de parejas aprobadas vigentes.
+  - **Formato especial de 4 parejas por grupo (GSL / Doble eliminación simplificada):**
+    - **Estructura de partidos:** en grupos de 4 parejas se juegan exactamente 4 partidos (cada pareja juega 2 partidos en total):
+      - **Fecha 1:**
+        - Partido 0 (pos 0): Pareja 0 vs Pareja 1.
+        - Partido 1 (pos 1): Pareja 2 vs Pareja 3.
+      - **Fecha 2:**
+        - Final de Grupo (pos 0): Ganador Partido 0 vs Ganador Partido 1. Quien gana queda 1° del grupo y quien pierde queda 2° del grupo.
+        - Duelo por el 3° puesto (pos 1): Perdedor Partido 0 vs Perdedor Partido 1. Quien gana queda 3° del grupo y clasifica a playoffs; quien pierde queda 4° y resulta eliminado.
+    - **Generación en persistencia (`saveGroups` en `grupos/actions.ts`):**
+      - `apply_groups` inserta la Fecha 1 con las parejas definidas. Inmediatamente después, `saveGroups` inserta los 2 partidos de Fecha 2 con `home_team_id: null` y `away_team_id: null`.
+    - **Avance automático de parejas (`recordResult` en `partidos/actions.ts`):**
+      - Al cargar el resultado de un partido de Fecha 1, el ganador se ubica dinámicamente en el partido de ganadores (pos 0) y el perdedor en el de perdedores (pos 1).
+      - Si ambos equipos del partido de Fecha 2 ya están definidos y el partido no tiene turno asignado, el programador automático (`runAutoSchedule`) intenta programarlo de inmediato.
+    - **Consistencia y borrado (`clearResult` en `partidos/actions.ts`):**
+      - Si se intenta borrar un resultado de Fecha 1 y el partido de Fecha 2 ya tiene resultado registrado, se bloquea la operación con advertencia explicativa. Al borrar Fecha 1, se remueven de Fecha 2 los equipos que habían avanzado.
+    - **Simulación en modo prueba (`simulateTournamentResults` en `partidos/actions.ts`):**
+      - La simulación de fase de grupos opera en bucle secuencial, completando primero la Fecha 1, propagando los cruces de ganadores y perdedores, y simulando luego la Fecha 2.
+    - **Cómputo de tabla de posiciones (`computeStandings` en `lib/domain/standings.ts`):**
+      - Los grupos de 4 parejas identifican el formato GSL:
+        - 1°: Ganador de Fecha 2 Pos 0 (Ganadores).
+        - 2°: Perdedor de Fecha 2 Pos 0 (Ganadores).
+        - 3°: Ganador de Fecha 2 Pos 1 (Perdedores).
+        - 4°: Perdedor de Fecha 2 Pos 1 (Perdedores, eliminado).
+      - Mientras la Fecha 2 esté pendiente, los 2 ganadores de Fecha 1 ocupan los puestos 1-2 y los 2 perdedores los puestos 3-4 según criterios convencionales.
+    - **Clasificación a playoffs y visualización (`lib/competition-view.ts`, `StandingsTable`, `buildProjectedBracket`, `BracketGenerator`):**
+      - Los grupos de 4 clasifican exactamente a 3 parejas a playoffs (`qualifiersFromStandings` y `buildTeamSeedMap` con `effectiveQualifiers = 3`, asignando semillas `1A`, `2A`, `3A`).
+      - La tabla de posiciones (`StandingsTable`) resalta en verde los 3 primeros puestos en grupos de 4 parejas.
+      - En el cuadro eliminatorio proyectado y final (`buildProjectedBracket` y `buildBracket`), los 3 clasificados se acomodan en el cuadro con byes para los mejores sembrados cuando corresponda (ej. 3 clasificados en un grupo único disputan semifinales con bye para el 1° directo a la final; 6 clasificados de dos grupos de 4 disputan cuartos de final con byes para los 1°).
+      - Etiquetas amigables en el tablero y fixture: `Final (1° y 2° puesto)` y `Duelo 3° puesto (Pasa a playoff)`, con marcadores de posición `"Ganador P1"` / `"Ganador P2"` y `"Perdedor P1"` / `"Perdedor P2"` mientras no estén definidos.
+- **Motivo:** implementar el formato estándar de padel para grupos de 4 parejas donde 3 avanzan a playoffs y cada pareja juega exactamente 2 partidos, y permitir configurar y editar los cupos máximos por categoría.
+- **Cómo aplicar:** cambios aplicados en `round-robin.ts`, `standings.ts`, `competition-view.ts`, `grupos/actions.ts`, `partidos/actions.ts`, `categorias/actions.ts`, `categories-manager.tsx`, `edit-category-dialog.tsx`, `group-builder.tsx`, `grupos/page.tsx`, `t/[slug]/page.tsx`, `bracket-generator.tsx`, con tests unitarios en `round-robin.test.ts`, `standings.test.ts` y `competition-view.test.ts`.
+
+### D-072 — Rediseño UI/UX SaaS del asistente de torneos: microinteracciones, tarjetas táctiles y factor delicia (2026-10-14)
+- **Decisión:**
+  - **Paleta de color controlada (acento esmeralda deportivo):**
+    - Se mantiene una base neutra limpia (fondos `bg-background` y `bg-card` sutiles, bordes tenues `border-border/80`, contrastes tipográficos nítidos tanto en modo claro como en modo oscuro).
+    - Un solo color de acento deportivo vibrante (verde esmeralda eléctrico: `emerald-600` / `emerald-500` con rings tenues `emerald-500/20` y fondos con gradiente o tinte translúcido `emerald-500/[0.04]`).
+    - Uso estricto del acento:
+      1. Botones principales (CTAs primarios de avance, confirmación y apertura de inscripciones).
+      2. Indicador de paso activo (`bg-emerald-600 text-white ring-4 ring-emerald-500/25 shadow-sm shadow-emerald-600/30 scale-105 font-bold`) e indicador de pasos completados con check badge esmeralda.
+      3. Destellos sutiles (glow/ring) y bordes al seleccionar tarjetas interactivas y chips de cupos o categorías.
+  - **Tarjetas interactivas con feedback sensorial (`SportSelector`):**
+    - Reemplazo del selector nativo plano por una cuadrícula de tarjetas interactivas táctiles (`hover:-translate-y-1 hover:border-emerald-500/40 hover:shadow-md hover:shadow-emerald-500/5 transition-all duration-200`).
+    - Estado seleccionado satisfactorio: borde iluminado en esmeralda, tinte translúcido de fondo, ring de resplandor suave y badge circular de check con microanimación de escala (`animate-scale-in`).
+    - Íconos dedicados por deporte (Pádel, Tenis, Fútbol, etc.) y badges descriptivos del formato y reglas recomendadas.
+  - **Microinteracciones y transiciones fluidas de pasos:**
+    - Transición suave de entrada entre pasos en `TournamentWizard` (`animate-in fade-in-50 slide-in-from-right-3 duration-200` con `key={step}`).
+    - Animaciones de hover lift (`hover:-translate-y-0.5`) en chips de atajos rápidos de cupos y categorías en `CategoriesManager` y `EditCategoryDialog`.
+    - `TournamentReview` con estética SaaS estilo Linear/Vercel: filas con hover interactivo, bordes redondeados y botones sutiles de edición contextual.
+  - **Celebración de finalización y factor delicia (`TournamentCelebrationCard`):**
+    - En el paso final de preparación (`/torneos/[id]/inscripciones`), al tener la inscripción abierta o recién completada mediante el asistente, se renderiza una tarjeta de celebración.
+    - Trofeo flotante con microanimación suave (`animate-subtle-float` y `animate-pulse-glow`) junto a destello sutil y partículas de confeti animadas (`animate-confetti-particle`).
+    - Resumen visual de metas completadas (categorías listas, franjas cargadas, inscripción abierta) y botón de acción rápida para copiar el enlace de invitación con feedback táctil inmediato.
+    - Soporte integral de accesibilidad y `prefers-reduced-motion` en `globals.css` para respetar preferencias de movimiento reducido del usuario.
+- **Motivo:** elevar drásticamente la calidad visual y la experiencia sensorial del asistente de torneos para alcanzar el estándar de un producto SaaS moderno de alta gama (Tailwind/Vercel/Linear).
+- **Cómo aplicar:** implementado en `app/globals.css`, `components/tournaments/sport-selector.tsx`, `components/shared/wizard-steps.tsx`, `components/tournaments/tournament-setup-stepper.tsx`, `components/tournaments/tournament-wizard.tsx`, `components/tournaments/tournament-review.tsx`, `components/tournaments/open-registration-card.tsx`, `components/tournaments/tournament-celebration-card.tsx`, `app/(app)/torneos/[id]/inscripciones/page.tsx`, `components/categories/categories-manager.tsx`, y `components/categories/edit-category-dialog.tsx`.
+
+### D-073 — Normalización robusta de StandingsConfig y herencia en categorías (2026-10-14)
+- **Decisión:**
+  - **Función normalizadora `normalizeStandingsConfig` (`lib/domain/standings.ts`):**
+    - Convierte de forma resiliente cualquier representación de configuración de tabla de posiciones (`raw`) al tipo canónico `StandingsConfig`.
+    - Soporta retrocompatibilidad transparente con campos legacy de migraciones previas de base de datos (`pointsWin`, `pointsDraw`, `pointsLoss`, y criterios `set_difference`, `game_difference`, `goal_difference`).
+    - Ante entradas `null`, `undefined` u objetos vacíos, provee un fallback seguro (`points: { win: 2, draw: 1, loss: 0 }`, criterios de desempate canónicos).
+  - **Blindaje en cómputo de posiciones (`accumulate` y `computeStandings`):**
+    - En `accumulate`, se valida `points && typeof points.win === "number" ? points : { win: 2, draw: 1, loss: 0 }`, evitando excepciones `TypeError: Cannot read properties of undefined (reading 'win')`.
+    - `computeStandings` ejecuta `normalizeStandingsConfig(input.config)` de manera preliminar antes de armar la tabla de estadísticas o subgrupos de desempate directo (`headToHead`).
+  - **Normalización en capa de presentación y datos (`competition-view.ts`, `categories.ts`, `grupos/page.tsx`):**
+    - `groupStandings` en `lib/competition-view.ts` normaliza la configuración antes de computar las tablas de cada grupo.
+    - `getTournamentCategories` en `lib/data/categories.ts` aplica `normalizeStandingsConfig(row.standings_config)` al mapear las categorías leídas de la base de datos.
+    - En `app/(app)/torneos/[id]/grupos/page.tsx`, la resolución de `categoryStandings` aplica `normalizeStandingsConfig(activeCategory?.standingsConfig ?? tournament.standingsConfig)`.
+  - **Herencia automática de configuraciones al crear categorías (`createCategory` en `categorias/actions.ts`):**
+    - Al crear una nueva categoría, se consultan en paralelo `scoring_config`, `standings_config` y `playoff_config` del torneo padre y se persisten explícitamente en el registro de `tournament_categories`, evitando que PostgreSQL recurra a valores por defecto desactualizados de la migración.
+- **Motivo:** solucionar el error de lectura de `points.win` que ocurría al computar la tabla de posiciones en torneos con múltiples categorías creadas recientemente.
+- **Cómo aplicar:** implementado en `lib/domain/standings.ts`, `lib/competition-view.ts`, `lib/data/categories.ts`, `app/(app)/torneos/[id]/categorias/actions.ts`, y `app/(app)/torneos/[id]/grupos/page.tsx`, con tests unitarios en `lib/domain/standings.test.ts`.
+
+### D-074 — Transición fluida a playoffs, normalización de ScoringConfig y apertura continua del cuadro (2026-10-14)
+- **Decisión:**
+  - **Acceso continuo a playoffs y cruces proyectados (`cuadro/page.tsx`):**
+    - El organizador puede ingresar a la pestaña "Cuadro" en cualquier momento de la fase de grupos. Mientras la zona esté en juego, el cuadro proyecta en tiempo real los cruces según la tabla viva de posiciones.
+    - La carga y edición de resultados en playoffs (`canEdit`) permanece bloqueada mientras haya partidos de fase de grupos pendientes (`allGroupMatchesFinished = false`).
+    - Al finalizar el último partido de zona de una categoría, la generación de los partidos reales de playoffs se dispara automáticamente y la carga de resultados queda habilitada de inmediato, sin exigir la transición manual del estado del torneo ("Terminar grupos y pasar a playoffs").
+  - **Normalización integral de configuraciones (`normalizeScoringConfig`, `normalizePlayoffConfig`, `normalizeStandingsConfig`):**
+    - `lib/domain/scoring.ts`: incorporación de `normalizeScoringConfig(raw)` para mitigar `ZodError` en categorías con formato legacy (ej. `setsToWin: 2` de migraciones previas en lugar de `bestOf: 3` y `decidingSet: "super_tiebreak"`). Si la entrada carece de campos obligatorios o viene en formato antiguo, normaliza y aplica fallbacks canónicos sin lanzar excepción.
+    - `lib/domain/bracket.ts`: incorporación de `normalizePlayoffConfig(raw)` con fallback seguro (`qualifiersPerGroup: 2, thirdPlace: false`).
+    - Reemplazo de llamadas `.parse()` por normalizadores en `app/(app)/torneos/[id]/cuadro/actions.ts`, `app/(app)/torneos/[id]/cuadro/page.tsx`, y `app/(app)/torneos/[id]/actions.ts`.
+  - **Sincronización en render de servidor (`cuadro/page.tsx`):**
+    - Tras ejecutar `ensurePlayoffBracket`, si se insertaron nuevos partidos de playoffs (`res.count > 0`), se recarga la competencia (`getCompetition`) en el mismo ciclo del Server Component para que los partidos sean visibles de inmediato sin requerir recargar la página manualmente.
+- **Motivo:** corregir el `ZodError` por campos obsoletos en `scoring_config` y agilizar la experiencia de usuario eliminando el paso administrativo manual para pasar a playoffs, preservando la consistencia deportiva al habilitar la carga de resultados únicamente tras culminar los grupos.
+- **Cómo aplicar:** implementado en `lib/domain/scoring.ts`, `lib/domain/bracket.ts`, `app/(app)/torneos/[id]/cuadro/actions.ts`, `app/(app)/torneos/[id]/cuadro/page.tsx`, y `app/(app)/torneos/[id]/actions.ts`.
+
+### D-075 — Rediseño UI/UX SaaS del menú principal de torneos: Dashboard de organizador y jugador (2026-10-14)
+- **Decisión:**
+  - **Componente interactivo `TournamentDashboard` (`components/tournaments/tournament-dashboard.tsx`):**
+    - Métricas ejecutivas KPI: resumen de torneos organizados (desglose de activos), torneos donde el usuario juega (desglose de aprobados) y badge de alerta para inscripciones pendientes por revisar (`pendingTeams > 0`).
+    - Segmented Control / Tabs con badges interactivos (`Todos`, `Organizo`, `Participo`).
+    - Buscador reactivo instantáneo por nombre de torneo, deporte o nombre de equipo con botón de limpieza y empty state para búsquedas sin coincidencias.
+    - Secciones semánticas estructuradas con accesibilidad (`aria-labelledby="organizo"`, `aria-labelledby="participo"`) y grid responsivo de 2 columnas (`grid grid-cols-1 md:grid-cols-2 gap-4`).
+  - **Rediseño de tarjetas de torneo (`components/tournaments/tournament-card.tsx`):**
+    - `OrganizedTournamentCard`: contenedor táctil con elevación suave, barra superior de estado coloreada, icono de deporte en badge estilizado, barra de progreso de cupos con indicador visual de completitud, pill de advertencia para parejas pendientes de revisión y pie con fecha y botón "Administrar".
+    - `ParticipationCard`: contenedor centrado en la experiencia del jugador con datos destacados del equipo ("Tu equipo: [Nombre]"), rol ("Capitán" / "Jugador"), `TeamStatusBadge` y acceso directo.
+  - **Evolución visual de `StatusBadge` y `TeamStatusBadge` (`components/tournaments/status-badge.tsx`):**
+    - Indicador visual de punto con pulso/ping (`animate-ping`) para estados en vivo (`registration_open`, `group_stage`, `playoffs`), con paleta HSL/OKLCH calibrada para contraste WCAG AA en tema claro y oscuro.
+    - `TeamStatusBadge` con iconos contextuales (`Check`, `Clock`, `X`) y bordes translúcidos.
+  - **Portal de inscripción por código (`components/registration/join-code-form.tsx`):**
+    - Rediseñado como un banner estilizado con icono de ticket, microacento degradado, tipografía mono espaciada para el código y botón de acción directa.
+- **Motivo:** elevar la experiencia visual del menú principal al nivel de un producto SaaS moderno (Linear/Vercel), facilitando la gestión de competencias y la participación deportiva con claridad de métricas y microinteracciones fluidas.
+- **Cómo aplicar:** implementado en `components/tournaments/status-badge.tsx`, `components/tournaments/tournament-card.tsx`, `components/tournaments/tournament-dashboard.tsx`, `components/registration/join-code-form.tsx`, y `app/(app)/torneos/page.tsx`.
+
+### D-076 — Integración de torneos y competencias en "Mi perfil" (2026-10-14)
+- **Decisión:**
+  - **Unificación de la experiencia del usuario en su perfil (`app/(app)/perfil/page.tsx`):**
+    - Se integran las competencias del usuario directamente en la pantalla de su perfil personal, consultando en paralelo `listOrganizedTournaments(user.id)` y `listParticipations(user.id)`.
+    - Se reutiliza el componente interactivo `TournamentDashboard`, proporcionando en "Mi perfil" el mismo resumen KPI ejecutivo, segmented control / tabs (`Todos`, `Organizo`, `Participo`), buscador reactivo instantáneo y las tarjetas táctiles modernas de torneos organizados y jugados.
+    - Se actualiza la tarjeta principal del usuario para incorporar un badge contextual de rol dinámico (`Organizador & Jugador`, `Organizador` o `Jugador`) junto a su nombre y avatar.
+- **Motivo:** permitir al usuario acceder y monitorear centralizadamente todos los torneos que gestiona y en los que compite desde la vista de su propio perfil.
+- **Cómo aplicar:** implementado en `app/(app)/perfil/page.tsx` reutilizando `components/tournaments/tournament-dashboard.tsx`.
+
+### D-077 — Separación de responsabilidades: KPIs ejecutivos exclusivos en "Mi perfil" y catálogo directo en "Torneos" (2026-10-14)
+- **Decisión:**
+  - **KPIs ejecutivos en "Mi perfil" (`components/tournaments/tournament-stats-summary.tsx`):**
+    - Se extrae el bloque de estadísticas y KPIs rápidos (`TournamentStatsSummary`) para uso exclusivo en `app/(app)/perfil/page.tsx`, mostrando la cabecera *"🏆 Mis torneos"* y las 3 tarjetas de impacto (Torneos que organizo con activos, Torneos donde juego con activos, y Atención requerida con pendientes).
+    - En "Mi perfil" se eliminan las listas extensas de torneos, pestañas y buscador para mantener el perfil conciso, enfocado en identidad, métricas y preferencias.
+  - **Menú principal de torneos directo y enfocado (`app/(app)/torneos/page.tsx`):**
+    - Se remueven las 3 tarjetas de métricas del menú principal para evitar redundancia visual, permitiendo al organizador o jugador interactuar directamente con el portal de código de inscripción, el segmented control y el listado de tarjetas de torneos organizados y jugados.
+- **Motivo:** alinear la distribución visual según la preferencia explícita del usuario, ubicando el balance numérico en su perfil y el flujo operativo de torneos en la pantalla principal.
+- **Cómo aplicar:** implementado en `components/tournaments/tournament-stats-summary.tsx`, `components/tournaments/tournament-dashboard.tsx`, `app/(app)/perfil/page.tsx`, y `app/(app)/torneos/page.tsx`.
+
+
 

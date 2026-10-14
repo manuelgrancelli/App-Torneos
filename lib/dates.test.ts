@@ -98,6 +98,16 @@ describe("groupByLocalDay", () => {
     ]);
   });
 
+  it("desempata por cancha si dos partidos tienen el mismo horario en el mismo día", () => {
+    const items = [
+      { id: "c2", startsAt: "2026-10-10T13:00:00.000Z", courtName: "Cancha 2", tz: BA },
+      { id: "c1", startsAt: "2026-10-10T13:00:00.000Z", courtName: "Cancha 1", tz: BA },
+      { id: "c10", startsAt: "2026-10-10T13:00:00.000Z", courtName: "Cancha 10", tz: BA },
+    ];
+    const groups = groupByLocalDay(items, (i) => i.tz);
+    expect(groups[0]?.items.map((i) => i.id)).toEqual(["c1", "c2", "c10"]);
+  });
+
   it("devuelve vacío sin ítems", () => {
     expect(groupByLocalDay([], () => BA)).toEqual([]);
   });

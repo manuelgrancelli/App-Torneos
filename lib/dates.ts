@@ -123,7 +123,22 @@ export function groupByLocalDay<T extends { startsAt: string | null }>(
       if (b.day === null) return -1;
       return a.day < b.day ? -1 : 1;
     }
-    return a.time - b.time;
+    if (a.time !== b.time) {
+      return a.time - b.time;
+    }
+    const itemA = a.item as { courtName?: string | null; courtLabel?: string | null };
+    const itemB = b.item as { courtName?: string | null; courtLabel?: string | null };
+    const courtA = itemA.courtName ?? itemA.courtLabel ?? "";
+    const courtB = itemB.courtName ?? itemB.courtLabel ?? "";
+    if (courtA && courtB) {
+      const cmp = courtA.localeCompare(courtB, undefined, { numeric: true, sensitivity: "base" });
+      if (cmp !== 0) return cmp;
+    } else if (courtA) {
+      return -1;
+    } else if (courtB) {
+      return 1;
+    }
+    return 0;
   });
   const groups: DayGroup<T>[] = [];
   for (const { item, day } of keyed) {

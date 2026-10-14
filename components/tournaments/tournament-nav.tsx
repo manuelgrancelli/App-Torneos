@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { TournamentStatus } from "@/lib/domain/tournament-status";
 import { cn } from "@/lib/utils";
 
 /**
@@ -41,29 +42,41 @@ const linkClass =
 /**
  * Pestañas como links (cada sección es una ruta). En mobile se desplazan en horizontal;
  * la activa lleva aria-current. `badges` muestra cuántas cosas esperan al organizador.
+ * Aplica divulgación progresiva (D-069): en borrador no muestra "Competencia" para
+ * concentrar al organizador en los pasos de preparación.
  */
 export function TournamentNav({
   tournamentId,
   badges = {},
   recommended,
+  status,
 }: {
   tournamentId: string;
   badges?: Partial<Record<NavGroupKey, number>>;
   /** Pestaña donde está el trabajo de la fase actual (D-055). */
   recommended?: NavGroupKey;
+  status?: TournamentStatus;
 }) {
   const pathname = usePathname();
   const base = `/torneos/${tournamentId}`;
   const hrefOf = (segment: string) => (segment ? `${base}/${segment}` : base);
   const isActive = (segment: string) => (segment ? pathname.startsWith(hrefOf(segment)) : pathname === base);
 
-  const activeGroup = GROUPS.find((group) => group.items.some((item) => isActive(item.segment)));
+  // Divulgación progresiva: en borrador ocultamos Competencia
+  const visibleGroups = GROUPS.filter((group) => {
+    if (group.key === "competencia" && status === "draft") {
+      return false;
+    }
+    return true;
+  });
+
+  const activeGroup = visibleGroups.find((group) => group.items.some((item) => isActive(item.segment)));
 
   return (
     <div className="space-y-2">
       <nav aria-label="Secciones del torneo" className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
         <ul className="flex min-w-max gap-1 border-b">
-          {GROUPS.map((group) => {
+          {visibleGroups.map((group) => {
             const active = group === activeGroup;
             const badge = badges[group.key] ?? 0;
             return (

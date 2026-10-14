@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { GoalsScoringConfig, SetsScoringConfig } from "./scoring";
-import { type StandingsConfig, type StandingsMatch, computeStandings, validateStandingsConfig } from "./standings";
+import {
+  type StandingsConfig,
+  type StandingsMatch,
+  computeStandings,
+  normalizeStandingsConfig,
+  validateStandingsConfig,
+} from "./standings";
 
 const padel: SetsScoringConfig = {
   type: "sets", bestOf: 3, gamesPerSet: 6, tiebreak: true, decidingSet: "super_tiebreak", superTiebreakPoints: 10, superTiebreakUntil: "quarterfinals",
@@ -154,7 +160,54 @@ describe("computeStandings", () => {
     });
     expect(order(rows)).toEqual(["B", "A"]);
   });
+
+  it("formato 4 parejas GSL: clasifica 1° al ganador de ganadores, 2° al perdedor de ganadores, 3° al ganador de perdedores y 4° al eliminado", () => {
+    // Fecha 1:
+    // M0: A le gana a B
+    // M1: C le gana a D
+    // Fecha 2:
+    // Final ganadores (pos 0): C le gana a A
+    // Duelo perdedores (pos 1): B le gana a D (6-0 6-0 para tener mejor DG que A)
+    const m1 = { ...setsMatch("A", "B", [6, 4], [6, 4]), round: 1, position: 0 };
+    const m2 = { ...setsMatch("C", "D", [6, 4], [6, 4]), round: 1, position: 1 };
+    const mWinners = { ...setsMatch("A", "C", [4, 6], [4, 6]), round: 2, position: 0 }; // C gana
+    const mLosers = { ...setsMatch("B", "D", [6, 0], [6, 0]), round: 2, position: 1 }; // B gana con margen gigante
+
+    const rows = computeStandings({
+      teamIds: ["A", "B", "C", "D"],
+      matches: [m1, m2, mWinners, mLosers],
+      scoring: padel,
+      config: setsConfig,
+      seed: 1,
+    });
+
+    expect(order(rows)).toEqual(["C", "A", "B", "D"]);
+    expect(rows[0]?.position).toBe(1);
+    expect(rows[1]?.position).toBe(2);
+    expect(rows[2]?.position).toBe(3);
+    expect(rows[3]?.position).toBe(4);
+    // Cada equipo jugó 2 partidos
+    expect(rows.every((r) => r.played === 2)).toBe(true);
+  });
+
+  it("formato 4 parejas GSL: antes de fecha 2 separa en los 2 ganadores (puestos 1-2) y los 2 perdedores (puestos 3-4)", () => {
+    const m1 = { ...setsMatch("A", "B", [6, 4], [6, 4]), round: 1, position: 0 };
+    const m2 = { ...setsMatch("C", "D", [6, 2], [6, 2]), round: 1, position: 1 };
+
+    const rows = computeStandings({
+      teamIds: ["A", "B", "C", "D"],
+      matches: [m1, m2],
+      scoring: padel,
+      config: setsConfig,
+      seed: 1,
+    });
+
+    // C y A ganaron en fecha 1 (C con mejor diferencia), B y D perdieron
+    expect(order(rows).slice(0, 2)).toEqual(["C", "A"]);
+    expect(order(rows).slice(2, 4)).toEqual(["B", "D"]);
+  });
 });
+
 
 describe("validateStandingsConfig", () => {
   it("acepta la config por defecto y rechaza criterios ajenos o repetidos", () => {
@@ -172,3 +225,49 @@ describe("validateStandingsConfig", () => {
     expect(validateStandingsConfig({ points: {} }, "sets").ok).toBe(false);
   });
 });
+
+describe("normalizeStandingsConfig", () => {
+  it("normaliza formatos legacy de migraciones con pointsWin y tiebreakers antiguos", () => {
+    const legacy = {
+      pointsWin: 2,
+      pointsDraw: 1,
+      pointsLoss: 0,
+      tiebreakers: ["head_to_head", "set_difference", "game_difference"],
+    };
+    const normalized = normalizeStandingsConfig(legacy);
+    expect(normalized).toEqual({
+      points: { win: 2, draw: 1, loss: 0 },
+      tiebreakers: ["head_to_head", "set_diff", "game_diff"],
+    });
+  });
+
+  it("devuelve fallback seguro si recibe null, undefined o config vacía", () => {
+    expect(normalizeStandingsConfig(null).points).toEqual({ win: 2, draw: 1, loss: 0 });
+    expect(normalizeStandingsConfig(undefined).points).toEqual({ win: 2, draw: 1, loss: 0 });
+    expect(normalizeStandingsConfig({}).points).toEqual({ win: 2, draw: 1, loss: 0 });
+  });
+
+  it("computeStandings no falla si se le pasa config legacy o sin points", () => {
+    const legacyConfig = {
+      pointsWin: 2,
+      pointsDraw: 1,
+      pointsLoss: 0,
+      tiebreakers: ["head_to_head", "set_difference", "game_difference"],
+    } as unknown as StandingsConfig;
+
+    const rows = computeStandings({
+      teamIds: ["A", "B"],
+      matches: [setsMatch("A", "B", [6, 4], [6, 4])],
+      scoring: padel,
+      config: legacyConfig,
+      seed: 1,
+    });
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.teamId).toBe("A");
+    expect(rows[0]?.points).toBe(2);
+    expect(rows[1]?.teamId).toBe("B");
+    expect(rows[1]?.points).toBe(0);
+  });
+});
+

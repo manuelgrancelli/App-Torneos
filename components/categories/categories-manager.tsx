@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Layers, Plus, Trash2, ArrowRight, Trophy } from "lucide-react";
+import { Check, Layers, Pencil, Plus, Trash2, ArrowRight, Trophy } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -10,6 +10,7 @@ import {
   createCategory,
   deleteCategory,
 } from "@/app/(app)/torneos/[id]/categorias/actions";
+import { EditCategoryDialog } from "@/components/categories/edit-category-dialog";
 import { ConfirmActionButton } from "@/components/shared/confirm-action-button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/tournaments/status-badge";
@@ -25,6 +26,7 @@ import type { TournamentStatus } from "@/lib/domain/tournament-status";
 type CategoriesManagerProps = {
   tournamentId: string;
   categories: TournamentCategory[];
+  inSetup?: boolean;
 };
 
 const CATEGORY_PRESETS = [
@@ -38,11 +40,14 @@ const CATEGORY_PRESETS = [
   "Mixto B",
 ];
 
-export function CategoriesManager({ tournamentId, categories }: CategoriesManagerProps) {
+const CUPO_PRESETS = [4, 8, 12, 16, 24, 32];
+
+export function CategoriesManager({ tournamentId, categories, inSetup = false }: CategoriesManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
   const [maxTeams, setMaxTeams] = useState(16);
+  const [editingCategory, setEditingCategory] = useState<TournamentCategory | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
 
   function handleCreate(e: React.FormEvent) {
@@ -149,10 +154,31 @@ export function CategoriesManager({ tournamentId, categories }: CategoriesManage
               </Field>
             </div>
 
+            {/* Atajos de cupos máximos */}
+            <div className="space-y-1.5">
+              <span className="text-xs text-muted-foreground font-semibold">Cupo sugerido:</span>
+              <div className="flex flex-wrap gap-2">
+                {CUPO_PRESETS.map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setMaxTeams(preset)}
+                    className={`rounded-lg border px-2.5 py-1 text-xs transition-all duration-150 ${
+                      maxTeams === preset
+                        ? "border-emerald-500 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold ring-1 ring-emerald-500/30 shadow-xs"
+                        : "border-border/80 bg-card text-muted-foreground hover:-translate-y-0.5 hover:border-emerald-500/40 hover:text-foreground hover:shadow-xs"
+                    }`}
+                  >
+                    {preset} parejas
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Atajos de categorías populares */}
             <div className="space-y-1.5">
-              <span className="text-xs text-muted-foreground font-medium">Sugerencias rápidas:</span>
-              <div className="flex flex-wrap gap-1.5">
+              <span className="text-xs text-muted-foreground font-semibold">Sugerencias rápidas:</span>
+              <div className="flex flex-wrap gap-2">
                 {CATEGORY_PRESETS.map((preset) => (
                   <button
                     key={preset}
@@ -161,7 +187,7 @@ export function CategoriesManager({ tournamentId, categories }: CategoriesManage
                       setName(preset);
                       if (nameError) setNameError(null);
                     }}
-                    className="rounded-md border bg-muted/40 px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    className="rounded-lg border border-border/80 bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-500/40 hover:text-foreground hover:shadow-xs"
                   >
                     + {preset}
                   </button>
@@ -169,7 +195,11 @@ export function CategoriesManager({ tournamentId, categories }: CategoriesManage
               </div>
             </div>
 
-            <Button type="submit" disabled={isPending || name.trim().length < 2}>
+            <Button
+              type="submit"
+              disabled={isPending || name.trim().length < 2}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-xs hover:shadow-md hover:shadow-emerald-600/20 active:scale-[0.98] transition-all duration-150"
+            >
               {isPending ? <Spinner /> : <Plus className="size-4" />}
               Agregar categoría
             </Button>
@@ -184,7 +214,7 @@ export function CategoriesManager({ tournamentId, categories }: CategoriesManage
             <h2 className="text-base font-semibold">Categorías del torneo ({categories.length})</h2>
           </CardTitle>
           <CardDescription>
-            Cada categoría gestiona sus propias parejas inscriptas, sorteo de grupos y cuadro eliminatorio.
+            Cada categoría gestiona sus propias parejas inscriptas, cupos máximos, sorteo de grupos y cuadro eliminatorio.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -210,6 +240,18 @@ export function CategoriesManager({ tournamentId, categories }: CategoriesManage
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
+                    {/* Botón de editar categoría y cupo */}
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={() => setEditingCategory(cat)}
+                      disabled={isPending}
+                      aria-label={`Editar ${cat.name}`}
+                      title="Editar nombre y cupo máximo"
+                    >
+                      <Pencil className="size-4 text-muted-foreground hover:text-foreground" />
+                    </Button>
+
                     {/* Botones de acción rápida por estado */}
                     {cat.status === "registration_open" ? (
                       <Button
@@ -290,6 +332,36 @@ export function CategoriesManager({ tournamentId, categories }: CategoriesManage
           )}
         </CardContent>
       </Card>
+
+      {editingCategory ? (
+        <EditCategoryDialog
+          tournamentId={tournamentId}
+          category={editingCategory}
+          open={Boolean(editingCategory)}
+          onOpenChange={(open) => {
+            if (!open) setEditingCategory(null);
+          }}
+        />
+      ) : null}
+
+      {inSetup ? (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-primary/20 bg-muted/40 p-4">
+          <div className="space-y-0.5">
+            <p className="text-sm font-semibold text-foreground">¿Listo con las categorías?</p>
+            <p className="text-xs text-muted-foreground">
+              {categories.length > 0
+                ? "Excelente. Ahora vamos a configurar las canchas y los turnos de juego."
+                : "Podés continuar sin subdivisiones si tu torneo se disputa con categoría única general."}
+            </p>
+          </div>
+          <Button asChild size="default" className="w-full sm:w-auto shrink-0 shadow-xs">
+            <Link href={`/torneos/${tournamentId}/canchas-franjas?asistente=1`}>
+              <span>Siguiente paso: Franjas horarias</span>
+              <ArrowRight className="size-4 ml-1.5" />
+            </Link>
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }
