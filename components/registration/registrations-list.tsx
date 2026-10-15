@@ -38,7 +38,7 @@ type RegistrationsListProps = {
   /** Solo con la inscripción abierta se aprueba o rechaza (lo valida la RPC). */
   canReview: boolean;
   filter: Filter;
-  categories?: { id: string; name: string; maxTeams?: number }[];
+  categories?: { id: string; name: string; maxTeams?: number | null }[];
 };
 
 function ReviewButtons({
@@ -355,16 +355,15 @@ export function RegistrationsList({
         <ul className="grid gap-3 lg:grid-cols-2">
           {visible.map((team) => {
             const complete = team.members.length >= teamSize;
-            const categoryMax =
-              team.categoryId && categories
-                ? categories.find((c) => c.id === team.categoryId)?.maxTeams ?? maxTeams
-                : maxTeams;
+            const foundCat = team.categoryId && categories ? categories.find((c) => c.id === team.categoryId) : null;
+            const categoryMax = foundCat ? (foundCat.maxTeams ?? null) : maxTeams;
             const categoryApproved = team.categoryId
               ? teams.filter((t) => t.categoryId === team.categoryId && t.status === "approved").length
               : approved;
+            const isFull = categoryMax !== null && categoryApproved >= categoryMax;
             const approveDisabledReason = !complete
               ? "El plantel está incompleto."
-              : categoryApproved >= categoryMax
+              : isFull
                 ? "Se completó el cupo."
                 : undefined;
             return (

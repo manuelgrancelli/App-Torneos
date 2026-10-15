@@ -31,12 +31,12 @@ import {
 import type { SportOption } from "./tournament-form";
 import { TournamentReview } from "./tournament-review";
 
-const STEPS = ["Lo básico", "Fechas y cupo", "Reglas", "Revisar y crear"] as const;
+const STEPS = ["Lo básico", "Fechas y canchas", "Reglas", "Revisar y crear"] as const;
 const LAST_STEP = STEPS.length - 1;
 
 const STEP_TITLES = [
   { title: "Lo básico", description: "Cómo se llama el torneo y qué deporte se juega." },
-  { title: "Fechas y cupo", description: "Cuándo se juega y cuántos equipos entran." },
+  { title: "Fechas y canchas", description: "Cuándo se juega y con cuántas canchas contás." },
   {
     title: "Reglas del juego",
     description: "Dejamos los valores recomendados para el deporte. Cambialos solo si lo necesitás.",
@@ -47,7 +47,7 @@ const STEP_TITLES = [
 /** Campos que se validan en cada paso (el último solo revisa). */
 const STEP_FIELDS = [
   ["name", "sportId", "description"],
-  ["startsOn", "endsOn", "timezone", "maxTeams", "courtCount"],
+  ["startsOn", "endsOn", "timezone", "courtCount"],
   ["resultsRequireConfirmation", "scoringConfig", "standingsConfig", "playoffConfig"],
 ] as const satisfies readonly (readonly (keyof CreateTournamentInput)[])[];
 
@@ -206,9 +206,12 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
             <FieldGroup>
               <DateFields form={form} />
               <TimezoneField form={form} />
-              <div className="grid gap-4 sm:grid-cols-2">
-                <MaxTeamsField form={form} teamSize={sport.minTeamSize} />
-                <CourtCountField form={form} />
+              <CourtCountField form={form} />
+              <div className="rounded-2xl border border-border/80 bg-muted/40 p-4 shadow-2xs">
+                <p className="text-xs font-semibold text-foreground">Cupos de inscripción</p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                  Podrás configurar los cupos libremente dentro de cada categoría al preparar el torneo (con límite específico o abiertos hasta cerrar la inscripción).
+                </p>
               </div>
             </FieldGroup>
           ) : null}

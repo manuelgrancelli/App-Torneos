@@ -31,7 +31,7 @@ export function TournamentReview({
     ...(description ? [{ label: "Descripción", value: description, step: 0 }] : []),
     { label: "Fechas", value: formatDateRange(values.startsOn, values.endsOn), step: 1 },
     { label: "Zona horaria", value: timezone, step: 1 },
-    { label: `Cupo de ${teamNoun(teamSize, true)}`, value: String(values.maxTeams), step: 1 },
+    { label: "Cupos de parejas", value: "Se definen por categoría (abiertos o con límite)", step: 1 },
     { label: "Canchas / sedes", value: String(values.courtCount), step: 1 },
     {
       label: "Resultados",

@@ -46,11 +46,7 @@ next-env.d.ts
 # playwright
 /test-results
 /playwright-report
-node_modules
-node_modules
-node_modules
-node_modules
-node_modules
-node_modules
-node_modules
-node_modules
+
+# nested duplicate folder
+/App-Torneos/
+

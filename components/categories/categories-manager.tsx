@@ -29,24 +29,12 @@ type CategoriesManagerProps = {
   inSetup?: boolean;
 };
 
-const CATEGORY_PRESETS = [
-  "+10 Caballeros",
-  "6ta Caballeros",
-  "7ma Caballeros",
-  "8va Damas",
-  "4ta Femenino",
-  "5ta Femenino",
-  "Mixto A",
-  "Mixto B",
-];
-
-const CUPO_PRESETS = [4, 8, 12, 16, 24, 32];
-
 export function CategoriesManager({ tournamentId, categories, inSetup = false }: CategoriesManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
-  const [maxTeams, setMaxTeams] = useState(16);
+  const [isUnlimited, setIsUnlimited] = useState(false);
+  const [maxTeams, setMaxTeams] = useState<number | null>(16);
   const [editingCategory, setEditingCategory] = useState<TournamentCategory | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
 
@@ -62,7 +50,7 @@ export function CategoriesManager({ tournamentId, categories, inSetup = false }:
       const res = await createCategory({
         tournamentId,
         name: name.trim(),
-        maxTeams: Number(maxTeams),
+        maxTeams: isUnlimited ? null : (maxTeams ? Number(maxTeams) : null),
       });
 
       if (!res.ok) {
@@ -72,6 +60,8 @@ export function CategoriesManager({ tournamentId, categories, inSetup = false }:
 
       toast.success(res.message);
       setName("");
+      setIsUnlimited(false);
+      setMaxTeams(16);
       router.refresh();
     });
   }
@@ -124,7 +114,7 @@ export function CategoriesManager({ tournamentId, categories, inSetup = false }:
         </CardHeader>
         <CardContent>
           <form onSubmit={handleCreate} className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
+            <div className="grid gap-4 sm:grid-cols-[1fr_210px]">
               <Field>
                 <FieldLabel htmlFor="category-name">Nombre de la categoría</FieldLabel>
                 <Input
@@ -141,58 +131,47 @@ export function CategoriesManager({ tournamentId, categories, inSetup = false }:
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="category-max-teams">Cupo máx. parejas</FieldLabel>
-                <Input
-                  id="category-max-teams"
-                  type="number"
-                  min={2}
-                  max={64}
-                  value={maxTeams}
-                  onChange={(e) => setMaxTeams(Number(e.target.value))}
-                  disabled={isPending}
-                />
+                <FieldLabel htmlFor="category-max-teams">Cupo de parejas</FieldLabel>
+                {isUnlimited ? (
+                  <div className="flex h-9 w-full items-center justify-between rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-700 dark:text-emerald-300">
+                    <span className="font-semibold truncate">♾️ Hasta cerrar</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsUnlimited(false);
+                        setMaxTeams(16);
+                      }}
+                      className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 underline hover:text-emerald-700 dark:hover:text-emerald-200 ml-1 shrink-0"
+                    >
+                      Fijar número
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      id="category-max-teams"
+                      type="number"
+                      min={2}
+                      max={64}
+                      value={maxTeams ?? 16}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setMaxTeams(val > 0 ? val : 2);
+                        setIsUnlimited(false);
+                      }}
+                      disabled={isPending}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsUnlimited(true)}
+                      className="h-9 shrink-0 rounded-md border border-border/80 bg-muted/40 px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors whitespace-nowrap"
+                      title="Sin límite: la inscripción queda abierta hasta que decidas cerrarla"
+                    >
+                      ♾️ Sin límite
+                    </button>
+                  </div>
+                )}
               </Field>
-            </div>
-
-            {/* Atajos de cupos máximos */}
-            <div className="space-y-1.5">
-              <span className="text-xs text-muted-foreground font-semibold">Cupo sugerido:</span>
-              <div className="flex flex-wrap gap-2">
-                {CUPO_PRESETS.map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => setMaxTeams(preset)}
-                    className={`rounded-lg border px-2.5 py-1 text-xs transition-all duration-150 ${
-                      maxTeams === preset
-                        ? "border-emerald-500 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold ring-1 ring-emerald-500/30 shadow-xs"
-                        : "border-border/80 bg-card text-muted-foreground hover:-translate-y-0.5 hover:border-emerald-500/40 hover:text-foreground hover:shadow-xs"
-                    }`}
-                  >
-                    {preset} parejas
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Atajos de categorías populares */}
-            <div className="space-y-1.5">
-              <span className="text-xs text-muted-foreground font-semibold">Sugerencias rápidas:</span>
-              <div className="flex flex-wrap gap-2">
-                {CATEGORY_PRESETS.map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => {
-                      setName(preset);
-                      if (nameError) setNameError(null);
-                    }}
-                    className="rounded-lg border border-border/80 bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-500/40 hover:text-foreground hover:shadow-xs"
-                  >
-                    + {preset}
-                  </button>
-                ))}
-              </div>
             </div>
 
             <Button
@@ -235,7 +214,8 @@ export function CategoriesManager({ tournamentId, categories, inSetup = false }:
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {cat.approvedTeamsCount} {cat.approvedTeamsCount === 1 ? "pareja aprobada" : "parejas aprobadas"}
-                      {cat.totalTeamsCount > cat.approvedTeamsCount ? ` (${cat.totalTeamsCount} inscriptas)` : ""} · Cupo de {cat.maxTeams} parejas
+                      {cat.totalTeamsCount > cat.approvedTeamsCount ? ` (${cat.totalTeamsCount} inscriptas)` : ""} ·{" "}
+                      {cat.maxTeams !== null ? `Cupo de ${cat.maxTeams} parejas` : "Hasta cerrar inscripción (sin límite)"}
                     </p>
                   </div>
 

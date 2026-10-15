@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { z } from "zod";
 import { HistoryFilters } from "@/components/history/history-filters";
+import { HistoryViewTabs } from "@/components/history/history-view-tabs";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,7 @@ const OUTCOME_PARAM = { ganados: "win", perdidos: "loss", empates: "draw" } as c
 
 /** Filtros desde la URL: lo inválido se ignora (no rompe la página). */
 const filtersSchema = z.object({
+  tab: z.enum(["jugados", "organizados"]).optional().catch(undefined),
   torneo: z.uuid().optional().catch(undefined),
   deporte: z
     .string()
@@ -48,25 +50,11 @@ export default async function HistoryPage({ searchParams }: PageProps<"/historia
   ]);
   const played = matches.filter((m) => m.resultText !== null);
   const finishedOrganized = organized.filter((t) => t.status === "finished");
+  const activeOrganized = organized.filter((t) => t.status !== "finished");
+  const isOrganizer = organized.length > 0;
 
-  if (played.length === 0) {
-    if (finishedOrganized.length > 0) {
-      return (
-        <div className="space-y-6">
-          <PageHeader
-            title="Mi historial de torneos"
-            description="Historial de competencias que organizaste y concluyeron exitosamente."
-            actions={
-              <Button asChild variant="outline" size="sm">
-                <Link href="/torneos">Mis torneos</Link>
-              </Button>
-            }
-          />
-          <FinishedTournamentsView tournaments={finishedOrganized} />
-        </div>
-      );
-    }
-
+  // Si el usuario es SOLO jugador (no organizó ningún torneo) y no jugó partidos todavía:
+  if (!isOrganizer && played.length === 0) {
     return (
       <>
         <PageHeader title="Mi historial" description="Todos los partidos que jugaste, en cualquier torneo." />
@@ -83,8 +71,7 @@ export default async function HistoryPage({ searchParams }: PageProps<"/historia
   const tournamentOptions = uniqueOptions(played.map((m) => ({ id: m.tournamentId, name: m.tournamentName })));
   const sportOptions = uniqueOptions(played.map((m) => ({ id: m.sportId, name: m.sportName })));
 
-  // Las estadísticas respetan torneo y deporte, pero no el filtro de resultado
-  // (si no, "Ganados" siempre daría 100 % de efectividad).
+  // Las estadísticas respetan torneo y deporte, pero no el filtro de resultado.
   const scope = filterHistory(played, { tournamentId: filters.torneo, sportId: filters.deporte });
   const scopeTournaments = new Set(scope.map((m) => m.tournamentId));
   const stats = computePlayerStats(
@@ -95,85 +82,108 @@ export default async function HistoryPage({ searchParams }: PageProps<"/historia
   const byTournament = groupByTournament(list);
   const champions = new Set(championTournamentIds);
 
+  const jugadosContent = (
+    <div className="space-y-6">
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label="Partidos" value={stats.played} />
+        <Stat label="Ganados" value={stats.won} detail={stats.drawn ? `${stats.drawn} empates` : undefined} />
+        <Stat label="Perdidos" value={stats.lost} />
+        <Stat label="Efectividad" value={`${stats.winRate.toLocaleString("es-AR")} %`} />
+        <Stat label="Torneos" value={stats.tournaments} />
+        <Stat label="Títulos" value={stats.titles} icon />
+      </dl>
+
+      {played.length === 0 ? (
+        <EmptyState
+          icon={History}
+          title="Todavía no jugaste partidos"
+          description="Tus resultados y estadísticas se van a ir armando a medida que juegues."
+        />
+      ) : (
+        <>
+          <HistoryFilters
+            tournaments={tournamentOptions}
+            sports={sportOptions}
+            values={{ torneo: filters.torneo, deporte: filters.deporte, resultado: filters.resultado }}
+          />
+
+          {byTournament.length === 0 ? (
+            <p className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground" role="status">
+              No hay partidos con esos filtros.
+            </p>
+          ) : (
+            byTournament.map(({ first, items }) => (
+              <section key={first.tournamentId} aria-labelledby={`torneo-${first.tournamentId}`} className="space-y-2">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  <h2 id={`torneo-${first.tournamentId}`} className="flex items-center gap-2 text-lg font-semibold">
+                    {champions.has(first.tournamentId) ? (
+                      <Trophy className="size-4 text-amber-600" aria-label="Campeón" />
+                    ) : null}
+                    {first.tournamentName}
+                  </h2>
+                  {first.tournamentStatus !== "draft" ? (
+                    <Link
+                      href={`/t/${first.tournamentSlug}`}
+                      className="inline-flex items-center gap-1 text-sm underline-offset-4 hover:underline"
+                    >
+                      Ver torneo
+                      <ExternalLink className="size-3.5" aria-hidden="true" />
+                    </Link>
+                  ) : null}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {first.sportName} · {first.myTeamName}
+                  {first.partners.length > 0 ? ` · con ${partnersLabel(first.partners)}` : null}
+                </p>
+                <ul className="divide-y rounded-lg border">
+                  {items.map((match) => (
+                    <HistoryItem key={match.matchId} match={match} />
+                  ))}
+                </ul>
+              </section>
+            ))
+          )}
+        </>
+      )}
+    </div>
+  );
+
+  const organizadosContent = (
+    <FinishedTournamentsView
+      tournaments={finishedOrganized}
+      activeCount={activeOrganized.length}
+    />
+  );
+
   return (
     <>
-      <PageHeader title="Mi historial" description="Todos los partidos que jugaste, en cualquier torneo." />
-      <div className="space-y-6">
-        {finishedOrganized.length > 0 ? (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-border/80 bg-muted/40 p-4 shadow-xs">
-            <div className="flex items-center gap-3">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                <Trophy className="size-4" aria-hidden="true" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-foreground">
-                  También tenés {finishedOrganized.length} {finishedOrganized.length === 1 ? "torneo organizado finalizado" : "torneos organizados finalizados"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Consultá los campeones y estadísticas de las competencias que organizaste.
-                </p>
-              </div>
-            </div>
-            <Button asChild variant="outline" size="sm" className="text-xs shrink-0">
-              <Link href="/torneos/historial">
-                Ver torneos organizados
-              </Link>
+      <PageHeader
+        title="Mi historial"
+        description={
+          isOrganizer
+            ? "Tus estadísticas personales de partidos y el registro histórico de competencias que organizaste."
+            : "Todos los partidos que jugaste, en cualquier torneo."
+        }
+        actions={
+          isOrganizer ? (
+            <Button asChild variant="outline" size="sm">
+              <Link href="/torneos">Mis torneos</Link>
             </Button>
-          </div>
-        ) : null}
+          ) : undefined
+        }
+      />
 
-        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="Partidos" value={stats.played} />
-          <Stat label="Ganados" value={stats.won} detail={stats.drawn ? `${stats.drawn} empates` : undefined} />
-          <Stat label="Perdidos" value={stats.lost} />
-          <Stat label="Efectividad" value={`${stats.winRate.toLocaleString("es-AR")} %`} />
-          <Stat label="Torneos" value={stats.tournaments} />
-          <Stat label="Títulos" value={stats.titles} icon />
-        </dl>
-
-        <HistoryFilters
-          tournaments={tournamentOptions}
-          sports={sportOptions}
-          values={{ torneo: filters.torneo, deporte: filters.deporte, resultado: filters.resultado }}
+      {isOrganizer ? (
+        <HistoryViewTabs
+          defaultTab={filters.tab ?? "jugados"}
+          playedCount={played.length}
+          organizedCount={finishedOrganized.length}
+          jugadosContent={jugadosContent}
+          organizadosContent={organizadosContent}
         />
-
-        {byTournament.length === 0 ? (
-          <p className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground" role="status">
-            No hay partidos con esos filtros.
-          </p>
-        ) : (
-          byTournament.map(({ first, items }) => (
-            <section key={first.tournamentId} aria-labelledby={`torneo-${first.tournamentId}`} className="space-y-2">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <h2 id={`torneo-${first.tournamentId}`} className="flex items-center gap-2 text-lg font-semibold">
-                  {champions.has(first.tournamentId) ? (
-                    <Trophy className="size-4 text-amber-600" aria-label="Campeón" />
-                  ) : null}
-                  {first.tournamentName}
-                </h2>
-                {first.tournamentStatus !== "draft" ? (
-                  <Link
-                    href={`/t/${first.tournamentSlug}`}
-                    className="inline-flex items-center gap-1 text-sm underline-offset-4 hover:underline"
-                  >
-                    Ver torneo
-                    <ExternalLink className="size-3.5" aria-hidden="true" />
-                  </Link>
-                ) : null}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {first.sportName} · {first.myTeamName}
-                {first.partners.length > 0 ? ` · con ${partnersLabel(first.partners)}` : null}
-              </p>
-              <ul className="divide-y rounded-lg border">
-                {items.map((match) => (
-                  <HistoryItem key={match.matchId} match={match} />
-                ))}
-              </ul>
-            </section>
-          ))
-        )}
-      </div>
+      ) : (
+        jugadosContent
+      )}
     </>
   );
 }

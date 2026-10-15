@@ -12,7 +12,7 @@ export type TournamentCategory = {
   name: string;
   position: number;
   status: TournamentStatus;
-  maxTeams: number;
+  maxTeams: number | null;
   scoringConfig: ScoringConfig;
   standingsConfig: StandingsConfig;
   playoffConfig: PlayoffConfig;
@@ -54,7 +54,7 @@ export const getTournamentCategories = cache(async (tournamentId: string): Promi
       name: row.name,
       position: row.position,
       status: row.status as TournamentStatus,
-      maxTeams: row.max_teams,
+      maxTeams: row.max_teams ?? null,
       scoringConfig: row.scoring_config as ScoringConfig,
       standingsConfig: normalizeStandingsConfig(row.standings_config),
       playoffConfig: row.playoff_config as PlayoffConfig,
@@ -72,7 +72,7 @@ export const getTournamentCategories = cache(async (tournamentId: string): Promi
       name: row.name,
       position: row.position,
       status: row.status as TournamentStatus,
-      maxTeams: row.max_teams,
+      maxTeams: row.max_teams ?? null,
       scoringConfig: row.scoring_config as ScoringConfig,
       standingsConfig: normalizeStandingsConfig(row.standings_config),
       playoffConfig: row.playoff_config as PlayoffConfig,

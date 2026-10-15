@@ -1128,13 +1128,13 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
     - Utiliza la tarjeta táctil `FinishedTournamentCard` (`components/tournaments/tournament-card.tsx`), destacando al campeón consagrado con trofeo y estilo premium o indicando el archivo de resultados.
   - **Integración con la navegación general e historial global (`/historial`):**
     - En el header de "Mis torneos" (`app/(app)/torneos/page.tsx`), se añade el botón de acceso rápido *"Historial (N)"* junto a "Circuitos anuales".
-    - En la página general `/historial` (`app/(app)/historial/page.tsx`), si el usuario es un organizador con torneos finalizados pero no tiene partidos jugados como jugador, se presenta directamente su historial de torneos organizados en lugar de un estado vacío genérico. Si también jugó partidos, se añade un banner superior para acceder a sus competencias organizadas sin alterar la estructura de estadísticas del jugador.
+    - En la página general `/historial` (`app/(app)/historial/page.tsx`), se preservan siempre las estadísticas de jugador del usuario por defecto (partidos jugados, ganados, efectividad, torneos y títulos con sus filtros y lista). Cuando el usuario es organizador y jugador (posee torneos organizados), se incorpora el componente de pestañas `HistoryViewTabs` (`components/history/history-view-tabs.tsx`) que permite alternar nítidamente entre **"Jugados"** (estadísticas personales y cruces) y **"Organizados"** (historial de torneos creados con `FinishedTournamentsView`).
     - Se actualizan las revalidaciones (`actions.ts`) para invalidar `/torneos/historial` y `/historial` cuando un torneo finaliza o actualiza su estado.
   - **Diferenciación de nomenclatura entre historial de torneos y personal:**
     - El historial de competencias concluidas se denomina **"Historial"** o **"Historial de torneos"** (tanto en la pestaña del panel como en `/torneos/historial`).
     - El historial de partidos y estadísticas del jugador se renombra a **"Mi historial"** en la navegación principal desktop ([`nav-items.ts`](file:///c:/Users/Usuario/Downloads/APP%20TORNEOS%20LM/App-Torneos/components/layout/nav-items.ts)) y en la barra inferior móvil ([`bottom-nav.tsx`](file:///c:/Users/Usuario/Downloads/APP%20TORNEOS%20LM/App-Torneos/components/layout/bottom-nav.tsx)), diferenciando con claridad el historial personal de cada jugador del registro de torneos del organizador.
 - **Motivo:** mantener la pantalla principal limpia y enfocada en torneos activos y operativos, garantizando al mismo tiempo un registro permanente y prestigioso de las ediciones concluidas y sus campeones, con una nomenclatura clara entre el historial del organizador y el personal del jugador.
-- **Cómo aplicar:** implementado en `components/layout/nav-items.ts`, `components/layout/bottom-nav.tsx`, `components/tournaments/tournament-card.tsx`, `components/tournaments/tournament-dashboard.tsx`, `components/tournaments/finished-tournaments-view.tsx`, `app/(app)/torneos/historial/page.tsx`, `app/(app)/torneos/page.tsx`, `app/(app)/historial/page.tsx`, `lib/data/tournaments.ts`, y `app/(app)/torneos/[id]/actions.ts`.
+- **Cómo aplicar:** implementado en `components/layout/nav-items.ts`, `components/layout/bottom-nav.tsx`, `components/history/history-view-tabs.tsx`, `components/tournaments/tournament-card.tsx`, `components/tournaments/tournament-dashboard.tsx`, `components/tournaments/finished-tournaments-view.tsx`, `app/(app)/torneos/historial/page.tsx`, `app/(app)/torneos/page.tsx`, `app/(app)/historial/page.tsx`, `lib/data/tournaments.ts`, y `app/(app)/torneos/[id]/actions.ts`.
 
 ### D-080 — Eliminación de torneos no finalizados por parte del organizador (2026-10-14)
 - **Decisión:**
@@ -1220,6 +1220,36 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
   - En `app/(app)/torneos/[id]/grupos/page.tsx`, se agrega `key={`${activeCategory?.id ?? "global"}-${approved.length}`}` a `GroupBuilder` para reiniciar limpiamente el estado del componente al alternar de categoría o variar la cantidad de inscriptos.
 - **Motivo:** corregir el `Runtime RangeError: Con 4 equipos se pueden armar entre 1 y 2 grupos` que ocurría al sortear cuando el torneo tenía guardada previamente una cantidad de grupos inconsistente con el total de parejas actual.
 - **Cómo aplicar:** implementado en `components/groups/group-builder.tsx` y `app/(app)/torneos/[id]/grupos/page.tsx`.
+
+### D-085 — Descentralización de cupos por categoría y soporte de modalidad sin límite ("Hasta cerrar inscripción") (2026-10-14)
+- **Decisión:**
+  - **Eliminación de cupo máximo en la creación del torneo:**
+    - Se removió el campo de cupo máximo de parejas (`maxTeams`) del asistente de alta de torneos (`/torneos/nuevo`, `components/tournaments/tournament-wizard.tsx` y `tournament-review.tsx`).
+    - En el esquema de validación (`lib/validation/tournament.ts`), `maxTeams` es opcional con valor por defecto 128 a nivel base de datos para no quebrar restricciones de integridad relacional existentes.
+    - El asistente ahora aclara expresamente que la capacidad y cupos se definen por categoría (o sin límite numérico).
+  - **Cupo por categoría con modalidad "Hasta cerrar inscripción (sin límite)":**
+    - En `tournament_categories.max_teams`, la columna ahora permite valores `NULL` mediante la migración `20261014234000_category_unlimited_cupo.sql`.
+    - Cuando `max_teams` es `NULL`, la categoría no tiene tope numérico de inscriptos: cualquier pareja puede inscribirse libremente hasta que el organizador decida cerrar la inscripción (pasando de `registration_open` a otra fase como `group_stage`).
+    - Se adaptaron los RPCs de base de datos (`register_team`, `create_organizer_team` y `review_registration`) para que la validación de cupo (`category_full` o `tournament_full`) solo se active si `v_cat.max_teams IS NOT NULL`.
+    - En `components/categories/categories-manager.tsx` y `components/categories/edit-category-dialog.tsx`, se integró un toggle compacto en línea ("♾️ Sin límite" / "Fijar número") y se removieron las filas voluminosas de "Modalidad de cupo" y "Sugerencias rápidas" para optimizar el espacio vertical.
+    - La migración `20261014234000_category_unlimited_cupo.sql` se aplicó exitosamente en la base de datos remota de Supabase con `supabase db push`.
+- **Motivo:** responder al pedido del usuario de eliminar el cupo global redundante del alta de torneos, permitir que las categorías puedan operar sin un límite numérico prefijado, y simplificar el formulario quitando botones de sugerencias que ocupaban demasiado espacio.
+### D-086 — Corrección en RPC create_organizer_team de inserción de parejas (2026-10-15)
+- **Decisión:**
+  - En la función RPC `create_organizer_team`, se corrigió la inserción en `team_availability` para incluir la columna obligatoria `tournament_id` (`not null`).
+  - Se corrigió la inserción en `team_members` para usar el rol `'player'` estándar con `display_name` y `email: null` (evitando el error de tipo inexistente `public.team_role`).
+  - Se aplicó la migración `20261015000500_fix_create_organizer_team_rpc.sql` en la base de datos remota de Supabase con `supabase db push`.
+- **Motivo:** corregir el error genérico "No pudimos completar la operación. Probá de nuevo." al inscribir parejas manualmente desde el panel del organizador.
+### D-087 — Desactivación de revalidatePath durante el render en MatchesPage y BracketPage (2026-10-15)
+- **Decisión:**
+  - En Next.js App Router (15+ / 16), `revalidatePath` y `revalidateTag` solo están permitidos dentro de Server Actions o Route Handlers, arrojando error de consola si se invocan durante el renderizado de Server Components (`Route /torneos/[id]/partidos used "revalidatePath" during render which is unsupported`).
+  - Se agregó la opción `revalidate?: boolean` a la función auxiliar `ensurePlayoffBracket` en `app/(app)/torneos/[id]/cuadro/actions.ts`.
+  - En `app/(app)/torneos/[id]/partidos/page.tsx` y `app/(app)/torneos/[id]/cuadro/page.tsx`, se invoca `ensurePlayoffBracket(supabase, tournament.id, { revalidate: false })`, permitiendo que el cuadro se auto-genere al vuelo sin disparar llamadas ilegales a `revalidatePath` en tiempo de render.
+- **Motivo:** corregir el error de Next.js en consola al ingresar a la pantalla de partidos o cuadro cuando se auto-generaban los cruces de playoffs.
+- **Cómo aplicar:** implementado en `app/(app)/torneos/[id]/cuadro/actions.ts`, `app/(app)/torneos/[id]/partidos/page.tsx`, y `app/(app)/torneos/[id]/cuadro/page.tsx`.
+
+
+
 
 
 

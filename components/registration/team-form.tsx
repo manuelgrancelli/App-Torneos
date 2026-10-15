@@ -22,7 +22,7 @@ export type TeamCategoryOption = {
   id: string;
   name: string;
   status: string;
-  maxTeams: number;
+  maxTeams: number | null;
   approvedTeamsCount: number;
 };
 
@@ -46,8 +46,11 @@ export function TeamForm(props: TeamFormProps) {
 
   const defaultCategory =
     props.mode === "register" && props.categories && props.categories.length > 0
-      ? (props.categories.find((c) => c.status === "registration_open" && c.approvedTeamsCount < c.maxTeams)?.id ??
-        props.categories[0]?.id)
+      ? (props.categories.find(
+          (c) =>
+            c.status === "registration_open" &&
+            (c.maxTeams === null || c.approvedTeamsCount < c.maxTeams)
+        )?.id ?? props.categories[0]?.id)
       : undefined;
 
   const form = useForm({
@@ -144,11 +147,15 @@ export function TeamForm(props: TeamFormProps) {
                     Elegí una categoría...
                   </option>
                   {props.categories?.map((cat) => {
-                    const isFull = cat.approvedTeamsCount >= cat.maxTeams;
+                    const isFull = cat.maxTeams !== null && cat.approvedTeamsCount >= cat.maxTeams;
                     const isClosed = cat.status !== "registration_open";
+                    const cupoText =
+                      cat.maxTeams !== null
+                        ? `(${cat.approvedTeamsCount}/${cat.maxTeams})`
+                        : `(${cat.approvedTeamsCount} inscriptas · sin límite)`;
                     return (
                       <option key={cat.id} value={cat.id} disabled={isClosed || isFull}>
-                        {cat.name} {isClosed ? "(Inscripción cerrada)" : isFull ? "(Cupo lleno)" : `(${cat.approvedTeamsCount}/${cat.maxTeams})`}
+                        {cat.name} {isClosed ? "(Inscripción cerrada)" : isFull ? "(Cupo lleno)" : cupoText}
                       </option>
                     );
                   })}

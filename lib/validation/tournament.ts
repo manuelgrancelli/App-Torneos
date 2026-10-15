@@ -33,7 +33,7 @@ const tournamentInfoShape = {
   startsOn: localDateSchema,
   endsOn: localDateSchema,
   timezone: z.string().min(1, { error: "Elegí una zona horaria." }),
-  maxTeams: integer(2, 128, "el cupo"),
+  maxTeams: integer(2, 128, "el cupo").optional().default(128),
   resultsRequireConfirmation: z.boolean(),
   scoringConfig: scoringConfigSchema,
   standingsConfig: standingsConfigSchema,
@@ -155,7 +155,7 @@ export const createCategorySchema = z.object({
     .trim()
     .min(2, { error: "Usá al menos 2 caracteres." })
     .max(60, { error: "Usá como máximo 60 caracteres." }),
-  maxTeams: integer(2, 64, "el cupo"),
+  maxTeams: integer(2, 128, "el cupo").nullable().optional(),
 });
 
 export const updateCategorySchema = z.object({
@@ -166,7 +166,7 @@ export const updateCategorySchema = z.object({
     .trim()
     .min(2, { error: "Usá al menos 2 caracteres." })
     .max(60, { error: "Usá como máximo 60 caracteres." }),
-  maxTeams: integer(2, 64, "el cupo"),
+  maxTeams: integer(2, 128, "el cupo").nullable().optional(),
 });
 
 export const deleteCategorySchema = z.object({

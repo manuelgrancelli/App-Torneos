@@ -21,9 +21,10 @@ import { FinishedTournamentCard } from "./tournament-card";
 
 interface FinishedTournamentsViewProps {
   tournaments: TournamentListItem[];
+  activeCount?: number;
 }
 
-export function FinishedTournamentsView({ tournaments }: FinishedTournamentsViewProps) {
+export function FinishedTournamentsView({ tournaments, activeCount }: FinishedTournamentsViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSport, setSelectedSport] = useState<string>("all");
 
@@ -77,7 +78,9 @@ export function FinishedTournamentsView({ tournaments }: FinishedTournamentsView
             Aún no tenés torneos en el historial
           </h3>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Cuando concluyan los torneos que organizás y definas a sus campeones, saldrán automáticamente del inicio activo y se archivarán de forma permanente acá con todas sus estadísticas y cruces.
+            {activeCount && activeCount > 0
+              ? `Actualmente tenés ${activeCount} ${activeCount === 1 ? "torneo activo o en preparación" : "torneos activos o en preparación"}. Cuando concluyan y definas a sus campeones, se archivarán automáticamente acá con sus estadísticas y cruces.`
+              : "Cuando concluyan los torneos que organizás y definas a sus campeones, saldrán automáticamente del inicio activo y se archivarán de forma permanente acá con todas sus estadísticas y cruces."}
           </p>
         </div>
         <div className="pt-2 flex flex-wrap items-center justify-center gap-2">

@@ -43,7 +43,7 @@ export const createCategory = createAction(createCategorySchema, async (input, {
   const insertPayload: Record<string, unknown> = {
     tournament_id: input.tournamentId,
     name: input.name,
-    max_teams: input.maxTeams,
+    max_teams: input.maxTeams ?? null,
     position: nextPos,
     status: "registration_open",
   };
@@ -78,7 +78,7 @@ export const updateCategory = createAction(updateCategorySchema, async (input, {
     .from("tournament_categories")
     .update({
       name: input.name,
-      max_teams: input.maxTeams,
+      max_teams: input.maxTeams ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.categoryId)

@@ -84,7 +84,7 @@ async function loadPublicTournament(tournamentId: string): Promise<PublicTournam
       name: cat.name,
       position: cat.position,
       status: cat.status as TournamentStatus,
-      maxTeams: cat.max_teams,
+      maxTeams: cat.max_teams ?? null,
       scoringConfig: cat.scoring_config as ScoringConfig,
       standingsConfig: cat.standings_config as StandingsConfig,
       playoffConfig: cat.playoff_config as PlayoffConfig,

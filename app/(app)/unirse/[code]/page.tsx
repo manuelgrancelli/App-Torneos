@@ -62,7 +62,17 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
   const description = tourExtra.data?.description ?? null;
 
   const noun = teamNoun(tournament.min_team_size);
-  const full = tournament.approved_teams >= tournament.max_teams;
+  const hasCategories = categories.length > 0;
+  const anyCategoryAvailable = hasCategories
+    ? categories.some(
+        (c) =>
+          c.status === "registration_open" &&
+          (c.maxTeams === null || c.approvedTeamsCount < c.maxTeams)
+      )
+    : false;
+  const full = hasCategories
+    ? !anyCategoryAvailable
+    : tournament.approved_teams >= tournament.max_teams;
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
@@ -95,7 +105,9 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
           <li className="inline-flex items-center gap-1.5">
             <Users className="size-4 shrink-0" aria-hidden="true" />
             <span>
-              {tournament.approved_teams} de {tournament.max_teams} {approvedTeamsLabel(tournament.min_team_size)}
+              {hasCategories
+                ? `${tournament.approved_teams} ${approvedTeamsLabel(tournament.min_team_size)} inscriptas`
+                : `${tournament.approved_teams} de ${tournament.max_teams} ${approvedTeamsLabel(tournament.min_team_size)}`}
             </span>
           </li>
         </ul>
@@ -137,8 +149,12 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
       ) : full ? (
         <EmptyState
           icon={Lock}
-          title="El torneo completó el cupo"
-          description={`Ya hay ${tournament.approved_teams} ${approvedTeamsLabel(tournament.min_team_size)}.`}
+          title={hasCategories ? "Se completaron los cupos disponibles" : "El torneo completó el cupo"}
+          description={
+            hasCategories
+              ? "Por el momento no quedan cupos disponibles en las categorías de este torneo."
+              : `Ya hay ${tournament.approved_teams} ${approvedTeamsLabel(tournament.min_team_size)}.`
+          }
         />
       ) : (
         <Card>

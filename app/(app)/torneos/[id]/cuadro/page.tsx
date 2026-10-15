@@ -60,7 +60,7 @@ export default async function BracketPage({
     const res = await ensurePlayoffBracket(
       supabase,
       tournament.id,
-      activeCategory ? { categoryId: activeCategory.id } : undefined
+      { ...(activeCategory ? { categoryId: activeCategory.id } : {}), revalidate: false }
     );
     if (res.ok && (res.count ?? 0) > 0) {
       competition = await getCompetition(tournament.id);

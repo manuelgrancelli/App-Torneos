@@ -28,7 +28,12 @@ const generateBracketSchema = z.object({
 export async function ensurePlayoffBracket(
   supabase: SupabaseServerClient,
   tournamentId: string,
-  options?: { qualifiersPerGroup?: number; thirdPlace?: boolean; categoryId?: string },
+  options?: {
+    qualifiersPerGroup?: number;
+    thirdPlace?: boolean;
+    categoryId?: string;
+    revalidate?: boolean;
+  },
 ): Promise<{ ok: boolean; count?: number; error?: string; warnings?: string[] }> {
   const { data: tournament, error: tourError } = await supabase
     .from("tournaments")
@@ -52,12 +57,17 @@ export async function ensurePlayoffBracket(
           categoryId: cat.id,
           qualifiersPerGroup: options?.qualifiersPerGroup ?? cat.playoffConfig?.qualifiersPerGroup,
           thirdPlace: options?.thirdPlace ?? cat.playoffConfig?.thirdPlace,
+          revalidate: false,
         });
         if (res.ok) {
           totalMatches += res.count ?? 0;
           if (res.warnings) allWarnings.push(...res.warnings);
         }
       }
+    }
+    if (options?.revalidate !== false) {
+      revalidatePath(`/torneos/${tournamentId}`, "layout");
+      refreshPublicTournament(tournamentId);
     }
     return { ok: true, count: totalMatches, warnings: allWarnings };
   }
@@ -173,8 +183,10 @@ export async function ensurePlayoffBracket(
   // D-078: En playoffs los horarios y resultados los define el organizador directamente;
   // no se fuerza la auto-programación a franjas horarias arbitrarias.
 
-  revalidatePath(`/torneos/${tournamentId}`, "layout");
-  refreshPublicTournament(tournamentId);
+  if (options?.revalidate !== false) {
+    revalidatePath(`/torneos/${tournamentId}`, "layout");
+    refreshPublicTournament(tournamentId);
+  }
   return { ok: true, count: plan.matches.length, warnings: plan.warnings };
 }
 

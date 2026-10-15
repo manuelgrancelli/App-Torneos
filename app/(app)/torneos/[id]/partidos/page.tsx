@@ -26,7 +26,7 @@ export default async function MatchesPage({ params }: PageProps<"/torneos/[id]/p
     groupMatches.length > 0 && groupMatches.every((m) => m.resultStatus !== null);
 
   if (allGroupMatchesFinished || tournament.status === "playoffs") {
-    const res = await ensurePlayoffBracket(supabase, tournament.id);
+    const res = await ensurePlayoffBracket(supabase, tournament.id, { revalidate: false });
     if (res.ok && (res.count ?? 0) > 0) {
       competition = await getCompetition(tournament.id);
     }
