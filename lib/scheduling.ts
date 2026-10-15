@@ -30,23 +30,31 @@ export async function runAutoSchedule(
   mode: AutoScheduleMode,
   onlyMatchIds?: readonly string[],
 ): Promise<{ ok: true; outcome: AutoScheduleOutcome } | { ok: false; error: { code?: string; message?: string } }> {
-  const [matches, slots, courts, rows] = await Promise.all([
+  const [matches, slots, courts, rows, groupTeams] = await Promise.all([
     supabase.from("matches").select("*").eq("tournament_id", tournamentId),
     supabase.from("time_slots").select("id, starts_at, ends_at, court_id").eq("tournament_id", tournamentId),
     supabase.from("courts").select("id").eq("tournament_id", tournamentId).order("position").order("name"),
     supabase.from("team_availability").select("team_id, slot_id").eq("tournament_id", tournamentId),
+    supabase.from("group_teams").select("group_id, team_id").eq("tournament_id", tournamentId),
   ]);
-  for (const result of [matches, slots, courts, rows]) {
+  for (const result of [matches, slots, courts, rows, groupTeams]) {
     if (result.error) return { ok: false, error: result.error };
   }
 
   const all = matches.data ?? [];
+  const groupTeamsMap = new Map<string, string[]>();
+  for (const row of groupTeams.data ?? []) {
+    const list = groupTeamsMap.get(row.group_id) ?? [];
+    list.push(row.team_id);
+    groupTeamsMap.set(row.group_id, list);
+  }
+
   const isCandidate = (m: Tables<"matches">) =>
     m.result_status === null &&
     !m.schedule_locked &&
     !m.is_bye &&
-    m.home_team_id !== null &&
-    m.away_team_id !== null &&
+    ((m.home_team_id !== null && m.away_team_id !== null) ||
+      (m.stage === "group" && m.round === 2 && m.group_id !== null && groupTeamsMap.get(m.group_id)?.length === 4)) &&
     (mode === "all" || m.slot_id === null) &&
     (!onlyMatchIds || onlyMatchIds.includes(m.id));
 
@@ -63,26 +71,75 @@ export async function runAutoSchedule(
       courtId: m.court_id,
       start: Date.parse(m.starts_at as string),
       end: Date.parse(m.ends_at as string),
+      groupTeamIds: m.group_id ? groupTeamsMap.get(m.group_id) : undefined,
     }));
 
-  // Playoffs: no antes de que terminen los partidos que lo alimentan.
+  const feederIdsMap = new Map<string, string[]>();
   const feedersEnd = new Map<string, number>();
+
+  // 1. Playoffs feeders (vía next_match_id y loser_next_match_id)
   for (const m of all) {
     for (const target of [m.next_match_id, m.loser_next_match_id]) {
-      if (target && m.ends_at) {
-        feedersEnd.set(target, Math.max(feedersEnd.get(target) ?? 0, Date.parse(m.ends_at)));
+      if (target) {
+        const list = feederIdsMap.get(target) ?? [];
+        list.push(m.id);
+        feederIdsMap.set(target, list);
+        if (m.ends_at) {
+          feedersEnd.set(target, Math.max(feedersEnd.get(target) ?? 0, Date.parse(m.ends_at)));
+        }
       }
     }
   }
 
-  const schedulerMatches: SchedulerMatch[] = toSchedule.map((m) => ({
-    id: m.id,
-    homeTeamId: m.home_team_id,
-    awayTeamId: m.away_team_id,
-    notBefore: feedersEnd.get(m.id),
-    // Grupos primero por fecha; playoffs después, por ronda.
-    order: (m.stage === "group" ? 0 : 100) + m.round,
-  }));
+  // 2. Group stage feeders (zona de 4: round 2 depende de round 1 del mismo grupo)
+  for (const m of all) {
+    if (m.stage === "group" && m.round === 2 && m.group_id) {
+      const r1Matches = all.filter((o) => o.group_id === m.group_id && o.round === 1);
+      const list = feederIdsMap.get(m.id) ?? [];
+      for (const r1 of r1Matches) {
+        if (!list.includes(r1.id)) list.push(r1.id);
+        if (r1.ends_at) {
+          feedersEnd.set(m.id, Math.max(feedersEnd.get(m.id) ?? 0, Date.parse(r1.ends_at)));
+        }
+      }
+      feederIdsMap.set(m.id, list);
+    }
+  }
+
+  // 3. Team match history: si un equipo ya jugó o tiene partido fijo, su siguiente partido
+  // no puede empezar antes de que termine el anterior
+  const teamLatestFixedEnd = new Map<string, number>();
+  for (const f of fixed) {
+    if (f.homeTeamId) {
+      teamLatestFixedEnd.set(f.homeTeamId, Math.max(teamLatestFixedEnd.get(f.homeTeamId) ?? 0, f.end));
+    }
+    if (f.awayTeamId) {
+      teamLatestFixedEnd.set(f.awayTeamId, Math.max(teamLatestFixedEnd.get(f.awayTeamId) ?? 0, f.end));
+    }
+  }
+
+  for (const m of toSchedule) {
+    const t1End = m.home_team_id ? teamLatestFixedEnd.get(m.home_team_id) : undefined;
+    const t2End = m.away_team_id ? teamLatestFixedEnd.get(m.away_team_id) : undefined;
+    const maxTeamEnd = Math.max(t1End ?? 0, t2End ?? 0);
+    if (maxTeamEnd > 0) {
+      feedersEnd.set(m.id, Math.max(feedersEnd.get(m.id) ?? 0, maxTeamEnd));
+    }
+  }
+
+  const schedulerMatches: SchedulerMatch[] = toSchedule.map((m) => {
+    const gTeams = m.group_id ? groupTeamsMap.get(m.group_id) : undefined;
+    return {
+      id: m.id,
+      homeTeamId: m.home_team_id,
+      awayTeamId: m.away_team_id,
+      notBefore: feedersEnd.get(m.id),
+      // Grupos primero por fecha; playoffs después, por ronda.
+      order: (m.stage === "group" ? 0 : 100) + m.round,
+      feederMatchIds: feederIdsMap.get(m.id),
+      groupTeamIds: (!m.home_team_id || !m.away_team_id) && gTeams && gTeams.length === 4 ? gTeams : undefined,
+    };
+  });
 
   const availability: Record<string, string[]> = {};
   for (const row of rows.data ?? []) (availability[row.team_id] ??= []).push(row.slot_id);

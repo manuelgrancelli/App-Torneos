@@ -33,6 +33,8 @@ export type TournamentListItem = {
   maxTeams: number;
   approvedTeams: number;
   pendingTeams: number;
+  championTeamId?: string | null;
+  championName?: string | null;
   isTest: boolean;
 };
 
@@ -42,7 +44,7 @@ export const listOrganizedTournaments = cache(async (userId: string): Promise<To
   const { data, error } = await supabase
     .from("tournaments")
     .select(
-      "id, name, slug, status, is_test, starts_on, ends_on, max_teams, sports(name, min_team_size), teams!teams_tournament_id_fkey(status)",
+      "id, name, slug, status, is_test, starts_on, ends_on, max_teams, champion_team_id, sports(name, min_team_size), teams!teams_tournament_id_fkey(id, name, status)",
     )
     .eq("organizer_id", userId)
     .order("starts_on", { ascending: false });
@@ -60,6 +62,10 @@ export const listOrganizedTournaments = cache(async (userId: string): Promise<To
     maxTeams: t.max_teams,
     approvedTeams: t.teams.filter((team) => team.status === "approved").length,
     pendingTeams: t.teams.filter((team) => team.status === "pending").length,
+    championTeamId: t.champion_team_id,
+    championName: t.champion_team_id
+      ? t.teams.find((team) => team.id === t.champion_team_id)?.name ?? null
+      : null,
     isTest: t.is_test,
   }));
 });

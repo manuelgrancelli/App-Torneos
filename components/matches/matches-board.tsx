@@ -434,7 +434,8 @@ export function MatchesBoard(props: MatchesBoardProps) {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90"
+              variant="destructive"
+              className="!bg-destructive !text-white hover:!bg-destructive/90 shadow-xs"
               onClick={() => clearing && clear(clearing)}
             >
               Borrar resultado

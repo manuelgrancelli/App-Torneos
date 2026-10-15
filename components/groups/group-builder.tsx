@@ -3,7 +3,7 @@
 import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
 import { GripVertical, Shuffle, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { saveGroups } from "@/app/(app)/torneos/[id]/grupos/actions";
 import { Button } from "@/components/ui/button";
@@ -156,15 +156,28 @@ export function GroupBuilder({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const hasEnoughTeams = teams.length >= 2;
-  const options = groupCountOptions(teams.length);
-  const suggested = options.find((count) => teams.length / count <= 5) ?? options[options.length - 1] ?? 1;
-  const [groupCount, setGroupCount] = useState(initialGroups.length || suggested);
+  const options = useMemo(() => groupCountOptions(teams.length), [teams.length]);
+  const suggested = useMemo(
+    () => options.find((count) => teams.length / count <= 5) ?? options[options.length - 1] ?? 1,
+    [options, teams.length],
+  );
+  const initialValidCount = options.includes(initialGroups.length) ? initialGroups.length : suggested;
+  const [groupCount, setGroupCount] = useState(initialValidCount);
   const [groups, setGroups] = useState<string[][]>(initialGroups);
   const byId = new Map(teams.map((t) => [t.id, t]));
 
-  const draw = (count = groupCount) => {
-    if (!hasEnoughTeams) return;
-    setGroups(drawGroups(teams.map((t) => t.id), count, randomSeed(), availability));
+  const safeGroupCount = options.includes(groupCount) ? groupCount : suggested;
+
+  useEffect(() => {
+    if (options.length > 0 && !options.includes(groupCount)) {
+      setGroupCount(suggested);
+    }
+  }, [options, groupCount, suggested]);
+
+  const draw = (count?: number) => {
+    if (!hasEnoughTeams || options.length === 0) return;
+    const targetCount = count !== undefined && options.includes(count) ? count : safeGroupCount;
+    setGroups(drawGroups(teams.map((t) => t.id), targetCount, randomSeed(), availability));
   };
 
   function move(teamId: string, toGroup: number) {
@@ -245,12 +258,14 @@ export function GroupBuilder({
               <NativeSelect
                 id="group-count"
                 className="w-full"
-                value={String(groupCount)}
+                value={String(safeGroupCount)}
                 disabled={!hasEnoughTeams}
                 onChange={(e) => {
                   const count = Number(e.target.value);
-                  setGroupCount(count);
-                  if (groups.length > 0) draw(count);
+                  if (options.includes(count)) {
+                    setGroupCount(count);
+                    if (groups.length > 0) draw(count);
+                  }
                 }}
               >
                 {options.length === 0 ? (

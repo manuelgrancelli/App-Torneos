@@ -145,6 +145,7 @@ export default async function GroupsPage({
 
       {canEdit ? (
         <GroupBuilder
+          key={`${activeCategory?.id ?? "global"}-${approved.length}`}
           tournamentId={tournament.id}
           tournamentName={tournament.name}
           categoryName={activeCategory?.name}

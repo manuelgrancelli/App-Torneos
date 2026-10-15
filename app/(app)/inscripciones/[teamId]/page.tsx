@@ -117,6 +117,18 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {team.members.length < tournament.minTeamSize ? (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs sm:text-sm text-amber-900 dark:text-amber-200">
+                <p className="font-semibold flex items-center gap-1.5">
+                  <span>Pareja incompleta</span>
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  {noun === "pareja"
+                    ? "En los torneos de pádel se compite de a dos. Falta sumar el email de tu pareja. Hacé click en \"Editar equipo\" para agregarlo y que quede completa."
+                    : "El equipo no tiene el plantel completo de integrantes. Hacé click en \"Editar equipo\" para sumar a tus compañeros."}
+                </p>
+              </div>
+            ) : null}
             <ul className="divide-y rounded-lg border">
               {team.members.map((member) => (
                 <li key={member.id} className="flex items-center gap-3 px-3 py-2">
@@ -155,6 +167,8 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
                 teamName={team.name}
                 teamSize={tournament.minTeamSize}
                 isCaptain={team.isCaptain}
+                captainName={team.members.find((m) => m.role === "captain")?.fullName ?? user.fullName}
+                captainEmail={team.members.find((m) => m.role === "captain")?.email ?? user.email}
                 companionEmails={team.members.flatMap((member) =>
                   member.role !== "captain" && member.email ? [member.email] : [],
                 )}

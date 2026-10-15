@@ -1116,6 +1116,117 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** eliminar la fricción innecesaria de botones manuales intermedios, solucionar el bloqueo que impedía cargar resultados de playoffs tras culminar la zona y dar total autonomía al organizador para resolver las llaves eliminatorias.
 - **Cómo aplicar:** implementado en `supabase/migrations/20261014170000_fluid_playoffs_and_byes_fix.sql`, `app/(app)/torneos/[id]/cuadro/actions.ts`, `app/(app)/torneos/[id]/partidos/actions.ts`, `app/(app)/torneos/[id]/partidos/page.tsx`, `app/(app)/torneos/[id]/page.tsx`, `components/tournaments/phase-guide.tsx`, y `components/categories/categories-manager.tsx`.
 
+### D-079 — Historial exclusivo de torneos organizados y separación de competencias activas vs finalizadas (2026-10-14)
+- **Decisión:**
+  - **Separación de torneos activos y finalizados en el panel principal (`TournamentDashboard`):**
+    - En la vista de inicio del organizador (`/torneos`), los torneos con estado `finished` ya no saturan la lista principal de competencias en curso ("Organizo" y "Todos").
+    - Se añade una cuarta pestaña interactiva `Historial` (con contador dinámico de torneos finalizados) en el segmented control.
+    - Se incorpora un banner informativo dentro de la sección "Organizo" que notifica la existencia de ediciones anteriores archivadas y permite saltar al historial con un clic.
+  - **Apartado dedicado de historial del organizador (`app/(app)/torneos/historial/page.tsx`):**
+    - Se crea la ruta dedicada `/torneos/historial` con métricas ejecutivas acumuladas (ediciones concluidas, campeones consagrados, total de parejas/equipos albergados y disciplinas deportivas).
+    - Incluye buscador instantáneo por nombre de torneo o de campeón, y chips de filtrado por deporte.
+    - Utiliza la tarjeta táctil `FinishedTournamentCard` (`components/tournaments/tournament-card.tsx`), destacando al campeón consagrado con trofeo y estilo premium o indicando el archivo de resultados.
+  - **Integración con la navegación general e historial global (`/historial`):**
+    - En el header de "Mis torneos" (`app/(app)/torneos/page.tsx`), se añade el botón de acceso rápido *"Historial (N)"* junto a "Circuitos anuales".
+    - En la página general `/historial` (`app/(app)/historial/page.tsx`), si el usuario es un organizador con torneos finalizados pero no tiene partidos jugados como jugador, se presenta directamente su historial de torneos organizados en lugar de un estado vacío genérico. Si también jugó partidos, se añade un banner superior para acceder a sus competencias organizadas sin alterar la estructura de estadísticas del jugador.
+    - Se actualizan las revalidaciones (`actions.ts`) para invalidar `/torneos/historial` y `/historial` cuando un torneo finaliza o actualiza su estado.
+  - **Diferenciación de nomenclatura entre historial de torneos y personal:**
+    - El historial de competencias concluidas se denomina **"Historial"** o **"Historial de torneos"** (tanto en la pestaña del panel como en `/torneos/historial`).
+    - El historial de partidos y estadísticas del jugador se renombra a **"Mi historial"** en la navegación principal desktop ([`nav-items.ts`](file:///c:/Users/Usuario/Downloads/APP%20TORNEOS%20LM/App-Torneos/components/layout/nav-items.ts)) y en la barra inferior móvil ([`bottom-nav.tsx`](file:///c:/Users/Usuario/Downloads/APP%20TORNEOS%20LM/App-Torneos/components/layout/bottom-nav.tsx)), diferenciando con claridad el historial personal de cada jugador del registro de torneos del organizador.
+- **Motivo:** mantener la pantalla principal limpia y enfocada en torneos activos y operativos, garantizando al mismo tiempo un registro permanente y prestigioso de las ediciones concluidas y sus campeones, con una nomenclatura clara entre el historial del organizador y el personal del jugador.
+- **Cómo aplicar:** implementado en `components/layout/nav-items.ts`, `components/layout/bottom-nav.tsx`, `components/tournaments/tournament-card.tsx`, `components/tournaments/tournament-dashboard.tsx`, `components/tournaments/finished-tournaments-view.tsx`, `app/(app)/torneos/historial/page.tsx`, `app/(app)/torneos/page.tsx`, `app/(app)/historial/page.tsx`, `lib/data/tournaments.ts`, y `app/(app)/torneos/[id]/actions.ts`.
+
+### D-080 — Eliminación de torneos no finalizados por parte del organizador (2026-10-14)
+- **Decisión:**
+  - **Flexibilización de la política de borrado:**
+    - Anteriormente solo se permitía eliminar torneos en estado `draft` o `registration_open`. Ahora el organizador puede eliminar cualquier torneo que haya creado, siempre y cuando **no se encuentre en estado `finished`** (`status !== 'finished'`).
+    - Los torneos finalizados permanecen inmutables y protegidos para salvaguardar el historial permanente de campeones, estadísticas y títulos.
+  - **Base de datos (RLS y cascada referencial):**
+    - Se crea la migración `supabase/migrations/20261014182000_allow_delete_unfinished_tournaments.sql`, actualizando la política de `DELETE` en `public.tournaments` con `using (organizer_id = (select auth.uid()) and status <> 'finished')`.
+    - Todas las entidades dependientes (`tournament_categories`, `teams`, `team_members`, `tournament_groups`, `matches`, `match_confirmations`, `courts`, `time_slots`) poseen claves foráneas con `on delete cascade`, garantizando una limpieza completa sin dejar registros huérfanos.
+  - **Lógica de dominio y Server Actions:**
+    - `canDeleteTournament` en `lib/domain/tournament-status.ts` se actualiza para retornar `status !== "finished"`.
+    - `deleteTournament` en `app/(app)/torneos/[id]/actions.ts` valida y revalida las rutas `/torneos`, `/torneos/historial` y `/historial`.
+  - **Experiencia de usuario (UI):**
+    - En la vista principal del torneo (`app/(app)/torneos/[id]/page.tsx`), la sección "Más opciones" permite eliminar el torneo en cualquier etapa previa a su finalización (borrador, inscripción abierta, fase de grupos o playoffs) con un mensaje claro de confirmación.
+    - En la pantalla de Configuración (`app/(app)/torneos/[id]/configuracion/page.tsx`), se añade una tarjeta de **"Zona de peligro"** con el botón `DeleteTournamentButton` para facilitar su descubrimiento por el organizador.
+- **Motivo:** otorgar al organizador total control y autonomía para descartar o recomenzar competencias de prueba o interrumpidas antes de su conclusión formal.
+- **Cómo aplicar:** implementado en `supabase/migrations/20261014182000_allow_delete_unfinished_tournaments.sql`, `lib/domain/tournament-status.ts`, `lib/domain/tournament-status.test.ts`, `app/(app)/torneos/[id]/actions.ts`, `app/(app)/torneos/[id]/page.tsx`, `app/(app)/torneos/[id]/configuracion/page.tsx`, y `components/tournaments/delete-tournament-button.tsx`.
+
+### D-081 — Corrección de contraste y jerarquía de color en botones destructivos y diálogos de confirmación (2026-10-14)
+- **Decisión:**
+  - **Corrección del conflicto de clases CSS en `AlertDialogAction` y `ConfirmActionButton`:**
+    - Se identificó un conflicto en dark mode donde `AlertDialogAction` inyectaba por defecto las clases de `variant="default"` (`bg-primary text-primary-foreground`) junto con las clases personalizadas `bg-destructive text-white`.
+    - Al carecer de `tailwind-merge` en el helper `cn`, en el CSS compilado `.bg-primary` tenía precedencia sobre `.bg-destructive`, resultando en un fondo blanquecino con texto blanco (`text-white`), volviendo ilegible el texto del botón (ej: "Eliminar torneo").
+  - **Resolución integral:**
+    - En `components/ui/button.tsx`, la variante `destructive` de `buttonVariants` se actualiza al estándar sólido de alta visibilidad: `bg-destructive text-white shadow-xs hover:bg-destructive/90`.
+    - En `components/ui/alert-dialog.tsx`, `AlertDialogAction` resuelve automáticamente `variant="destructive"` si `className` incluye `bg-destructive` o si se pasa explícitamente `variant="destructive"`, evitando que `Button` genere `bg-primary`.
+    - En `components/shared/confirm-action-button.tsx`, `components/matches/matches-board.tsx`, `components/circuits/delete-circuit-button.tsx` y `components/circuits/circuit-dates-list.tsx`, se establece `variant="destructive"` y `!bg-destructive !text-white`.
+    - En `app/globals.css`, se define `--destructive-foreground: oklch(0.985 0 0)` tanto en `:root` como en `.dark`, y se armoniza `--destructive` en dark mode a `oklch(0.577 0.245 27.325)` para garantizar un ratio de contraste superior a 4.5:1 (WCAG AA).
+- **Motivo:** garantizar que las acciones destructivas y de confirmación sean inmediatamente distinguibles del botón "Cancelar" y 100% legibles en tema claro y oscuro.
+- **Cómo aplicar:** implementado en `components/ui/button.tsx`, `components/ui/alert-dialog.tsx`, `components/shared/confirm-action-button.tsx`, `components/matches/matches-board.tsx`, `components/circuits/delete-circuit-button.tsx`, `components/circuits/circuit-dates-list.tsx`, y `app/globals.css`.
+
+### D-082 — Corrección de autorización para editar y dar de baja inscripciones y experiencia de registro de parejas en pádel (2026-10-14)
+- **Decisión:**
+  - **Autorización en PostgreSQL (`update_team_roster`, `withdraw_team`, `create_team_invitation`):**
+    - Se eliminó la restricción `or v_team.organizer_registered` que bloqueaba al capitán y al organizador cuando un equipo se registraba con auto-aprobación del organizador (`organizer_registered = true`).
+    - Tanto el capitán del equipo (`v_team.captain_id = v_uid`) como el organizador del torneo (`v_tournament.organizer_id = v_uid`) están plenamente autorizados a editar el plantel (`update_team_roster`) o dar de baja la inscripción (`withdraw_team`).
+    - `create_team_invitation` permite enviar o reenviar invitaciones a compañeros sin bloquear a equipos con estado `approved` ni a equipos registrados por el organizador si poseen email.
+    - `accept_team_invitation` admite invitaciones de equipos tanto en estado `pending` como `approved` (manteniendo su estado de aprobación una vez aceptadas).
+    - `register_team` siempre establece `organizer_registered = false` (este campo queda reservado exclusivamente para inscripciones presenciales/manuales sin emails `create_organizer_team`).
+    - Se ejecutó un backfill en base de datos para restaurar `organizer_registered = false` en los equipos existentes que contaban con integrantes y emails reales.
+  - **Prevención de auto-inscripción y duplicados en el registro:**
+    - Se universalizó la regla `if v_email = any(v_emails)` en `register_team`: ningún usuario (incluyendo al organizador) puede ingresar su propio email como compañero, ya que quien inscribe siempre queda registrado como capitán.
+    - Se añadió validación en `register_team` para rechazar compañeros que ya estén inscriptos en el torneo (`'Uno de los integrantes ya está inscripto en este torneo.'`), evitando que `insert ... on conflict do nothing` descarte silenciosamente al compañero dejando la pareja con un solo integrante.
+  - **Experiencia de usuario y claridad de parejas en pádel (UI/UX):**
+    - En `TeamForm` (`components/registration/team-form.tsx`):
+      - Se incorporó un banner visual prominente destacando: *"Vos sos el Capitán / Capitán de la pareja"* con nombre/email y la explicación: *"El pádel se juega en parejas (2 personas). Vos ya quedás registrado como capitán; abajo tenés que ingresar el email de tu pareja para invitarla."*
+      - En el cliente, se valida e informa de inmediato si el usuario intenta ingresar su propio email como compañero (*"No podés ingresar tu propio email: vos ya sos el capitán de la pareja."*).
+    - En `MemberEmailsField` (`components/registration/member-emails-field.tsx`), se agregó el placeholder `pareja@ejemplo.com` para evitar confusiones sobre qué email se debe ingresar.
+    - En la vista de inscripción (`app/(app)/inscripciones/[teamId]/page.tsx`), si por inscripciones históricas la pareja cuenta con menos integrantes que el mínimo requerido (`team.members.length < tournament.minTeamSize`), se muestra una advertencia de *"Pareja incompleta"* explicando los pasos para editar el equipo y sumar al compañero.
+    - En `getTeamForMember` (`lib/data/teams.ts`), se amplió la condición de acceso para que el capitán (`team.captain_id === userId`) siempre pueda visualizar su inscripción.
+- **Motivo:** solucionar el error que impedía al capitán dar de baja o editar su equipo con el mensaje de permisos, y resolver la confusión en la inscripción de pádel garantizando que el usuario comprenda su rol de capitán y complete a su pareja con el email del compañero.
+- **Cómo aplicar:** implementado en `supabase/migrations/20261014193000_fix_captain_roster_edit_and_withdraw.sql`, `supabase/migrations/20261014194000_fix_register_team_rpc.sql`, `components/registration/team-form.tsx`, `components/registration/team-actions.tsx`, `components/registration/member-emails-field.tsx`, `app/(app)/unirse/[code]/page.tsx`, `app/(app)/inscripciones/[teamId]/page.tsx`, y `lib/data/teams.ts`.
+
+### D-083 — Asignación inteligente de horarios y minimización de brechas entre partidos consecutivos (2026-10-14)
+- **Decisión:**
+  - **Optimización por proximidad y minimización de brechas temporales (`computeGapPenalty`):**
+    - Se incorporó en `lib/domain/scheduler.ts` una función de evaluación objetiva y ordenamiento dinámico de candidatos (`candidatePenalty` y `computeGapPenalty`) que califica la calidad del descanso entre partidos consecutivos de un mismo equipo o grupo.
+    - Curva de penalización por descanso:
+      - Menos de 15 min (partidos seguidos sin pausa): penalización leve por fatiga (5 pts).
+      - Entre 15 min y 2.5 horas: descanso ideal óptimo (0 pts).
+      - Entre 2.5 y 4.5 horas: espera aceptable en el club (10 pts por hora extra).
+      - Entre 4.5 y 8 horas: espera larga/incómoda (20 + 25 pts por hora extra).
+      - Más de 8 horas (días distintos o turnos noche/mañana distantes): penalización severa (120 + 60 pts por hora extra).
+  - **Ordenamiento dinámico y poda Branch-and-Bound en el backtracking:**
+    - Los candidatos de cada partido se ordenan dinámicamente durante la búsqueda de menor a mayor penalización, probando en primer lugar las franjas con descanso ideal respecto al partido anterior del equipo o a sus antecedentes (`feeders`).
+    - Poda por cota de penalización: si ya existe una asignación completa con mejor penalización, las ramas con penalización acumulada superior se podan inmediatamente. Si se alcanza una solución completa con penalización 0, la búsqueda concluye inmediatamente con el cronograma óptimo.
+  - **Coherencia cronológica de rondas y dependencia de antecedentes (`feeders`):**
+    - En el orden de exploración de partidos, se priorizan las rondas anteriores (`order: (stage === "group" ? 0 : 100) + round`) antes que la cantidad de candidatos, permitiendo que la Fecha 1 quede fijada antes de que la Fecha 2 evalúe su proximidad.
+    - Se enlazaron las dependencias antecedentes (`feederMatchIds` y `feedersEnd`): en zonas de 4 parejas (formato padel GSL), los partidos de la Fecha 2 (ganador vs ganador y perdedor vs perdedor) dependen explícitamente de la conclusión de los 2 partidos de Fecha 1 de esa misma zona.
+    - Se toma en cuenta el historial de partidos fijados o jugados de cada equipo (`teamLatestFixedEnd`) para que `notBefore` nunca permita programar un partido posterior en un horario anterior al ya disputado por alguno de sus integrantes.
+  - **Soporte de programación anticipada para zonas de 4 parejas:**
+    - Se permite que los partidos de Fecha 2 con equipos a definir (`home_team_id: null, away_team_id: null`) evalúen la disponibilidad común de los 4 integrantes del grupo (`groupTeamIds`).
+    - En `Occupancy`, los partidos complementarios de la misma zona y misma ronda (final de ganadores y duelo de perdedores) reconocen que particionan los 4 integrantes en dos parejas disjuntas, permitiéndoles disputarse en simultáneo en canchas distintas dentro de la misma franja horaria.
+- **Motivo:** responder al requerimiento de que la programación automática sea lo más inteligente posible, evitando que en zonas de 4 el 2do partido quede asignado con excesiva diferencia horaria respecto a la primera fecha cuando existen franjas cercanas disponibles.
+- **Cómo aplicar:** implementado en `lib/domain/scheduler.ts`, `lib/domain/scheduler.test.ts`, y `lib/scheduling.ts`.
+
+### D-084 — Validación y saneamiento de cantidad de grupos en GroupBuilder (2026-10-14)
+- **Decisión:**
+  - En `components/groups/group-builder.tsx`, `initialGroups.length` ya no se utiliza a ciegas como valor inicial de `groupCount`.
+  - Se valida `initialValidCount = options.includes(initialGroups.length) ? initialGroups.length : suggested`, asegurando que `groupCount` siempre pertenezca al conjunto devuelto por `groupCountOptions(teams.length)`.
+  - Se define `safeGroupCount` y un `useEffect` que resetea `groupCount` a `suggested` si la lista de equipos cambia o si el valor previo deja de ser admisible.
+  - La función `draw(count?)` sanea cualquier parámetro recibido antes de pasarlo a `drawGroups`, impidiendo que se invoque la función de dominio con un conteo de grupos fuera de rango (`RangeError`).
+  - En `app/(app)/torneos/[id]/grupos/page.tsx`, se agrega `key={`${activeCategory?.id ?? "global"}-${approved.length}`}` a `GroupBuilder` para reiniciar limpiamente el estado del componente al alternar de categoría o variar la cantidad de inscriptos.
+- **Motivo:** corregir el `Runtime RangeError: Con 4 equipos se pueden armar entre 1 y 2 grupos` que ocurría al sortear cuando el torneo tenía guardada previamente una cantidad de grupos inconsistente con el total de parejas actual.
+- **Cómo aplicar:** implementado en `components/groups/group-builder.tsx` y `app/(app)/torneos/[id]/grupos/page.tsx`.
+
+
+
+
+
+
+
 
 
 

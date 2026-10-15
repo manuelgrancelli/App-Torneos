@@ -1,4 +1,4 @@
-import { Plus, Trophy } from "lucide-react";
+import { History, Plus, Trophy } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { JoinCodeForm } from "@/components/registration/join-code-form";
@@ -20,6 +20,8 @@ export default async function TournamentsPage() {
     listParticipations(user.id),
   ]);
 
+  const finishedCount = organized.filter((t) => t.status === "finished").length;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -27,6 +29,14 @@ export default async function TournamentsPage() {
         description="Gestioná tus competencias organizadas o seguí los torneos donde jugás."
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {finishedCount > 0 ? (
+              <Button asChild variant="outline" className="border-border/80 hover:bg-muted">
+                <Link href="/torneos/historial">
+                  <History className="size-4 mr-1.5 text-muted-foreground" aria-hidden="true" />
+                  Historial ({finishedCount})
+                </Link>
+              </Button>
+            ) : null}
             <Button asChild variant="outline" className="border-border/80 hover:bg-muted">
               <Link href="/circuitos">
                 <Trophy className="size-4 mr-1.5 text-amber-500" aria-hidden="true" />

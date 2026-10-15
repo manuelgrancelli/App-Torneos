@@ -14,7 +14,7 @@ export type NavItem = {
 export const MAIN_NAV_ITEMS: NavItem[] = [
   { href: "/circuitos", label: "Circuitos", icon: Layers },
   { href: "/proximos", label: "Próximos", icon: CalendarClock },
-  { href: "/historial", label: "Historial", icon: History },
+  { href: "/historial", label: "Mi historial", icon: History },
 ];
 
 /**
@@ -25,7 +25,7 @@ export const BOTTOM_NAV_ITEMS: NavItem[] = [
   { href: "/torneos", label: "Torneos", icon: Trophy },
   { href: "/circuitos", label: "Circuitos", icon: Layers },
   { href: "/proximos", label: "Próximos", icon: CalendarClock },
-  { href: "/historial", label: "Historial", icon: History },
+  { href: "/historial", label: "Mi historial", icon: History },
 ];
 
 /** Alias general por compatibilidad. */

@@ -92,9 +92,9 @@ export function isPublished(status: TournamentStatus): boolean {
   return status !== "draft";
 }
 
-/** El torneo solo se puede borrar antes de empezar (D-009). */
+/** El torneo se puede borrar siempre que no esté en estado finalizado. */
 export function canDeleteTournament(status: TournamentStatus): boolean {
-  return status === "draft" || status === "registration_open";
+  return status !== "finished";
 }
 
 /** "pareja"/"parejas" si el deporte es de a 2; "equipo"/"equipos" si no (D-004). */

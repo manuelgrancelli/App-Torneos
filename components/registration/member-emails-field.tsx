@@ -73,6 +73,7 @@ export function MemberEmailsField({ value, onChange, count, errors = [], general
               type="email"
               inputMode="email"
               autoComplete="off"
+              placeholder={count === 1 ? "pareja@ejemplo.com" : `compañero${index + 1}@ejemplo.com`}
               value={email}
               aria-invalid={Boolean(errors[index])}
               onChange={(e) => {

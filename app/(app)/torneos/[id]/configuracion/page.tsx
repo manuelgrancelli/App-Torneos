@@ -1,6 +1,7 @@
 import { Layers } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { DeleteTournamentButton } from "@/components/tournaments/delete-tournament-button";
 import { type FormLocks, TournamentForm } from "@/components/tournaments/tournament-form";
 import { TournamentBannerManager } from "@/components/tournaments/tournament-banner-manager";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { requireOrganizerTournament } from "@/lib/data/organizer";
 import { getTournamentCounts } from "@/lib/data/tournaments";
 import type { ScoringConfig } from "@/lib/domain/scoring";
 import type { StandingsConfig } from "@/lib/domain/standings";
+import { canDeleteTournament } from "@/lib/domain/tournament-status";
 
 export const metadata: Metadata = { title: "Configuración del torneo" };
 
@@ -86,6 +88,30 @@ export default async function TournamentSettingsPage({ params }: PageProps<"/tor
         }}
         locks={locks}
       />
+
+      {canDeleteTournament(tournament.status) ? (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold text-destructive">
+              Zona de peligro
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">Eliminar este torneo</p>
+              <p className="text-xs text-muted-foreground">
+                Se borrarán permanentemente las categorías, inscripciones, partidos y grupos. Esta acción no se puede deshacer.
+              </p>
+            </div>
+            <div className="shrink-0">
+              <DeleteTournamentButton
+                tournamentId={tournament.id}
+                tournamentName={tournament.name}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

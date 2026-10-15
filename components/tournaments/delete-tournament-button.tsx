@@ -27,7 +27,7 @@ export function DeleteTournamentButton({ tournamentId, tournamentName }: { tourn
       className="text-destructive"
       title={`¿Eliminar "${tournamentName}"?`}
       description={
-        <p>Se borran el torneo, sus canchas, franjas e inscripciones. Esta acción no se puede deshacer.</p>
+        <p>Se eliminarán permanentemente el torneo, sus equipos, partidos, grupos y configuraciones. Esta acción no se puede deshacer.</p>
       }
       confirmLabel="Eliminar torneo"
       onConfirm={remove}

@@ -16,10 +16,20 @@ type TeamActionsProps = {
   teamSize: number;
   isCaptain: boolean;
   companionEmails: string[];
+  captainName?: string;
+  captainEmail?: string;
 };
 
 /** Acciones sobre la inscripción mientras está abierta: editar, dar de baja o salirse. */
-export function TeamActions({ teamId, teamName, teamSize, isCaptain, companionEmails }: TeamActionsProps) {
+export function TeamActions({
+  teamId,
+  teamName,
+  teamSize,
+  isCaptain,
+  companionEmails,
+  captainName,
+  captainEmail,
+}: TeamActionsProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
 
@@ -84,6 +94,8 @@ export function TeamActions({ teamId, teamName, teamSize, isCaptain, companionEm
             teamSize={teamSize}
             defaultName={teamName}
             defaultEmails={companionEmails}
+            captainName={captainName}
+            captainEmail={captainEmail}
             onSaved={() => setEditing(false)}
           />
         </DialogContent>

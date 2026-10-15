@@ -154,7 +154,12 @@ export function CircuitDatesList({ circuitId, dates, onOpenLinkDialog }: Circuit
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleUnlink} disabled={isPending}>
+            <AlertDialogAction
+              variant="destructive"
+              className="!bg-destructive !text-white hover:!bg-destructive/90 shadow-xs"
+              onClick={handleUnlink}
+              disabled={isPending}
+            >
               {isPending ? <Spinner /> : null}
               Desvincular
             </AlertDialogAction>

@@ -16,6 +16,8 @@ import { applyServerErrors, firstErrorMessage } from "@/lib/forms";
 import { registerTeamSchema } from "@/lib/validation/registration";
 import { MemberEmailsField } from "./member-emails-field";
 
+import { Crown } from "lucide-react";
+
 export type TeamCategoryOption = {
   id: string;
   name: string;
@@ -30,6 +32,8 @@ type TeamFormProps = {
   defaultName: string;
   defaultEmails?: string[];
   categories?: TeamCategoryOption[];
+  captainName?: string;
+  captainEmail?: string;
   onSaved?: () => void;
 } & ({ mode: "register"; code: string } | { mode: "edit"; teamId: string });
 
@@ -52,11 +56,26 @@ export function TeamForm(props: TeamFormProps) {
       code: props.mode === "register" ? props.code : "edit",
       categoryId: defaultCategory,
       teamName: props.defaultName,
-      memberEmails: props.defaultEmails ?? Array.from({ length: companions }, () => ""),
+      memberEmails: props.defaultEmails && props.defaultEmails.length > 0 ? props.defaultEmails : Array.from({ length: companions }, () => ""),
     },
   });
 
   const onSubmit = form.handleSubmit((values) => {
+    // Validar en el cliente que no ingrese su propio email como compañero
+    const captainEmailNormalized = props.captainEmail?.toLowerCase().trim();
+    if (captainEmailNormalized) {
+      const hasSelf = values.memberEmails.some((e) => e.toLowerCase().trim() === captainEmailNormalized);
+      if (hasSelf) {
+        form.setError("memberEmails", {
+          message: props.teamSize === 2
+            ? "No podés ingresar tu propio email: vos ya sos el capitán de la pareja."
+            : "No podés incluir tu propio email: vos ya sos el capitán del equipo.",
+        });
+        toast.error("No podés incluir tu propio email como compañero.");
+        return;
+      }
+    }
+
     startTransition(async () => {
       if (props.mode === "register") {
         const result = await registerTeam(values);
@@ -89,6 +108,25 @@ export function TeamForm(props: TeamFormProps) {
   return (
     <form onSubmit={onSubmit} noValidate>
       <FieldGroup>
+        <div className="flex items-start gap-3 rounded-xl border border-primary/25 bg-primary/5 p-3.5 text-sm">
+          <Crown className="size-5 text-amber-500 shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="space-y-0.5 min-w-0">
+            <p className="font-semibold text-foreground">
+              {props.mode === "register" ? "Vos sos el Capitán" : "Capitán de la pareja"}
+              {props.captainName || props.captainEmail ? (
+                <span className="font-normal text-muted-foreground ml-1">
+                  ({props.captainName ?? props.captainEmail})
+                </span>
+              ) : null}
+            </p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {props.teamSize === 2
+                ? "El pádel se juega en parejas (2 personas). Vos ya quedás registrado como capitán; abajo tenés que ingresar el email de tu pareja para invitarla."
+                : `Vos ya quedás registrado como capitán del equipo; abajo tenés que ingresar los emails de tus ${companions} compañeros.`}
+            </p>
+          </div>
+        </div>
+
         {props.mode === "register" && props.categories && props.categories.length > 0 ? (
           <Controller
             name="categoryId"

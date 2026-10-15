@@ -6,8 +6,11 @@ import { HistoryFilters } from "@/components/history/history-filters";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
+import { FinishedTournamentsView } from "@/components/tournaments/finished-tournaments-view";
+import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth";
 import { type MyMatchRow, getMyMatches } from "@/lib/data/history";
+import { listOrganizedTournaments } from "@/lib/data/tournaments";
 import { formatInTimeZone } from "@/lib/dates";
 import { type Outcome, computePlayerStats, filterHistory } from "@/lib/domain/stats";
 
@@ -39,10 +42,31 @@ export default async function HistoryPage({ searchParams }: PageProps<"/historia
   if (!user) return null; // El layout ya redirige; esto solo acota el tipo.
 
   const filters = filtersSchema.parse(await searchParams);
-  const { matches, championTournamentIds } = await getMyMatches(user.id);
+  const [{ matches, championTournamentIds }, organized] = await Promise.all([
+    getMyMatches(user.id),
+    listOrganizedTournaments(user.id),
+  ]);
   const played = matches.filter((m) => m.resultText !== null);
+  const finishedOrganized = organized.filter((t) => t.status === "finished");
 
   if (played.length === 0) {
+    if (finishedOrganized.length > 0) {
+      return (
+        <div className="space-y-6">
+          <PageHeader
+            title="Mi historial de torneos"
+            description="Historial de competencias que organizaste y concluyeron exitosamente."
+            actions={
+              <Button asChild variant="outline" size="sm">
+                <Link href="/torneos">Mis torneos</Link>
+              </Button>
+            }
+          />
+          <FinishedTournamentsView tournaments={finishedOrganized} />
+        </div>
+      );
+    }
+
     return (
       <>
         <PageHeader title="Mi historial" description="Todos los partidos que jugaste, en cualquier torneo." />
@@ -75,6 +99,29 @@ export default async function HistoryPage({ searchParams }: PageProps<"/historia
     <>
       <PageHeader title="Mi historial" description="Todos los partidos que jugaste, en cualquier torneo." />
       <div className="space-y-6">
+        {finishedOrganized.length > 0 ? (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-border/80 bg-muted/40 p-4 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                <Trophy className="size-4" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  También tenés {finishedOrganized.length} {finishedOrganized.length === 1 ? "torneo organizado finalizado" : "torneos organizados finalizados"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Consultá los campeones y estadísticas de las competencias que organizaste.
+                </p>
+              </div>
+            </div>
+            <Button asChild variant="outline" size="sm" className="text-xs shrink-0">
+              <Link href="/torneos/historial">
+                Ver torneos organizados
+              </Link>
+            </Button>
+          </div>
+        ) : null}
+
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="Partidos" value={stats.played} />
           <Stat label="Ganados" value={stats.won} detail={stats.drawn ? `${stats.drawn} empates` : undefined} />

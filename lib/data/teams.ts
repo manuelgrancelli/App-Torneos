@@ -76,7 +76,7 @@ export const getTeamForMember = cache(async (teamId: string, userId: string): Pr
     .eq("id", teamId)
     .maybeSingle();
   if (error) throw error;
-  if (!team || !team.tournaments || !team.team_members.some((m) => m.user_id === userId)) return null;
+  if (!team || !team.tournaments || (!team.team_members.some((m) => m.user_id === userId) && team.captain_id !== userId)) return null;
 
   const [slots, courts] = await Promise.all([
     supabase

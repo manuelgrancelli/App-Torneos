@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type ScheduleInput, type SchedulerSlot, checkManualAssignment, scheduleMatches } from "./scheduler";
+import { type ScheduleInput, type SchedulerSlot, checkManualAssignment, computeGapPenalty, scheduleMatches } from "./scheduler";
 
 const H = 60 * 60 * 1000;
 const T0 = Date.UTC(2026, 9, 10, 12); // 10/10/2026 09:00 en Argentina
@@ -223,5 +223,130 @@ describe("checkManualAssignment", () => {
     });
     expect(result.conflicts).toEqual(["Esa franja es de otra cancha."]);
     expect(result.warnings).toEqual(["Uno de los equipos no marcó disponibilidad en esa franja."]);
+  });
+});
+
+describe("asignación inteligente de horarios y proximidad", () => {
+  it("en zona de 4, asigna la fecha 2 (gan vs gan y per vs per) cerca de la fecha 1 y no en franjas lejanas", () => {
+    // Fecha 1 se jugó de 0 a 1.5h en Cancha 1 y Cancha 2.
+    // Ganadores: T1 y T3. Perdedores: T2 y T4.
+    // Franjas disponibles para fecha 2:
+    // - s_close1 (2h): 30m de descanso (ideal)
+    // - s_close2 (3.5h): 2h de descanso (ideal)
+    // - s_far (10h): 8.5h de espera (muy lejana)
+    // - s_next_day (26h): día siguiente (lejana)
+    const teams = ["T1", "T2", "T3", "T4"];
+    const slots = [
+      slot("s_close1", 2, "c1"),
+      slot("s_close2", 3.5, "c1"),
+      slot("s_far", 10, "c1"),
+      slot("s_next_day", 26, "c1"),
+    ];
+    const availability = Object.fromEntries(teams.map((t) => [t, slots.map((s) => s.id)]));
+
+    const fixed = [
+      { matchId: "r1_m1", homeTeamId: "T1", awayTeamId: "T2", courtId: "c1", start: T0, end: T0 + 1.5 * H },
+      { matchId: "r1_m2", homeTeamId: "T3", awayTeamId: "T4", courtId: "c2", start: T0, end: T0 + 1.5 * H },
+    ];
+
+    const data = input({
+      matches: [
+        { id: "r2_win", homeTeamId: "T1", awayTeamId: "T3", notBefore: T0 + 1.5 * H, feederMatchIds: ["r1_m1", "r1_m2"], order: 2 },
+        { id: "r2_lose", homeTeamId: "T2", awayTeamId: "T4", notBefore: T0 + 1.5 * H, feederMatchIds: ["r1_m1", "r1_m2"], order: 2 },
+      ],
+      slots,
+      courtIds: ["c1"],
+      availability,
+      fixed,
+    });
+
+    const result = scheduleMatches(data);
+    expect(result.unscheduled).toEqual([]);
+
+    const assignedSlotIds = result.assignments.map((a) => a.slotId);
+    // Ambos deben haber sido programados en las franjas cercanas (s_close1 y s_close2)
+    expect(assignedSlotIds).toContain("s_close1");
+    expect(assignedSlotIds).toContain("s_close2");
+    // Ninguno debe haber sido puesto en s_far ni en s_next_day
+    expect(assignedSlotIds).not.toContain("s_far");
+    expect(assignedSlotIds).not.toContain("s_next_day");
+  });
+
+  it("programa simultáneamente fecha 1 y fecha 2 en una zona de 4 manteniendo continuidad", () => {
+    // 2 canchas: Cancha 1 y Cancha 2.
+    // s1 (0h), s2 (1.5h), s3 (3h), s_distant (12h).
+    const teams = ["T1", "T2", "T3", "T4"];
+    const slots = [
+      slot("s1_c1", 0, "c1"),
+      slot("s1_c2", 0, "c2"),
+      slot("s2_c1", 1.5, "c1"),
+      slot("s2_c2", 1.5, "c2"),
+      slot("s_distant", 12, "c1"),
+    ];
+    const availability = Object.fromEntries(teams.map((t) => [t, slots.map((s) => s.id)]));
+
+    const data = input({
+      matches: [
+        { id: "r1_m1", homeTeamId: "T1", awayTeamId: "T2", order: 1, groupId: "g1", round: 1 },
+        { id: "r1_m2", homeTeamId: "T3", awayTeamId: "T4", order: 1, groupId: "g1", round: 1 },
+        { id: "r2_win", homeTeamId: null, awayTeamId: null, groupTeamIds: teams, feederMatchIds: ["r1_m1", "r1_m2"], order: 2, groupId: "g1", round: 2 },
+        { id: "r2_lose", homeTeamId: null, awayTeamId: null, groupTeamIds: teams, feederMatchIds: ["r1_m1", "r1_m2"], order: 2, groupId: "g1", round: 2 },
+      ],
+      slots,
+      courtIds: ["c1", "c2"],
+      availability,
+    });
+
+    const result = scheduleMatches(data);
+    expect(result.unscheduled).toEqual([]);
+
+    const slotMap = new Map(result.assignments.map((a) => [a.matchId, a.slotId]));
+    // Fecha 1 debe estar en la franja s1 (0h)
+    expect(["s1_c1", "s1_c2"]).toContain(slotMap.get("r1_m1"));
+    expect(["s1_c1", "s1_c2"]).toContain(slotMap.get("r1_m2"));
+    // Fecha 2 debe estar en la franja s2 (1.5h, inmediatamente posterior)
+    expect(["s2_c1", "s2_c2"]).toContain(slotMap.get("r2_win"));
+    expect(["s2_c1", "s2_c2"]).toContain(slotMap.get("r2_lose"));
+    // Ninguno en s_distant
+    expect(Array.from(slotMap.values())).not.toContain("s_distant");
+  });
+
+  it("no asigna el segundo partido antes del primero aunque exista una franja previa disponible", () => {
+    const data = input({
+      matches: [
+        { id: "m2", homeTeamId: "A", awayTeamId: "B", notBefore: T0 + 4 * H, order: 2 },
+      ],
+      slots: [
+        slot("s_morning", 0), // 09:00 AM (antes del partido previo de las 13:00)
+        slot("s_afternoon", 5), // 14:00 PM (después del partido previo)
+      ],
+      availability: { A: ["s_morning", "s_afternoon"], B: ["s_morning", "s_afternoon"] },
+      fixed: [
+        { matchId: "m1", homeTeamId: "A", awayTeamId: "C", courtId: "c1", start: T0 + 2 * H, end: T0 + 3.5 * H },
+      ],
+    });
+
+    const result = scheduleMatches(data);
+    expect(result.assignments).toHaveLength(1);
+    expect(result.assignments[0]?.slotId).toBe("s_afternoon");
+  });
+
+  it("calcula las penalizaciones de descanso ideal y esperas excesivas", () => {
+    // 0 min (back to back): fatiga
+    expect(computeGapPenalty(0)).toBe(5);
+    expect(computeGapPenalty(10 * 60 * 1000)).toBe(5);
+
+    // 15 min a 150 min (ideal): 0 penalización
+    expect(computeGapPenalty(15 * 60 * 1000)).toBe(0);
+    expect(computeGapPenalty(60 * 60 * 1000)).toBe(0);
+    expect(computeGapPenalty(90 * 60 * 1000)).toBe(0);
+    expect(computeGapPenalty(150 * 60 * 1000)).toBe(0);
+
+    // Esperas más largas: penalización progresiva
+    expect(computeGapPenalty(210 * 60 * 1000)).toBe(10); // 3.5h (+1h sobre 2.5h)
+    expect(computeGapPenalty(270 * 60 * 1000)).toBe(20); // 4.5h (+2h)
+    expect(computeGapPenalty(390 * 60 * 1000)).toBe(70); // 6.5h
+    expect(computeGapPenalty(600 * 60 * 1000)).toBe(240); // 10h
+    expect(computeGapPenalty(24 * 60 * 60 * 1000)).toBe(1080); // 24h
   });
 });

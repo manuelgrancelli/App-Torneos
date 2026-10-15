@@ -68,8 +68,11 @@ describe("helpers de estado", () => {
   it("publicado y borrable", () => {
     expect(isPublished("draft")).toBe(false);
     expect(isPublished("registration_open")).toBe(true);
+    expect(canDeleteTournament("draft")).toBe(true);
     expect(canDeleteTournament("registration_open")).toBe(true);
-    expect(canDeleteTournament("group_stage")).toBe(false);
+    expect(canDeleteTournament("group_stage")).toBe(true);
+    expect(canDeleteTournament("playoffs")).toBe(true);
+    expect(canDeleteTournament("finished")).toBe(false);
   });
 
   it("pareja o equipo según el tamaño", () => {

@@ -74,9 +74,10 @@ export function ConfirmActionButton({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
+            variant={destructive ? "destructive" : "default"}
             onClick={handleConfirm}
             disabled={isPending}
-            className={destructive ? "bg-destructive text-white hover:bg-destructive/90" : undefined}
+            className={destructive ? "!bg-destructive !text-white hover:!bg-destructive/90 shadow-xs" : undefined}
           >
             {isPending ? <Spinner /> : null}
             {confirmLabel}

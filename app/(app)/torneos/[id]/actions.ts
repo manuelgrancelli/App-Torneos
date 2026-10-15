@@ -21,6 +21,8 @@ const NOT_FOUND = "No encontramos el torneo o no tenés permiso para modificarlo
 function revalidateTournament(tournamentId: string) {
   revalidatePath(`/torneos/${tournamentId}`, "layout");
   revalidatePath("/torneos");
+  revalidatePath("/torneos/historial");
+  revalidatePath("/historial");
   refreshPublicTournament(tournamentId);
 }
 
@@ -53,14 +55,16 @@ export const updateTournament = createAction(updateTournamentSchema, async (inpu
   return actionOk(undefined, "Guardamos los cambios.");
 });
 
-/** Borra el torneo (solo en borrador o inscripción: lo aplica la política de RLS). */
+/** Borra el torneo (solo si no está en estado finalizado: lo aplica la política de RLS). */
 export const deleteTournament = createAction(tournamentIdSchema, async ({ tournamentId }, { supabase }) => {
   const { data, error } = await supabase.from("tournaments").delete().eq("id", tournamentId).select("id");
   if (error) return actionError(dbErrorMessage(error));
   if (data.length === 0) {
-    return actionError("Solo se puede eliminar un torneo en borrador o con la inscripción abierta.");
+    return actionError("No se puede eliminar un torneo finalizado o no tenés permisos para eliminarlo.");
   }
   revalidatePath("/torneos");
+  revalidatePath("/torneos/historial");
+  revalidatePath("/historial");
   return actionOk(undefined, "Eliminamos el torneo.");
 });
 

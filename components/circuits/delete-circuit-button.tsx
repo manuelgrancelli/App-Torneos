@@ -59,7 +59,12 @@ export function DeleteCircuitButton({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={isPending}>
+            <AlertDialogAction
+              variant="destructive"
+              className="!bg-destructive !text-white hover:!bg-destructive/90 shadow-xs"
+              onClick={handleDelete}
+              disabled={isPending}
+            >
               {isPending ? <Spinner /> : null}
               Eliminar circuito
             </AlertDialogAction>

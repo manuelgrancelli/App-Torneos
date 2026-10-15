@@ -154,15 +154,16 @@ function AlertDialogAction({
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Action> &
   Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
+  const resolvedVariant = className?.includes("bg-destructive") ? "destructive" : variant;
   return (
-    <Button variant={variant} size={size} asChild>
+    <Button variant={resolvedVariant} size={size} asChild>
       <AlertDialogPrimitive.Action
         data-slot="alert-dialog-action"
         className={cn(className)}
         {...props}
       />
     </Button>
-  )
+  );
 }
 
 function AlertDialogCancel({

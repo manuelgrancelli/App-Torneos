@@ -169,7 +169,7 @@ export default async function TournamentSummaryPage({ params }: PageProps<"/torn
         <CollapsibleSection
           title="Más opciones"
           summary="Eliminar el torneo"
-          description="Un torneo solo se puede eliminar antes de que empiece la fase de grupos."
+          description="Podés eliminar el torneo mientras no se encuentre finalizado. Esta acción borrará permanentemente sus categorías, inscripciones, grupos y partidos."
         >
           <DeleteTournamentButton tournamentId={tournament.id} tournamentName={tournament.name} />
         </CollapsibleSection>

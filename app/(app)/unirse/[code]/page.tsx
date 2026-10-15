@@ -159,6 +159,8 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
               code={code}
               teamSize={tournament.min_team_size}
               defaultName={suggestedName(user.fullName, tournament.min_team_size)}
+              captainName={user.fullName}
+              captainEmail={user.email}
               categories={categories.map((c) => ({
                 id: c.id,
                 name: c.name,

@@ -27,9 +27,9 @@ export function BottomNav() {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex min-h-14 flex-col items-center justify-center gap-1 text-xs font-medium text-muted-foreground",
+                  "flex min-h-14 flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted-foreground px-1 text-center leading-tight",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                  active && "text-foreground",
+                  active && "text-foreground font-semibold",
                 )}
               >
                 <Icon className="size-5" aria-hidden="true" />

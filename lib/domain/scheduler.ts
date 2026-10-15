@@ -33,6 +33,16 @@ export type SchedulerMatch = {
   notBefore?: number;
   /** Desempate de orden (p. ej. número de fecha): menor primero. */
   order?: number;
+  /** Partidos antecedentes (feeders) que deben terminar antes de este partido. */
+  feederMatchIds?: readonly string[];
+  /** Equipos del grupo si los rivales todavía no están definidos (ej. zona de 4). */
+  groupTeamIds?: readonly string[];
+  /** ID del grupo al que pertenece el partido. */
+  groupId?: string;
+  /** Número de ronda (ej. 1 o 2). */
+  round?: number;
+  /** Instante ideal para jugar después del anterior (epoch ms). */
+  idealAfter?: number;
 };
 
 /** Partido que ya ocupa recursos y no se mueve (fijado a mano, jugado o no reprogramado). */
@@ -43,6 +53,9 @@ export type FixedAssignment = {
   courtId: string | null;
   start: number;
   end: number;
+  groupTeamIds?: readonly string[];
+  groupId?: string;
+  round?: number;
 };
 
 export type ScheduleInput = {
@@ -86,7 +99,13 @@ export const UNSCHEDULED_REASON_LABELS: Record<UnscheduledReason, string> = {
 };
 
 type Candidate = { slotId: string; courtId: string; start: number; end: number };
-type Interval = { start: number; end: number };
+type Interval = {
+  start: number;
+  end: number;
+  matchId?: string;
+  groupId?: string;
+  round?: number;
+};
 
 const DEFAULT_MAX_ITERATIONS = 50_000;
 
@@ -94,12 +113,55 @@ function overlaps(a: Interval, b: Interval): boolean {
   return a.start < b.end && b.start < a.end;
 }
 
+/**
+ * Penalización por distancia/descanso entre dos partidos consecutivos de un equipo o grupo.
+ * - < 15 min (back-to-back): pequeña penalización por fatiga inmediata (5 pts).
+ * - 15 min a 2.5 horas: descanso ideal (0 pts).
+ * - 2.5 a 4.5 horas: espera aceptable en el club (10 pts por hora extra).
+ * - 4.5 a 8 horas: espera larga/incómoda (20 + 25 pts por hora extra).
+ * - > 8 horas (noche o días distintos): penalización severa (120 + 60 pts por hora extra).
+ */
+export function computeGapPenalty(gapMs: number): number {
+  if (gapMs < 0) return 100_000;
+  const gapMinutes = gapMs / (60 * 1000);
+  if (gapMinutes < 15) {
+    return 5;
+  }
+  if (gapMinutes <= 150) {
+    return 0;
+  }
+  const excessHours = (gapMinutes - 150) / 60;
+  if (excessHours <= 2) {
+    return excessHours * 10;
+  }
+  if (excessHours <= 5.5) {
+    return 20 + (excessHours - 2) * 25;
+  }
+  return 120 + (excessHours - 5.5) * 60;
+}
+
 /** Ocupación de un recurso (equipo o cancha) como lista de intervalos. */
 class Occupancy {
   private readonly busy = new Map<string, Interval[]>();
 
   isFree(key: string, interval: Interval): boolean {
-    return !(this.busy.get(key) ?? []).some((other) => overlaps(other, interval));
+    return !(this.busy.get(key) ?? []).some((other) => {
+      if (!overlaps(other, interval)) return false;
+      // En una zona de 4, los dos partidos de la misma fecha (ganadores y perdedores)
+      // reparten los 4 equipos del grupo en dos cruces disjuntos. No chocan entre sí.
+      if (
+        other.groupId &&
+        interval.groupId &&
+        other.groupId === interval.groupId &&
+        other.round !== undefined &&
+        interval.round !== undefined &&
+        other.round === interval.round &&
+        other.matchId !== interval.matchId
+      ) {
+        return false;
+      }
+      return true;
+    });
   }
 
   add(key: string, interval: Interval): void {
@@ -113,6 +175,68 @@ class Occupancy {
     const index = list?.lastIndexOf(interval) ?? -1;
     if (list && index >= 0) list.splice(index, 1);
   }
+
+  getIntervals(key: string): readonly Interval[] {
+    return this.busy.get(key) ?? [];
+  }
+}
+
+function candidatePenalty(
+  match: SchedulerMatch,
+  candidate: Candidate,
+  teams: Occupancy,
+  assignedIntervals: Map<string, Interval>,
+  fixedIntervals: Map<string, Interval>,
+): number {
+  let penalty = 0;
+  const teamsToCheck =
+    match.homeTeamId && match.awayTeamId
+      ? [match.homeTeamId, match.awayTeamId]
+      : match.groupTeamIds ?? [];
+
+  for (const teamId of teamsToCheck) {
+    const intervals = teams.getIntervals(teamId);
+    let prevEnd: number | null = null;
+    let nextStart: number | null = null;
+
+    for (const iv of intervals) {
+      if (iv.end <= candidate.start) {
+        if (prevEnd === null || iv.end > prevEnd) prevEnd = iv.end;
+      }
+      if (iv.start >= candidate.end) {
+        if (nextStart === null || iv.start < nextStart) nextStart = iv.start;
+      }
+    }
+
+    if (prevEnd !== null) {
+      penalty += computeGapPenalty(candidate.start - prevEnd);
+    }
+    if (nextStart !== null) {
+      penalty += computeGapPenalty(nextStart - candidate.end);
+    }
+  }
+
+  if (match.feederMatchIds && match.feederMatchIds.length > 0) {
+    let latestFeederEnd: number | null = null;
+    for (const feederId of match.feederMatchIds) {
+      const fIv = assignedIntervals.get(feederId) ?? fixedIntervals.get(feederId);
+      if (fIv && (latestFeederEnd === null || fIv.end > latestFeederEnd)) {
+        latestFeederEnd = fIv.end;
+      }
+    }
+    if (latestFeederEnd !== null) {
+      if (candidate.start < latestFeederEnd) {
+        return Number.POSITIVE_INFINITY;
+      }
+      penalty += computeGapPenalty(candidate.start - latestFeederEnd);
+    }
+  }
+
+  if (match.idealAfter !== undefined && candidate.start >= match.idealAfter) {
+    penalty += computeGapPenalty(candidate.start - match.idealAfter);
+  }
+
+  return penalty;
 }
 
 export function scheduleMatches(input: ScheduleInput): ScheduleResult {
@@ -122,11 +246,22 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
   const courts = new Occupancy();
 
   // Lo fijo ocupa recursos desde el arranque.
+  const fixedIntervals = new Map<string, Interval>();
   for (const fixed of input.fixed ?? []) {
-    const interval = { start: fixed.start, end: fixed.end };
+    const interval: Interval = {
+      start: fixed.start,
+      end: fixed.end,
+      matchId: fixed.matchId,
+      groupId: fixed.groupId,
+      round: fixed.round,
+    };
+    fixedIntervals.set(fixed.matchId, interval);
     if (fixed.homeTeamId) teams.add(fixed.homeTeamId, interval);
     if (fixed.awayTeamId) teams.add(fixed.awayTeamId, interval);
     if (fixed.courtId) courts.add(fixed.courtId, interval);
+    if (!fixed.homeTeamId && !fixed.awayTeamId && fixed.groupTeamIds) {
+      for (const t of fixed.groupTeamIds) teams.add(t, interval);
+    }
   }
 
   // Franjas ordenadas cronológicamente (y por id para desempatar, determinismo).
@@ -137,16 +272,22 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
   const candidates = new Map<string, Candidate[]>();
 
   for (const match of input.matches) {
-    const { homeTeamId: home, awayTeamId: away } = match;
-    if (!home || !away) {
+    const teamsForAvailability =
+      match.homeTeamId && match.awayTeamId
+        ? [match.homeTeamId, match.awayTeamId]
+        : match.groupTeamIds && match.groupTeamIds.length > 0
+          ? match.groupTeamIds
+          : null;
+
+    if (!teamsForAvailability) {
       unscheduled.push({ matchId: match.id, reason: "missing_teams" });
       continue;
     }
-    const homeSlots = availability.get(home);
-    const awaySlots = availability.get(away);
+
     const list: Candidate[] = [];
     for (const slot of slots) {
-      if (!homeSlots?.has(slot.id) || !awaySlots?.has(slot.id)) continue;
+      const allAvailable = teamsForAvailability.every((teamId) => availability.get(teamId)?.has(slot.id));
+      if (!allAvailable) continue;
       if (match.notBefore !== undefined && slot.start < match.notBefore) continue;
       const slotCourts = slot.courtId ? [slot.courtId] : input.courtIds;
       for (const courtId of slotCourts) {
@@ -164,18 +305,22 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
     else candidates.set(match.id, list);
   }
 
-  // MRV: primero el partido con menos opciones.
+  // MRV + orden de rondas: rondas anteriores (order menor) se programan primero
+  // para que las rondas siguientes conozcan exactamente el horario de sus feeders y partidos previos.
   const order = input.matches
     .filter((match) => candidates.has(match.id))
     .sort(
       (a, b) =>
-        (candidates.get(a.id)?.length ?? 0) - (candidates.get(b.id)?.length ?? 0) ||
         (a.order ?? 0) - (b.order ?? 0) ||
+        (candidates.get(a.id)?.length ?? 0) - (candidates.get(b.id)?.length ?? 0) ||
         a.id.localeCompare(b.id),
     );
 
   const current: Assignment[] = [];
+  const assignedIntervals = new Map<string, Interval>();
+  let currentPenalty = 0;
   let best: Assignment[] = [];
+  let bestPenalty = Number.POSITIVE_INFINITY;
   let iterations = 0;
   let aborted = false;
 
@@ -185,35 +330,81 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
       aborted = true;
       return;
     }
-    // Cota superior: aunque se asignen todos los que faltan, ¿se supera la mejor?
-    if (current.length + (order.length - index) <= best.length) return;
+    // Cota superior de partidos: aunque se asignen todos los que faltan, ¿se supera la mejor cantidad?
+    if (current.length + (order.length - index) < best.length) return;
+    if (current.length + (order.length - index) === best.length && currentPenalty >= bestPenalty) return;
+
     if (index === order.length) {
-      best = [...current];
+      if (current.length > best.length || (current.length === best.length && currentPenalty < bestPenalty)) {
+        best = [...current];
+        bestPenalty = currentPenalty;
+      }
       return;
     }
 
     const match = order[index] as SchedulerMatch;
-    const home = match.homeTeamId as string;
-    const away = match.awayTeamId as string;
+    const matchCandidates = candidates.get(match.id) ?? [];
+    const teamsToCheck =
+      match.homeTeamId && match.awayTeamId
+        ? [match.homeTeamId, match.awayTeamId]
+        : match.groupTeamIds ?? [];
 
-    for (const candidate of candidates.get(match.id) ?? []) {
-      const interval = { start: candidate.start, end: candidate.end };
-      if (!teams.isFree(home, interval) || !teams.isFree(away, interval) || !courts.isFree(candidate.courtId, interval)) {
+    const scoredCandidates: { candidate: Candidate; penalty: number; interval: Interval }[] = [];
+
+    for (const candidate of matchCandidates) {
+      const interval: Interval = {
+        start: candidate.start,
+        end: candidate.end,
+        matchId: match.id,
+        groupId: match.groupId,
+        round: match.round,
+      };
+      if (!courts.isFree(candidate.courtId, interval)) continue;
+
+      let teamsFree = true;
+      for (const t of teamsToCheck) {
+        if (!teams.isFree(t, interval)) {
+          teamsFree = false;
+          break;
+        }
+      }
+      if (!teamsFree) continue;
+
+      const p = candidatePenalty(match, candidate, teams, assignedIntervals, fixedIntervals);
+      if (!Number.isFinite(p)) continue;
+
+      scoredCandidates.push({ candidate, penalty: p, interval });
+    }
+
+    scoredCandidates.sort(
+      (a, b) =>
+        a.penalty - b.penalty ||
+        a.candidate.start - b.candidate.start ||
+        (courtOrder.get(a.candidate.courtId) ?? Number.MAX_SAFE_INTEGER) -
+          (courtOrder.get(b.candidate.courtId) ?? Number.MAX_SAFE_INTEGER) ||
+        a.candidate.slotId.localeCompare(b.candidate.slotId),
+    );
+
+    for (const { candidate, penalty, interval } of scoredCandidates) {
+      if (current.length + (order.length - index) === best.length && currentPenalty + penalty >= bestPenalty) {
         continue;
       }
-      teams.add(home, interval);
-      teams.add(away, interval);
+
+      for (const t of teamsToCheck) teams.add(t, interval);
       courts.add(candidate.courtId, interval);
+      assignedIntervals.set(match.id, interval);
       current.push({ matchId: match.id, ...candidate });
+      currentPenalty += penalty;
 
       search(index + 1);
 
+      currentPenalty -= penalty;
       current.pop();
+      assignedIntervals.delete(match.id);
       courts.remove(candidate.courtId, interval);
-      teams.remove(away, interval);
-      teams.remove(home, interval);
+      for (const t of teamsToCheck) teams.remove(t, interval);
 
-      if (aborted || best.length === order.length) return;
+      if (aborted || (best.length === order.length && bestPenalty === 0)) return;
     }
 
     // Probar dejándolo sin horario (quizás así entran más partidos).
