@@ -100,6 +100,9 @@ export function ResultDialog(props: ResultDialogProps) {
   const showPenalties = scoring.type === "goals" && stage === "playoff" && goals[0] !== undefined && goals[0] === goals[1];
 
   function save() {
+    if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     startTransition(async () => {
       const safeTotalRounds =
         props.stage === "playoff" && props.totalRounds && props.totalRounds > 0
@@ -128,12 +131,23 @@ export function ResultDialog(props: ResultDialogProps) {
       toast.success(response.message ?? "Guardamos el resultado.");
       onOpenChange(false);
       router.refresh();
+      if (typeof window !== "undefined") {
+        window.scrollTo({ left: 0, top: window.scrollY });
+      }
     });
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92dvh] overflow-y-auto w-full sm:max-w-lg p-4 sm:p-6">
+      <DialogContent
+        onCloseAutoFocus={(e) => {
+          e.preventDefault();
+          if (typeof window !== "undefined") {
+            window.scrollTo({ left: 0, top: window.scrollY });
+          }
+        }}
+        className="max-h-[92dvh] overflow-y-auto w-full sm:max-w-lg p-4 sm:p-6"
+      >
         <DialogHeader className="space-y-1 pb-1">
           <DialogTitle className="text-lg font-bold">
             {current ? "Editar resultado" : "Cargar resultado"}

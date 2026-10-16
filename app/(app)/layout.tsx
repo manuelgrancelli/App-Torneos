@@ -17,11 +17,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect("/login");
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex min-h-dvh flex-col overflow-x-hidden max-w-full">
       <SkipLink />
       <AppHeader user={user} />
       {/* pb-24 deja lugar a la barra inferior en mobile. */}
-      <main id="contenido" className="mx-auto w-full max-w-5xl flex-1 px-4 pb-24 pt-6 md:pb-10">
+      <main id="contenido" className="mx-auto w-full max-w-5xl flex-1 px-4 pb-24 pt-6 md:pb-10 overflow-x-clip">
         {children}
       </main>
       <BottomNav />

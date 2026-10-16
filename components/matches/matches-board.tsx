@@ -325,7 +325,7 @@ export function MatchesBoard(props: MatchesBoardProps) {
             role="region"
             aria-label="Filtrar por categoría"
             tabIndex={0}
-            className="flex items-center gap-1.5 overflow-x-auto pb-1.5 pt-0.5 scrollbar-none -mx-1 px-1 sm:mx-0 sm:px-0 sm:flex-wrap"
+            className="flex items-center gap-1.5 overflow-x-auto pb-1.5 pt-0.5 scrollbar-none w-full sm:flex-wrap"
           >
             <button
               type="button"
@@ -362,7 +362,7 @@ export function MatchesBoard(props: MatchesBoardProps) {
         <div
           role="tablist"
           aria-label="Filtrar partidos"
-          className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1 sm:mx-0 sm:px-0 sm:flex-wrap"
+          className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none w-full sm:w-auto sm:flex-wrap"
         >
           {FILTERS.map((f) => (
             <button

@@ -61,6 +61,9 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
     : { conflicts: [], warnings: [] };
 
   function run(nextSlot: string | null) {
+    if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     startTransition(async () => {
       const result = await assignSlot({
         tournamentId: props.tournamentId,
@@ -75,12 +78,23 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
       toast.success(result.message ?? "Listo.");
       onOpenChange(false);
       router.refresh();
+      if (typeof window !== "undefined") {
+        window.scrollTo({ left: 0, top: window.scrollY });
+      }
     });
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92dvh] overflow-y-auto w-full sm:max-w-md p-4 sm:p-6">
+      <DialogContent
+        onCloseAutoFocus={(e) => {
+          e.preventDefault();
+          if (typeof window !== "undefined") {
+            window.scrollTo({ left: 0, top: window.scrollY });
+          }
+        }}
+        className="max-h-[92dvh] overflow-y-auto w-full sm:max-w-md p-4 sm:p-6"
+      >
         <DialogHeader className="space-y-1 pb-1">
           <DialogTitle className="text-lg font-bold">Horario del partido</DialogTitle>
           <DialogDescription className="text-xs sm:text-sm font-medium text-foreground/80 line-clamp-2">

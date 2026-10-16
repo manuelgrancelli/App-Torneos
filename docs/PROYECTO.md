@@ -1287,8 +1287,12 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
     - Se adaptó el modal con scroll vertical seguro (`max-h-[92dvh] overflow-y-auto`), selectores `NativeSelect` a ancho completo sin zoom involuntario de iOS y botones de pie táctiles de 44px (`h-11 sm:h-9`).
   - **Input numérico táctil (`components/shared/number-input.tsx`):**
     - Los botones de incremento y decremento se ajustaron a `size-10 sm:size-8` (40px táctiles en mobile) respetando la convención de `docs/PROYECTO.md §8`.
-- **Motivo:** corregir los fallos de renderizado en dispositivos móviles donde los botones de categoría colisionaban verticalmente, el menú de 3 puntos resultaba incómodo y el modal de carga de resultados quedaba ilegible y deformado en 360px.
-- **Cómo aplicar:** implementado en `components/matches/matches-board.tsx`, `components/matches/result-dialog.tsx`, `components/matches/assign-slot-dialog.tsx`, y `components/shared/number-input.tsx`.
+  - **Bloqueo de desplazamiento horizontal involuntario en mobile:**
+    - Se aplicó `overflow-x: hidden` y `max-width: 100vw` en `html` y `body` (`app/globals.css`), así como `overflow-x-clip` en `<main id="contenido">` (`app/(app)/layout.tsx`), asegurando que ningún elemento hijo pueda ensanchar el viewport horizontalmente.
+    - Se eliminaron los márgenes negativos (`-mx-1`) de los carruseles de categorías y estados en `MatchesBoard`.
+    - En `DialogContent` y `AlertDialogContent` (`components/ui/dialog.tsx` y `alert-dialog.tsx`), se interceptó `onCloseAutoFocus` (`e.preventDefault()` y `window.scrollTo({ left: 0 })`), evitando que el navegador del celular panee horizontalmente la ventana hacia la derecha al intentar hacer autofoco en los botones de acción situados en el borde derecho tras cerrar el diálogo.
+- **Motivo:** corregir los fallos de renderizado en dispositivos móviles donde los botones de categoría colisionaban verticalmente, el menú de 3 puntos resultaba incómodo, el modal de carga de resultados quedaba ilegible y, al guardar, la pantalla se desplazaba indeseadamente hacia la derecha.
+- **Cómo aplicar:** implementado en `components/matches/matches-board.tsx`, `components/matches/result-dialog.tsx`, `components/matches/assign-slot-dialog.tsx`, `components/shared/number-input.tsx`, `components/ui/dialog.tsx`, `components/ui/alert-dialog.tsx`, `app/globals.css`, y `app/(app)/layout.tsx`.
 
 
 
