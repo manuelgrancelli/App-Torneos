@@ -184,9 +184,9 @@ begin
       message = 'La disponibilidad solo se puede cambiar con la inscripción abierta.';
   end if;
 
-  if coalesce(v_is_organizer, false) and v_tournament_status in ('completed', 'cancelled') then
+  if coalesce(v_is_organizer, false) and v_tournament_status = 'finished' then
     raise exception using errcode = 'P0001',
-      message = 'El torneo ya está finalizado o cancelado.';
+      message = 'El torneo ya está finalizado.';
   end if;
 
   if cardinality(v_slot_ids) > 0 and exists (

@@ -114,7 +114,10 @@ export const setTeamAvailabilityByOrganizer = createAction(
       p_team_id: teamId,
       p_slot_ids: slotIds,
     });
-    if (error) return actionError(dbErrorMessage(error));
+    if (error) {
+      console.error("[setTeamAvailabilityByOrganizer error]:", error);
+      return actionError(dbErrorMessage(error));
+    }
 
     revalidatePath(`/torneos/${tournamentId}`, "layout");
     revalidatePath(`/torneos/${tournamentId}/inscripciones`);
