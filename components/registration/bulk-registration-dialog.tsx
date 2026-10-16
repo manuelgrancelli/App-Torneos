@@ -47,7 +47,7 @@ export function BulkRegistrationDialog({
   const [open, setOpen] = useState(false);
   const [rawText, setRawText] = useState("");
   const [overrideCategoryMap, setOverrideCategoryMap] = useState<Record<string, string>>({});
-  const [allSlots, setAllSlots] = useState(true);
+  const [allSlots, setAllSlots] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const textareaId = useId();
@@ -247,18 +247,27 @@ export function BulkRegistrationDialog({
             </div>
           ) : null}
 
-          {/* Opciones adicionales */}
-          <div className="flex items-center gap-2 pt-1">
-            <input
-              type="checkbox"
-              id="allSlotsCheckbox"
-              checked={allSlots}
-              onChange={(e) => setAllSlots(e.target.checked)}
-              className="size-4 rounded border-border text-primary focus:ring-primary"
-            />
-            <Label htmlFor="allSlotsCheckbox" className="text-xs font-normal text-muted-foreground cursor-pointer">
-              Asignar disponibilidad en todas las franjas horarias a las parejas importadas (recomendado para que el organizador pueda programar partidos sin restricciones).
-            </Label>
+          {/* Opciones de disponibilidad horaria */}
+          <div className="rounded-xl border border-border/70 bg-muted/20 p-3 space-y-2">
+            <div className="flex items-start gap-2.5">
+              <input
+                type="checkbox"
+                id="allSlotsCheckbox"
+                checked={allSlots}
+                onChange={(e) => setAllSlots(e.target.checked)}
+                className="mt-0.5 size-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="allSlotsCheckbox" className="text-xs font-semibold text-foreground cursor-pointer">
+                  Asignar disponibilidad completa a todas las parejas importadas
+                </Label>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  {allSlots
+                    ? "Las parejas quedarán habilitadas para jugar en cualquier día y franja horaria del torneo."
+                    : "Las parejas se importarán sin disponibilidad asignada. Luego podrás definir las franjas horarias de cada pareja una por una en la lista de inscriptos."}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 

@@ -10,6 +10,7 @@ import {
   bulkImportTeamsSchema,
   organizerCreateTeamSchema,
   reviewRegistrationSchema,
+  setTeamAvailabilitySchema,
   tournamentRegistrationActionSchema,
 } from "@/lib/validation/registration";
 
@@ -105,6 +106,34 @@ export const assignAllUnassignedTeams = createAction(
   },
 );
 
+/** El organizador modifica la disponibilidad horaria (franjas) de una pareja. */
+export const setTeamAvailabilityByOrganizer = createAction(
+  setTeamAvailabilitySchema,
+  async ({ tournamentId, teamId, slotIds }, { supabase }) => {
+    const { data, error } = await supabase.rpc("set_team_availability", {
+      p_team_id: teamId,
+      p_slot_ids: slotIds,
+    });
+    if (error) return actionError(dbErrorMessage(error));
+
+    revalidatePath(`/torneos/${tournamentId}`, "layout");
+    revalidatePath(`/torneos/${tournamentId}/inscripciones`);
+    revalidatePath(`/torneos/${tournamentId}/canchas-franjas`);
+    revalidatePath(`/torneos/${tournamentId}/partidos`);
+    refreshPublicTournament(tournamentId);
+
+    const count = data ?? 0;
+    return actionOk(
+      { count },
+      count === 0
+        ? "Disponibilidad actualizada (sin franjas asignadas)."
+        : count === 1
+          ? "Se asignó 1 franja horaria a la pareja."
+          : `Se asignaron ${count} franjas horarias a la pareja.`,
+    );
+  },
+);
+
 /**
  * Importa por lotes parejas organizadas por categoría desde texto (WhatsApp / planillas).
  * Crea automáticamente las categorías que no existan y registra a cada pareja con sus jugadores
@@ -133,18 +162,14 @@ export const bulkImportTeams = createAction(
       .eq("tournament_id", tournamentId);
 
     if (slotsError) return actionError(dbErrorMessage(slotsError));
-    if (!slots || slots.length === 0) {
-      return actionError("El torneo no tiene franjas horarias cargadas. Creá las canchas y franjas antes de importar.");
+    if (allSlots && (!slots || slots.length === 0)) {
+      return actionError("El torneo no tiene franjas horarias cargadas. Creá las canchas y franjas antes de importar con disponibilidad completa.");
     }
 
-    const availableSlotIds = slots.map((s) => s.id);
-    const slotIdsToUse = allSlots || !customSlotIds || customSlotIds.length === 0
+    const availableSlotIds = (slots ?? []).map((s) => s.id);
+    const slotIdsToUse = allSlots
       ? availableSlotIds
-      : customSlotIds.filter((id: string) => availableSlotIds.includes(id));
-
-    if (slotIdsToUse.length === 0) {
-      return actionError("Se requiere al menos una franja horaria válida para asociar disponibilidad.");
-    }
+      : (customSlotIds ?? []).filter((id: string) => availableSlotIds.includes(id));
 
     // 3. Obtener categorías existentes
     const { data: existingCategories, error: catError } = await (supabase as any)

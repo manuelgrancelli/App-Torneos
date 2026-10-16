@@ -128,6 +128,8 @@ export default async function RegistrationsPage({
           canReview={tournament.status === "registration_open"}
           filter={filter}
           categories={categoryOptions}
+          slots={slots}
+          timezone={tournament.timezone}
         />
       </div>
 

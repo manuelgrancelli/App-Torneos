@@ -21,15 +21,12 @@ describe("organizerCreateTeamSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("falla si no hay franjas horarias seleccionadas", () => {
+  it("acepta inscripción sin franjas horarias seleccionadas (disponibilidad vacía)", () => {
     const result = organizerCreateTeamSchema.safeParse({
       ...baseData,
       slotIds: [],
     });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe("Elegí al menos una franja disponible.");
-    }
+    expect(result.success).toBe(true);
   });
 
   it("falla si algún nombre de jugador está vacío", () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Check, Crown, UserRoundX, X, ClipboardList } from "lucide-react";
+import { AlertCircle, CalendarClock, Check, Crown, UserRoundX, X, ClipboardList } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
@@ -19,6 +19,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Spinner } from "@/components/ui/spinner";
 import type { OrganizerTeam, TeamStatus } from "@/lib/data/teams";
 import { cn } from "@/lib/utils";
+import { TeamAvailabilityDialog, type DialogSlot } from "./team-availability-dialog";
 
 type Filter = "all" | TeamStatus;
 
@@ -39,6 +40,8 @@ type RegistrationsListProps = {
   canReview: boolean;
   filter: Filter;
   categories?: { id: string; name: string; maxTeams?: number | null }[];
+  slots?: DialogSlot[];
+  timezone?: string;
 };
 
 function ReviewButtons({
@@ -234,10 +237,23 @@ export function RegistrationsList({
   canReview,
   filter,
   categories,
+  slots = [],
+  timezone = "America/Argentina/Buenos_Aires",
 }: RegistrationsListProps) {
   const router = useRouter();
   const [isToolPending, startToolTransition] = useTransition();
   const [selectedCat, setSelectedCat] = useState<string>("all");
+  const [availabilityTeamId, setAvailabilityTeamId] = useState<string | null>(null);
+
+  const availabilityTeam = useMemo(
+    () => (availabilityTeamId ? teams.find((t) => t.id === availabilityTeamId) ?? null : null),
+    [availabilityTeamId, teams],
+  );
+
+  const availabilityTeamCategoryName = useMemo(() => {
+    if (!availabilityTeam?.categoryId || !categories) return null;
+    return categories.find((c) => c.id === availabilityTeam.categoryId)?.name ?? null;
+  }, [availabilityTeam, categories]);
 
   const categoryNames = useMemo(
     () => new Map((categories ?? []).map((c) => [c.id, c.name])),
@@ -381,9 +397,31 @@ export function RegistrationsList({
                   <TeamStatusBadge status={team.status} />
                   {team.testGenerated ? <Badge variant="secondary">Ficticia</Badge> : null}
                   {team.organizerRegistered ? <Badge variant="outline">Cargada por organizador</Badge> : null}
-                  <Badge variant="outline">
-                    {team.availabilityCount === 0 ? "Sin disponibilidad" : `${team.availabilityCount} franjas`}
-                  </Badge>
+                  <button
+                    type="button"
+                    onClick={() => setAvailabilityTeamId(team.id)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-medium border transition-colors cursor-pointer",
+                      team.availabilityCount === 0
+                        ? "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+                        : "border-border/80 bg-background hover:bg-muted text-foreground hover:border-primary/40",
+                    )}
+                    title="Editar franjas horarias de disponibilidad"
+                    aria-label={`Editar franjas horarias de ${team.name}`}
+                  >
+                    <CalendarClock
+                      className={cn(
+                        "size-3.5 shrink-0",
+                        team.availabilityCount === 0 ? "text-amber-600 dark:text-amber-400" : "text-primary",
+                      )}
+                      aria-hidden="true"
+                    />
+                    <span>
+                      {team.availabilityCount === 0
+                        ? "Elegir franjas"
+                        : `${team.availabilityCount} ${team.availabilityCount === 1 ? "franja" : "franjas"}`}
+                    </span>
+                  </button>
                 </div>
                 {team.testGenerated ? (
                   <p className="text-sm text-muted-foreground">Integrantes ficticios para probar grupos, fixture y cuadro.</p>
@@ -410,14 +448,41 @@ export function RegistrationsList({
                     ))}
                   </ul>
                 )}
-                {canReview && !team.testGenerated ? (
-                  <ReviewButtons tournamentId={tournamentId} team={team} approveDisabledReason={approveDisabledReason} />
-                ) : null}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAvailabilityTeamId(team.id)}
+                    className="h-8 text-xs gap-1.5 border-border/80 hover:border-primary/50"
+                  >
+                    <CalendarClock className="size-3.5 text-primary" aria-hidden="true" />
+                    <span>
+                      {team.availabilityCount === 0 ? "Asignar franjas" : "Modificar franjas"}
+                    </span>
+                  </Button>
+
+                  {canReview && !team.testGenerated ? (
+                    <ReviewButtons tournamentId={tournamentId} team={team} approveDisabledReason={approveDisabledReason} />
+                  ) : null}
+                </div>
               </li>
             );
           })}
         </ul>
       )}
+
+      <TeamAvailabilityDialog
+        tournamentId={tournamentId}
+        timezone={timezone}
+        slots={slots}
+        team={availabilityTeam}
+        categoryName={availabilityTeamCategoryName}
+        open={Boolean(availabilityTeamId)}
+        onOpenChange={(open) => {
+          if (!open) setAvailabilityTeamId(null);
+        }}
+      />
     </div>
   );
 }

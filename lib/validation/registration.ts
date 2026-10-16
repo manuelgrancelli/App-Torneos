@@ -55,9 +55,9 @@ export const organizerCreateTeamSchema = z
       .max(60),
     slotIds: z
       .array(z.uuid())
-      .min(1, { error: "Elegí al menos una franja disponible." })
       .max(1000)
-      .refine((slotIds) => new Set(slotIds).size === slotIds.length, { error: "Hay franjas repetidas." }),
+      .refine((slotIds) => new Set(slotIds).size === slotIds.length, { error: "Hay franjas repetidas." })
+      .default([]),
   })
   .superRefine((data, ctx) => {
     const effectiveTeamName =
@@ -91,6 +91,12 @@ export const assignTournamentTeamsCategorySchema = z.object({
   categoryId: z.uuid(),
 });
 
+export const setTeamAvailabilitySchema = z.object({
+  tournamentId: z.uuid(),
+  teamId: z.uuid(),
+  slotIds: z.array(z.uuid()).max(1000),
+});
+
 export const bulkImportTeamItemSchema = z.object({
   teamName: z.string().trim().min(2, "El nombre de la pareja debe tener al menos 2 caracteres.").max(60),
   playerNames: z.array(z.string().trim().min(1).max(80)).min(1),
@@ -114,6 +120,7 @@ export type UpdateRosterInput = z.input<typeof updateRosterSchema>;
 export type OrganizerCreateTeamInput = z.input<typeof organizerCreateTeamSchema>;
 export type AssignTeamCategoryInput = z.input<typeof assignTeamCategorySchema>;
 export type AssignTournamentTeamsCategoryInput = z.input<typeof assignTournamentTeamsCategorySchema>;
+export type SetTeamAvailabilityInput = z.input<typeof setTeamAvailabilitySchema>;
 export type BulkImportTeamsInput = z.input<typeof bulkImportTeamsSchema>;
 
 /** "demq2-padel " → "DEMQ2PADEL" (igual que normalize_code en la base). */

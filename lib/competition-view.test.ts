@@ -315,6 +315,11 @@ describe("groupStandings", () => {
         isBye: false,
         isThirdPlace: false,
         isWalkover: false,
+        slotId: null,
+        courtId: null,
+        startsAt: null,
+        endsAt: null,
+        scheduleLocked: false,
         resultStatus: "confirmed",
         result: { type: "sets", sets: [{ home: 6, away: 2 }, { home: 6, away: 3 }] },
         nextMatchId: null,
@@ -335,6 +340,11 @@ describe("groupStandings", () => {
         isBye: false,
         isThirdPlace: false,
         isWalkover: false,
+        slotId: null,
+        courtId: null,
+        startsAt: null,
+        endsAt: null,
+        scheduleLocked: false,
         resultStatus: "confirmed",
         result: { type: "sets", sets: [{ home: 6, away: 4 }, { home: 6, away: 3 }] },
         nextMatchId: null,
@@ -356,6 +366,11 @@ describe("groupStandings", () => {
         isBye: true,
         isThirdPlace: false,
         isWalkover: false,
+        slotId: null,
+        courtId: null,
+        startsAt: null,
+        endsAt: null,
+        scheduleLocked: false,
         resultStatus: "confirmed",
         result: null,
         nextMatchId: null,
@@ -377,6 +392,11 @@ describe("groupStandings", () => {
         isBye: false,
         isThirdPlace: false,
         isWalkover: false,
+        slotId: null,
+        courtId: null,
+        startsAt: null,
+        endsAt: null,
+        scheduleLocked: false,
         resultStatus: "confirmed",
         result: { type: "sets", sets: [{ home: 6, away: 0 }, { home: 6, away: 0 }] },
         nextMatchId: null,
@@ -386,7 +406,15 @@ describe("groupStandings", () => {
       },
     ];
 
-    const scoring = { type: "sets" as const, setsToWin: 2, gamesPerSet: 6, tiebreak: true };
+    const scoring = {
+      type: "sets" as const,
+      bestOf: 3 as const,
+      gamesPerSet: 6,
+      tiebreak: true,
+      decidingSet: "full" as const,
+      superTiebreakPoints: 10,
+      superTiebreakUntil: "all" as const,
+    };
     const standingsConfig = { points: { win: 2, draw: 1, loss: 0 }, tiebreakers: ["points", "wins", "set_diff", "game_diff"] as any };
 
     const [result] = groupStandings([group], matches, scoring, standingsConfig);

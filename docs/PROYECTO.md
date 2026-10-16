@@ -1314,6 +1314,28 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** corregir la corrupción del fixture en zonas de 3 donde se asignaban 3 partidos jugados por propagación errónea de Fecha 2 y garantizar que el segundo nombre de las parejas de pádel se pueda leer en su totalidad junto a sus estadísticas detalladas con un toque.
 - **Cómo aplicar:** implementado en `lib/competition-view.ts`, `lib/competition-view.test.ts`, `app/(app)/torneos/[id]/partidos/actions.ts`, `lib/scheduling.ts`, `lib/data/competition.ts`, `components/groups/standings-table.tsx`, `app/(app)/torneos/[id]/grupos/page.tsx` y `app/t/[slug]/page.tsx`.
 
+### D-091 — Carga de parejas sin disponibilidad y asignación individual de franjas por el organizador (2026-10-16)
+- **Decisión:**
+  - **Importación masiva sin disponibilidad inicial:** en `BulkRegistrationDialog`, la opción de disponibilidad completa por defecto se establece en desmarcada (`allSlots = false`), permitiendo al organizador cargar e inscribir la lista completa de parejas directamente desde WhatsApp/mensajes sin franjas asociadas, para luego configurarlas de manera precisa una por una.
+  - **Flexibilidad en esquemas y RPCs:**
+    - Se actualizó la RPC `create_organizer_team` (`supabase/migrations/20261016200000_allow_organizer_manage_team_availability.sql`) y el esquema de validación para aceptar `p_slot_ids = '{}'` (array vacío), permitiendo inscribir parejas aprobadas sin turnos iniciales.
+    - Se actualizó la RPC `set_team_availability` para permitir que el organizador del torneo (`tournaments.organizer_id = auth.uid()`) pueda consultar, asignar, modificar o vaciar las franjas horarias de disponibilidad de cualquier equipo del torneo, tanto en estado de borrador (`draft`) como con la inscripción abierta (`registration_open`) o en progreso.
+    - Se creó la Server Action `setTeamAvailabilityByOrganizer` en `app/(app)/torneos/[id]/inscripciones/actions.ts`.
+  - **Cuadro/Diálogo modal de franjas por pareja (`TeamAvailabilityDialog`):**
+    - En `RegistrationsList` (`components/registration/registrations-list.tsx`), cada tarjeta de pareja inscripta cuenta con:
+      - Un botón-badge interactivo junto a su nombre (`[ 🕒 Elegir franjas ]` en tono ámbar cuando está sin disponibilidad, o `[ 🕒 X franjas ]`).
+      - Un botón de acción dedicado *"Asignar franjas"* / *"Modificar franjas"* en la botonera de la pareja.
+    - Al tocar cualquiera de los dos, se abre el diálogo modal (`TeamAvailabilityDialog`) que:
+      - Muestra el nombre de la pareja, categoría y el desglose de los integrantes de la pareja.
+      - Presenta las franjas del torneo agrupadas por día con formato claro (`formatDayHeading`, `formatTimeRange`).
+      - Permite marcar o desmarcar franjas individuales, días completos ("Todo el día") o usar los botones de acción rápida *"Marcar todas"* y *"Desmarcar todas"*.
+      - Incluye contador de franjas seleccionadas, aviso de cambios pendientes y botón *"Guardar franjas"*, guardando de forma atómica en Supabase con feedback mediante toast y refresco de estado.
+  - **Lectura optimizada de disponibilidad:**
+    - `listTournamentTeams` (`lib/data/teams.ts`) ahora incluye `availabilitySlotIds: string[]` en `OrganizerTeam`, permitiendo que el modal abra con la selección exacta de franjas que tiene cada pareja.
+- **Motivo:** responder al flujo real de torneos donde el organizador define las franjas de juego antes de abrir la inscripción, carga las parejas pegando la lista recibida por WhatsApp sin disponibilidad, y luego va pareja por pareja asignando las franjas específicas en las que cada una puede jugar según lo coordinado privadamente.
+- **Cómo aplicar:** aplicar `supabase/migrations/20261016200000_allow_organizer_manage_team_availability.sql` en el SQL Editor de Supabase.
+
+
 
 
 

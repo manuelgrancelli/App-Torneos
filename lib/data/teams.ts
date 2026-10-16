@@ -134,6 +134,7 @@ export type OrganizerTeam = {
   createdAt: string;
   members: TeamMemberView[];
   availabilityCount: number;
+  availabilitySlotIds: string[];
 };
 
 import { getTournamentCategories } from "./categories";
@@ -144,7 +145,7 @@ export const listTournamentTeams = cache(async (tournamentId: string): Promise<O
   const [{ data, error }, categories] = await Promise.all([
     (supabase as any)
       .from("teams")
-      .select("id, name, status, category_id, test_generated, organizer_registered, created_at, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(count)")
+      .select("id, name, status, category_id, test_generated, organizer_registered, created_at, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(slot_id)")
       .eq("tournament_id", tournamentId)
       .order("created_at"),
     getTournamentCategories(tournamentId),
@@ -153,25 +154,29 @@ export const listTournamentTeams = cache(async (tournamentId: string): Promise<O
 
   const singleCategoryId = categories.length === 1 ? categories[0]!.id : null;
 
-  return data.map((team: Record<string, unknown>) => ({
-    id: team.id as string,
-    name: team.name as string,
-    status: team.status as TeamStatus,
-    categoryId: ((team.category_id as string | null) ?? null) || singleCategoryId,
-    testGenerated: team.test_generated as boolean,
-    organizerRegistered: team.organizer_registered as boolean,
-    createdAt: team.created_at as string,
-    members: ((team.team_members as Parameters<typeof toMember>[0][]) ?? [])
-      .map(toMember)
-      .sort((a, b) =>
-        a.role === b.role
-          ? (a.fullName ?? a.displayName ?? a.email ?? "").localeCompare(b.fullName ?? b.displayName ?? b.email ?? "")
-          : a.role === "captain"
-            ? -1
-            : 1,
-      ),
-    availabilityCount: ((team.team_availability as { count: number }[])?.[0]?.count) ?? 0,
-  }));
+  return data.map((team: Record<string, unknown>) => {
+    const availabilitySlotIds = ((team.team_availability as { slot_id: string }[]) ?? []).map((a) => a.slot_id);
+    return {
+      id: team.id as string,
+      name: team.name as string,
+      status: team.status as TeamStatus,
+      categoryId: ((team.category_id as string | null) ?? null) || singleCategoryId,
+      testGenerated: team.test_generated as boolean,
+      organizerRegistered: team.organizer_registered as boolean,
+      createdAt: team.created_at as string,
+      members: ((team.team_members as Parameters<typeof toMember>[0][]) ?? [])
+        .map(toMember)
+        .sort((a, b) =>
+          a.role === b.role
+            ? (a.fullName ?? a.displayName ?? a.email ?? "").localeCompare(b.fullName ?? b.displayName ?? b.email ?? "")
+            : a.role === "captain"
+              ? -1
+              : 1,
+        ),
+      availabilityCount: availabilitySlotIds.length,
+      availabilitySlotIds,
+    };
+  });
 });
 
 export type AvailabilityMatrix = {
