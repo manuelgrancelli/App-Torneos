@@ -1248,6 +1248,50 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** corregir el error de Next.js en consola al ingresar a la pantalla de partidos o cuadro cuando se auto-generaban los cruces de playoffs.
 - **Cómo aplicar:** implementado en `app/(app)/torneos/[id]/cuadro/actions.ts`, `app/(app)/torneos/[id]/partidos/page.tsx`, y `app/(app)/torneos/[id]/cuadro/page.tsx`.
 
+### D-088 — Importación masiva de parejas y categorías desde listas de WhatsApp / texto plano (2026-10-16)
+- **Decisión:**
+  - Se incorpora la funcionalidad de importación masiva de inscriptos (`BulkRegistrationDialog` en `components/registration/bulk-registration-dialog.tsx`) en la pestaña de Inscripciones del organizador (`/torneos/[id]/inscripciones`).
+  - **Parser inteligente de texto (`lib/domain/roster-parser.ts`):**
+    - Procesa listas copiadas directamente de WhatsApp o mensajes con formato de encabezados de categoría (ej: `*➡️ Suma 10 Caballeros*`, `*➡️ 6ta Caballeros*`, `*➡️ Suma 13 Damas*`, `+10`, `Categoría 7ma`).
+    - Ignora encabezados de fechas/notas de agenda (ej. `*22/23/24 y 25*`) y renglones vacíos o numeraciones sin nombres (ej: `12-`, `13-`, `14-`).
+    - Parsea parejas por renglón con separadores estándar (`/`, `-`, `y`, `&`) limpiando números ordinales o viñetas (`1- `, `2. `, etc.) y extrayendo los 2 nombres individuales de los jugadores.
+    - Asocia automáticamente cada bloque con categorías existentes del torneo o marca la categoría para creación automática si aún no existe.
+  - **Previsualización y control en tiempo real:**
+    - Diálogo modal con área de texto (`Textarea`) y vista previa reactiva instantánea que muestra el total de parejas detectadas por categoría y permite al organizador reasignar bloques a categorías existentes o dejarlas como nuevas divisiones a crear.
+    - Opción para asignar disponibilidad a todas las franjas horarias del torneo por defecto, garantizando que el programador automático (`runAutoSchedule`) pueda agendar los partidos sin conflictos.
+  - **Persistencia atómica y resiliente (`bulkImportTeams` en `inscripciones/actions.ts`):**
+    - Crea automáticamente en `tournament_categories` las categorías faltantes con cupo ilimitado (`max_teams = null` según D-085) y la configuración de puntuación y playoffs recomendada del torneo.
+    - Inscribe y auto-aprueba a cada pareja mediante la RPC `create_organizer_team`.
+    - Resuelve colisiones de nombres idénticos entre categorías agregando el sufijo de la categoría si ya existía un equipo con ese nombre en el torneo.
+    - Revalida el panel del organizador y purga la caché pública con `refreshPublicTournament`.
+- **Motivo:** permitir al organizador cargar decenas de parejas divididas por categoría en 1 clic pegando directamente el mensaje de WhatsApp que recibe de las inscripciones, reduciendo drásticamente el tiempo operativo de carga manual.
+- **Cómo aplicar:** implementado en `lib/domain/roster-parser.ts`, `lib/domain/roster-parser.test.ts`, `lib/validation/registration.ts`, `app/(app)/torneos/[id]/inscripciones/actions.ts`, `components/registration/bulk-registration-dialog.tsx`, y `components/registration/organizer-registration-form.tsx`.
+
+### D-089 — Rediseño responsive mobile-first en fixture, carga de resultados y asignación de horarios (2026-10-16)
+- **Decisión:**
+  - **Filtros de categorías y estado (`components/matches/matches-board.tsx`):**
+    - Se solucionó la superposición de botones de categoría agregando `whitespace-nowrap shrink-0` y habilitando un contenedor de scroll horizontal táctil (`overflow-x-auto pb-1.5 scrollbar-none sm:flex-wrap`), evitando que los nombres largos fuercen saltos de línea que desborden las píldoras de altura fija.
+    - Se aplicó la misma optimización a las pestañas de estado de partidos (`FILTERS`: Todos, Sin horario, Sin resultado, Objetados), manteniendo la barra compacta y accesible desde 360px sin apilamientos verticales excesivos.
+  - **Fila de partido (`MatchRow`) y menú de acciones (3 puntos):**
+    - Se incorporó un botón de acceso directo táctil *"Cargar"* (`ClipboardEdit`) para partidos pendientes de resultado, permitiendo cargar el marcador en 1 solo tap sin obligar a abrir el menú de 3 puntos.
+    - Se amplió el área de toque (`size-10 md:size-8`) del botón de 3 puntos.
+    - En el `DropdownMenuContent`, se fijó `collisionPadding={16}`, ancho legible `w-56` y los ítems pasaron a altura mínima táctil de 44px (`min-h-[44px] py-2.5 px-3`) con íconos identificadores para prevenir toques involuntarios en pantallas táctiles pequeñas.
+    - Si el partido ya tiene resultado, el marcador es interactivo y permite editarlo con un tap directo.
+  - **Diálogo de carga de resultados (`components/matches/result-dialog.tsx`):**
+    - Se incorporó una tarjeta de encabezado con el enfrentamiento visible (*VS Card*), garantizando que los nombres de las parejas/equipos sean 100% legibles sin truncamiento agresivo.
+    - Se rediseñó la grilla de sets: en lugar de 2 columnas comprimidas que desbordaban en pantallas móviles, cada set organiza a las dos parejas en filas horizontales independientes (*Equipo 1* y *Equipo 2*), cada una con su propio stepper numérico táctil (`NumberInput`) a la derecha.
+    - En modalidad W.O., se reemplazó el `ToggleGroup` estrecho por tarjetas de selección táctiles de ancho completo (`min-h-[48px]`) con tilde de confirmación.
+    - En fútbol, los goles y la tanda de penales adoptan el mismo formato por filas con steppers de 40px.
+    - El diálogo cuenta con `max-h-[92dvh] overflow-y-auto` y botones de pie a ancho completo en mobile (`w-full sm:w-auto h-11 sm:h-9`).
+  - **Diálogo de asignación de horario (`components/matches/assign-slot-dialog.tsx`):**
+    - Se adaptó el modal con scroll vertical seguro (`max-h-[92dvh] overflow-y-auto`), selectores `NativeSelect` a ancho completo sin zoom involuntario de iOS y botones de pie táctiles de 44px (`h-11 sm:h-9`).
+  - **Input numérico táctil (`components/shared/number-input.tsx`):**
+    - Los botones de incremento y decremento se ajustaron a `size-10 sm:size-8` (40px táctiles en mobile) respetando la convención de `docs/PROYECTO.md §8`.
+- **Motivo:** corregir los fallos de renderizado en dispositivos móviles donde los botones de categoría colisionaban verticalmente, el menú de 3 puntos resultaba incómodo y el modal de carga de resultados quedaba ilegible y deformado en 360px.
+- **Cómo aplicar:** implementado en `components/matches/matches-board.tsx`, `components/matches/result-dialog.tsx`, `components/matches/assign-slot-dialog.tsx`, y `components/shared/number-input.tsx`.
+
+
+
 
 
 

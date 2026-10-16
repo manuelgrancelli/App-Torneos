@@ -80,14 +80,18 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Horario del partido</DialogTitle>
-          <DialogDescription>{props.title}</DialogDescription>
+      <DialogContent className="max-h-[92dvh] overflow-y-auto w-full sm:max-w-md p-4 sm:p-6">
+        <DialogHeader className="space-y-1 pb-1">
+          <DialogTitle className="text-lg font-bold">Horario del partido</DialogTitle>
+          <DialogDescription className="text-xs sm:text-sm font-medium text-foreground/80 line-clamp-2">
+            {props.title}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <Field>
-            <FieldLabel htmlFor="assign-slot">Franja</FieldLabel>
+            <FieldLabel htmlFor="assign-slot" className="text-xs sm:text-sm font-semibold">
+              Franja horaria
+            </FieldLabel>
             <NativeSelect id="assign-slot" className="w-full" value={slotId} onChange={(e) => setSlotId(e.target.value)}>
               <NativeSelectOption value="">Elegí una franja…</NativeSelectOption>
               {days.map(({ day, slots: daySlots }) => (
@@ -104,7 +108,9 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
           </Field>
           {slot && !slot.courtId ? (
             <Field>
-              <FieldLabel htmlFor="assign-court">Cancha</FieldLabel>
+              <FieldLabel htmlFor="assign-court" className="text-xs sm:text-sm font-semibold">
+                Cancha
+              </FieldLabel>
               <NativeSelect id="assign-court" className="w-full" value={courtId} onChange={(e) => setCourtId(e.target.value)}>
                 {courts.map((c) => (
                   <NativeSelectOption key={c.id} value={c.id}>
@@ -115,21 +121,43 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
             </Field>
           ) : null}
           {check.conflicts.map((conflict) => (
-            <p key={conflict} className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-900" role="alert">
-              <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              {conflict}
+            <p
+              key={conflict}
+              className="flex items-start gap-2 rounded-xl bg-red-500/10 border border-red-500/20 p-3 text-xs sm:text-sm text-red-900 dark:text-red-200"
+              role="alert"
+            >
+              <CircleAlert className="mt-0.5 size-4 shrink-0 text-red-600 dark:text-red-400" aria-hidden="true" />
+              <span>{conflict}</span>
             </p>
           ))}
           {check.warnings.map((warning) => (
-            <p key={warning} className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              {warning}
+            <p
+              key={warning}
+              className="flex items-start gap-2 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs sm:text-sm text-amber-900 dark:text-amber-200"
+            >
+              <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+              <span>{warning}</span>
             </p>
           ))}
         </div>
-        <DialogFooter className="gap-2">
+        <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={isPending}
+            className="w-full sm:w-auto h-11 sm:h-9"
+          >
+            Cancelar
+          </Button>
           {match.slotId ? (
-            <Button type="button" variant="ghost" onClick={() => run(null)} disabled={isPending}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => run(null)}
+              disabled={isPending}
+              className="w-full sm:w-auto h-11 sm:h-9 text-muted-foreground hover:text-destructive"
+            >
               Quitar horario
             </Button>
           ) : null}
@@ -137,6 +165,7 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
             type="button"
             onClick={() => run(slotId)}
             disabled={!slot || check.conflicts.length > 0 || isPending}
+            className="w-full sm:w-auto h-11 sm:h-9 font-semibold"
           >
             {isPending ? <Spinner /> : null}
             Guardar horario

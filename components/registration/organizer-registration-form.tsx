@@ -20,6 +20,8 @@ import {
 import { applyServerErrors } from "@/lib/forms";
 import { organizerCreateTeamSchema, type OrganizerCreateTeamInput } from "@/lib/validation/registration";
 import { cn } from "@/lib/utils";
+import { BulkRegistrationDialog } from "./bulk-registration-dialog";
+
 
 type OrganizerSlot = { id: string; startsAt: string; endsAt: string; courtId: string | null };
 
@@ -118,17 +120,27 @@ export function OrganizerRegistrationForm({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>
-          <h2 className="text-base font-semibold">
-            {isPadel ? "Inscribir pareja manualmente" : "Inscribir desde el panel"}
-          </h2>
-        </CardTitle>
-        <CardDescription>
-          {isPadel
-            ? "Cargá los nombres de los dos integrantes de la pareja (Jugador 1 y Jugador 2) y las franjas horarias en las que pueden jugar. La inscripción queda aprobada automáticamente sin mails ni cuentas."
-            : "Cargá el nombre del equipo, sus integrantes y las franjas en las que pueden jugar. No hace falta ingresar emails. La inscripción queda aprobada automáticamente."}
-        </CardDescription>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+        <div className="space-y-1">
+          <CardTitle>
+            <h2 className="text-base font-semibold">
+              {isPadel ? "Inscribir pareja manualmente" : "Inscribir desde el panel"}
+            </h2>
+          </CardTitle>
+          <CardDescription>
+            {isPadel
+              ? "Cargá los nombres de los dos integrantes de la pareja (Jugador 1 y Jugador 2) y las franjas horarias en las que pueden jugar. La inscripción queda aprobada automáticamente sin mails ni cuentas."
+              : "Cargá el nombre del equipo, sus integrantes y las franjas en las que pueden jugar. No hace falta ingresar emails. La inscripción queda aprobada automáticamente."}
+          </CardDescription>
+        </div>
+
+        <div className="shrink-0">
+          <BulkRegistrationDialog
+            tournamentId={tournamentId}
+            categories={categories ?? []}
+            slotCount={slots.length}
+          />
+        </div>
       </CardHeader>
       <CardContent>
         {slots.length === 0 ? (

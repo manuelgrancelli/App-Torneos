@@ -106,7 +106,7 @@ function MatchRow({
   }
 
   return (
-    <li className="flex items-start gap-3 px-3 py-3" data-testid="match-row">
+    <li className="flex items-start gap-2.5 sm:gap-3 p-3 sm:px-4" data-testid="match-row">
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
           {match.categoryName ? (
@@ -116,8 +116,12 @@ function MatchRow({
           ) : null}
           <span className="text-[11px] font-medium text-muted-foreground">{match.section}</span>
         </div>
-        <p className={cn("truncate text-sm", homeWon && "font-semibold")}>{match.homeName}</p>
-        <p className={cn("truncate text-sm", awayWon && "font-semibold")}>{match.awayName}</p>
+        <p className={cn("text-xs sm:text-sm leading-snug line-clamp-1", homeWon && "font-bold text-foreground")}>
+          {match.homeName}
+        </p>
+        <p className={cn("text-xs sm:text-sm leading-snug line-clamp-1", awayWon && "font-bold text-foreground")}>
+          {match.awayName}
+        </p>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-xs text-muted-foreground">
           {match.startsAt && match.endsAt ? (
             <span className="inline-flex flex-wrap items-center gap-x-1.5">
@@ -130,49 +134,98 @@ function MatchRow({
               {match.scheduleLocked ? <Lock className="size-3" aria-label="Horario fijado a mano" /> : null}
             </span>
           ) : ready && !match.result ? (
-            <Badge variant="secondary" className="bg-amber-100 text-amber-900">Sin horario</Badge>
+            <Badge variant="secondary" className="bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200 text-[11px]">
+              Sin horario
+            </Badge>
           ) : null}
-          {match.resultStatus === "provisional" ? <Badge variant="outline">A confirmar</Badge> : null}
+          {match.resultStatus === "provisional" ? <Badge variant="outline" className="text-[11px]">A confirmar</Badge> : null}
           {match.resultStatus === "disputed" ? (
-            <Badge variant="secondary" className="bg-red-100 text-red-900">
-              <TriangleAlert aria-hidden="true" />
+            <Badge variant="secondary" className="bg-red-100 text-red-900 dark:bg-red-950/60 dark:text-red-200 text-[11px]">
+              <TriangleAlert className="size-3" aria-hidden="true" />
               Objetado
             </Badge>
           ) : null}
         </div>
         {match.disputes.map((comment, i) => (
-          <p key={i} className="rounded bg-red-50 px-2 py-1 text-xs text-red-900">&quot;{comment}&quot;</p>
+          <p key={i} className="rounded bg-red-50 p-2 text-xs text-red-900 dark:bg-red-950/40 dark:text-red-200">&quot;{comment}&quot;</p>
         ))}
       </div>
-      <div className="flex shrink-0 items-start gap-1">
-        <span className="pt-0.5 text-right text-sm font-medium tabular-nums">{match.resultText ?? "—"}</span>
+      <div className="flex shrink-0 items-center gap-1 sm:gap-1.5 self-center">
+        {match.resultText ? (
+          <button
+            type="button"
+            onClick={canEdit && ready ? onResult : undefined}
+            disabled={!canEdit || !ready}
+            title={canEdit && ready ? "Editar resultado" : undefined}
+            className={cn(
+              "rounded-md px-2 py-1 text-right tabular-nums text-xs sm:text-sm font-bold transition-colors",
+              canEdit && ready
+                ? "hover:bg-muted text-foreground cursor-pointer"
+                : "text-foreground",
+            )}
+          >
+            {match.resultText}
+          </button>
+        ) : canEdit && ready ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onResult}
+            className="h-8 px-2.5 text-xs font-semibold text-primary border-primary/40 hover:bg-primary/10 hover:text-primary shrink-0 gap-1"
+          >
+            <ClipboardEdit className="size-3.5" aria-hidden="true" />
+            <span>Cargar</span>
+          </Button>
+        ) : (
+          <span className="text-sm text-muted-foreground tabular-nums px-2">—</span>
+        )}
+
         {canEdit && ready ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label={`Acciones: ${match.homeName} vs ${match.awayName}`}>
-                <MoreVertical aria-hidden="true" />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-10 md:size-8 shrink-0 text-muted-foreground hover:text-foreground touch-manipulation"
+                aria-label={`Acciones: ${match.homeName} vs ${match.awayName}`}
+              >
+                <MoreVertical className="size-4" aria-hidden="true" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={onResult}>
-                <ClipboardEdit aria-hidden="true" />
+            <DropdownMenuContent align="end" sideOffset={6} collisionPadding={16} className="w-56 p-1.5 shadow-xl border border-border/80">
+              <DropdownMenuItem
+                onSelect={onResult}
+                className="min-h-[44px] py-2.5 px-3 text-sm font-medium gap-3 rounded-lg flex items-center cursor-pointer"
+              >
+                <ClipboardEdit className="size-4 shrink-0 text-primary" aria-hidden="true" />
                 {match.result ? "Editar resultado" : "Cargar resultado"}
               </DropdownMenuItem>
               {!match.result ? (
-                <DropdownMenuItem onSelect={onSchedule}>
-                  <CalendarClock aria-hidden="true" />
+                <DropdownMenuItem
+                  onSelect={onSchedule}
+                  className="min-h-[44px] py-2.5 px-3 text-sm font-medium gap-3 rounded-lg flex items-center cursor-pointer"
+                >
+                  <CalendarClock className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                   {match.slotId ? "Cambiar horario" : "Asignar horario"}
                 </DropdownMenuItem>
               ) : null}
               {match.result && match.resultStatus !== "confirmed" ? (
-                <DropdownMenuItem onSelect={confirm}>
-                  <CheckCheck aria-hidden="true" />
+                <DropdownMenuItem
+                  onSelect={confirm}
+                  className="min-h-[44px] py-2.5 px-3 text-sm font-medium gap-3 rounded-lg flex items-center cursor-pointer"
+                >
+                  <CheckCheck className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
                   Confirmar resultado
                 </DropdownMenuItem>
               ) : null}
               {match.result ? (
-                <DropdownMenuItem variant="destructive" onSelect={onClear}>
-                  <Eraser aria-hidden="true" />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={onClear}
+                  className="min-h-[44px] py-2.5 px-3 text-sm font-medium gap-3 rounded-lg flex items-center cursor-pointer text-destructive focus:text-destructive"
+                >
+                  <Eraser className="size-4 shrink-0 text-destructive" aria-hidden="true" />
                   Borrar resultado
                 </DropdownMenuItem>
               ) : null}
@@ -253,40 +306,64 @@ export function MatchesBoard(props: MatchesBoardProps) {
   return (
     <div className="space-y-4">
       {availableCategories.length > 1 ? (
-        <div className="flex flex-wrap items-center gap-1.5 pb-1">
-          <span className="text-xs font-medium text-muted-foreground mr-1">Categoría:</span>
-          <button
-            type="button"
-            onClick={() => setCategoryFilter("all")}
-            className={cn(
-              "inline-flex h-7 items-center rounded-full border px-3 text-xs transition-colors",
-              categoryFilter === "all"
-                ? "border-primary bg-primary text-primary-foreground font-medium shadow-sm"
-                : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between px-0.5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Categorías
+            </span>
+            {categoryFilter !== "all" ? (
+              <button
+                type="button"
+                onClick={() => setCategoryFilter("all")}
+                className="text-xs text-primary hover:underline font-medium"
+              >
+                Ver todas ({props.matches.length})
+              </button>
+            ) : null}
+          </div>
+          <div
+            role="region"
+            aria-label="Filtrar por categoría"
+            tabIndex={0}
+            className="flex items-center gap-1.5 overflow-x-auto pb-1.5 pt-0.5 scrollbar-none -mx-1 px-1 sm:mx-0 sm:px-0 sm:flex-wrap"
           >
-            Todas ({props.matches.length})
-          </button>
-          {availableCategories.map((cat) => (
             <button
-              key={cat}
               type="button"
-              onClick={() => setCategoryFilter(cat)}
+              onClick={() => setCategoryFilter("all")}
               className={cn(
-                "inline-flex h-7 items-center rounded-full border px-3 text-xs transition-colors",
-                categoryFilter === cat
-                  ? "border-primary bg-primary text-primary-foreground font-medium shadow-sm"
-                  : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+                "inline-flex h-8 items-center rounded-full border px-3.5 text-xs font-medium whitespace-nowrap shrink-0 transition-all active:scale-95",
+                categoryFilter === "all"
+                  ? "border-primary bg-primary text-primary-foreground font-semibold shadow-xs"
+                  : "border-border/80 bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
-              {cat} ({props.matches.filter((m) => m.categoryName === cat).length})
+              Todas ({props.matches.length})
             </button>
-          ))}
+            {availableCategories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setCategoryFilter(cat)}
+                className={cn(
+                  "inline-flex h-8 items-center rounded-full border px-3.5 text-xs font-medium whitespace-nowrap shrink-0 transition-all active:scale-95",
+                  categoryFilter === cat
+                    ? "border-primary bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "border-border/80 bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {cat} ({props.matches.filter((m) => m.categoryName === cat).length})
+              </button>
+            ))}
+          </div>
         </div>
       ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div role="tablist" aria-label="Filtrar partidos" className="flex flex-wrap gap-2">
+        <div
+          role="tablist"
+          aria-label="Filtrar partidos"
+          className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1 sm:mx-0 sm:px-0 sm:flex-wrap"
+        >
           {FILTERS.map((f) => (
             <button
               key={f.value}
@@ -295,22 +372,24 @@ export function MatchesBoard(props: MatchesBoardProps) {
               aria-selected={filter === f.value}
               onClick={() => setFilter(f.value)}
               className={cn(
-                "inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-xs font-medium transition-colors md:h-8",
-                filter === f.value ? "border-foreground bg-foreground text-background" : "hover:bg-muted text-muted-foreground hover:text-foreground",
+                "inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-xs font-medium whitespace-nowrap shrink-0 transition-colors md:h-8",
+                filter === f.value
+                  ? "border-foreground bg-foreground text-background font-semibold shadow-xs"
+                  : "border-border/70 bg-card/60 hover:bg-muted text-muted-foreground hover:text-foreground",
               )}
             >
-              {f.label} <span className="tabular-nums opacity-70">{counts[f.value]}</span>
+              {f.label} <span className="tabular-nums opacity-75 font-semibold">({counts[f.value]})</span>
             </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-1 rounded-lg border bg-muted/40 p-1 text-xs self-start sm:self-auto">
+        <div className="flex items-center gap-1 rounded-lg border bg-muted/40 p-1 text-xs self-start sm:self-auto shrink-0">
           <button
             type="button"
             onClick={() => setViewMode("schedule")}
             aria-pressed={viewMode === "schedule"}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-all",
+              "inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 font-medium transition-all",
               viewMode === "schedule"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
@@ -324,7 +403,7 @@ export function MatchesBoard(props: MatchesBoardProps) {
             onClick={() => setViewMode("stage")}
             aria-pressed={viewMode === "stage"}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-all",
+              "inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 font-medium transition-all",
               viewMode === "stage"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground",

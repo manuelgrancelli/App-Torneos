@@ -7,6 +7,7 @@ import { dbErrorMessage } from "@/lib/supabase/errors";
 import {
   assignTeamCategorySchema,
   assignTournamentTeamsCategorySchema,
+  bulkImportTeamsSchema,
   organizerCreateTeamSchema,
   reviewRegistrationSchema,
   tournamentRegistrationActionSchema,
@@ -103,3 +104,156 @@ export const assignAllUnassignedTeams = createAction(
     );
   },
 );
+
+/**
+ * Importa por lotes parejas organizadas por categoría desde texto (WhatsApp / planillas).
+ * Crea automáticamente las categorías que no existan y registra a cada pareja con sus jugadores
+ * y disponibilidad.
+ */
+export const bulkImportTeams = createAction(
+  bulkImportTeamsSchema,
+  async ({ tournamentId, allSlots, customSlotIds, blocks }, { supabase, userId }) => {
+    // 1. Verificar torneo y organizador
+    const { data: tourney, error: tourError } = await supabase
+      .from("tournaments")
+      .select("id, organizer_id, status, max_teams, scoring_config, standings_config, playoff_config")
+      .eq("id", tournamentId)
+      .maybeSingle();
+
+    if (tourError || !tourney) return actionError("No encontramos el torneo.");
+    if (tourney.organizer_id !== userId) return actionError("No tenés permiso para inscribir equipos en este torneo.");
+    if (tourney.status !== "registration_open") {
+      return actionError("La inscripción de este torneo no está abierta. Abrí la inscripción antes de importar.");
+    }
+
+    // 2. Obtener franjas horarias
+    const { data: slots, error: slotsError } = await supabase
+      .from("time_slots")
+      .select("id")
+      .eq("tournament_id", tournamentId);
+
+    if (slotsError) return actionError(dbErrorMessage(slotsError));
+    if (!slots || slots.length === 0) {
+      return actionError("El torneo no tiene franjas horarias cargadas. Creá las canchas y franjas antes de importar.");
+    }
+
+    const availableSlotIds = slots.map((s) => s.id);
+    const slotIdsToUse = allSlots || !customSlotIds || customSlotIds.length === 0
+      ? availableSlotIds
+      : customSlotIds.filter((id: string) => availableSlotIds.includes(id));
+
+    if (slotIdsToUse.length === 0) {
+      return actionError("Se requiere al menos una franja horaria válida para asociar disponibilidad.");
+    }
+
+    // 3. Obtener categorías existentes
+    const { data: existingCategories, error: catError } = await (supabase as any)
+      .from("tournament_categories")
+      .select("id, name, position, status")
+      .eq("tournament_id", tournamentId)
+      .order("position", { ascending: false });
+
+    if (catError) return actionError(dbErrorMessage(catError));
+
+    const currentCats = [...(existingCategories ?? [])];
+    let createdCategoriesCount = 0;
+    let importedTeamsCount = 0;
+    const skippedTeams: { teamName: string; reason: string }[] = [];
+
+    // 4. Procesar cada categoría y sus parejas
+    for (const block of blocks) {
+      let targetCategoryId = block.categoryId ?? null;
+
+      // Si no viene ID de categoría, buscar por nombre o crearla
+      if (!targetCategoryId) {
+        const found = currentCats.find(
+          (c) => c.name.trim().toLowerCase() === block.categoryName.trim().toLowerCase(),
+        );
+
+        if (found) {
+          targetCategoryId = found.id;
+        } else {
+          // Crear categoría automáticamente
+          const nextPos = (currentCats[0]?.position ?? -1) + 1;
+          const { data: newCat, error: newCatError } = await (supabase as any)
+            .from("tournament_categories")
+            .insert({
+              tournament_id: tournamentId,
+              name: block.categoryName.trim(),
+              max_teams: null, // Sin límite prefijado según D-085
+              position: nextPos,
+              status: "registration_open",
+              scoring_config: tourney.scoring_config,
+              standings_config: tourney.standings_config,
+              playoff_config: tourney.playoff_config,
+            })
+            .select("id, name, position, status")
+            .single();
+
+          if (newCatError) {
+            console.error("[bulkImportTeams createCategory error]:", newCatError);
+            return actionError(`Error al crear la categoría "${block.categoryName}": ${dbErrorMessage(newCatError)}`);
+          }
+
+          targetCategoryId = newCat.id;
+          currentCats.unshift(newCat);
+          createdCategoriesCount++;
+        }
+      }
+
+      // Inscribir cada pareja de este bloque
+      for (const team of block.teams) {
+        let teamName = team.teamName.trim();
+        let { error: teamError } = await (supabase.rpc as any)("create_organizer_team", {
+          p_tournament_id: tournamentId,
+          p_team_name: teamName,
+          p_player_names: team.playerNames,
+          p_slot_ids: slotIdsToUse,
+          p_category_id: targetCategoryId,
+        });
+
+        // Si ya hay un equipo con ese nombre exacto, reintentar agregando el nombre de la categoría como diferenciador
+        if (teamError && teamError.message?.includes("Ya hay un equipo con ese nombre")) {
+          const alternateName = `${teamName} (${block.categoryName.trim()})`.slice(0, 60);
+          const retry = await (supabase.rpc as any)("create_organizer_team", {
+            p_tournament_id: tournamentId,
+            p_team_name: alternateName,
+            p_player_names: team.playerNames,
+            p_slot_ids: slotIdsToUse,
+            p_category_id: targetCategoryId,
+          });
+          teamError = retry.error;
+          if (!teamError) teamName = alternateName;
+        }
+
+        if (teamError) {
+          skippedTeams.push({
+            teamName,
+            reason: dbErrorMessage(teamError),
+          });
+        } else {
+          importedTeamsCount++;
+        }
+      }
+    }
+
+    revalidatePath(`/torneos/${tournamentId}`, "layout");
+    revalidatePath(`/torneos/${tournamentId}/inscripciones`);
+    revalidatePath(`/torneos/${tournamentId}/categorias`);
+    refreshPublicTournament(tournamentId);
+
+    const message = `Se importaron ${importedTeamsCount} ${importedTeamsCount === 1 ? "pareja" : "parejas"}${
+      createdCategoriesCount > 0 ? ` y se crearon ${createdCategoriesCount} ${createdCategoriesCount === 1 ? "categoría nueva" : "categorías nuevas"}` : ""
+    }.${skippedTeams.length > 0 ? ` (${skippedTeams.length} no se pudieron ingresar por coincidencia de nombre o cupo).` : ""}`;
+
+    return actionOk(
+      {
+        importedTeamsCount,
+        createdCategoriesCount,
+        skippedTeams,
+      },
+      message,
+    );
+  },
+);
+

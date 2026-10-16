@@ -91,13 +91,33 @@ export const assignTournamentTeamsCategorySchema = z.object({
   categoryId: z.uuid(),
 });
 
+export const bulkImportTeamItemSchema = z.object({
+  teamName: z.string().trim().min(2, "El nombre de la pareja debe tener al menos 2 caracteres.").max(60),
+  playerNames: z.array(z.string().trim().min(1).max(80)).min(1),
+});
+
+export const bulkImportCategoryBlockSchema = z.object({
+  categoryName: z.string().trim().min(1, "El nombre de la categoría es requerido.").max(60),
+  categoryId: z.string().uuid().nullable().optional(),
+  teams: z.array(bulkImportTeamItemSchema).min(1, "Debe haber al menos 1 pareja en la categoría."),
+});
+
+export const bulkImportTeamsSchema = z.object({
+  tournamentId: z.uuid(),
+  allSlots: z.boolean().default(true),
+  customSlotIds: z.array(z.uuid()).optional(),
+  blocks: z.array(bulkImportCategoryBlockSchema).min(1, "No se detectaron categorías con parejas para importar."),
+});
+
 export type RegisterTeamInput = z.input<typeof registerTeamSchema>;
 export type UpdateRosterInput = z.input<typeof updateRosterSchema>;
 export type OrganizerCreateTeamInput = z.input<typeof organizerCreateTeamSchema>;
 export type AssignTeamCategoryInput = z.input<typeof assignTeamCategorySchema>;
 export type AssignTournamentTeamsCategoryInput = z.input<typeof assignTournamentTeamsCategorySchema>;
+export type BulkImportTeamsInput = z.input<typeof bulkImportTeamsSchema>;
 
 /** "demq2-padel " → "DEMQ2PADEL" (igual que normalize_code en la base). */
 export function normalizeInviteCode(code: string): string {
   return code.replace(/[^a-z0-9]/gi, "").toUpperCase();
 }
+
