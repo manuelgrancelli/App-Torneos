@@ -51,7 +51,13 @@ export type ConfirmationView = {
 };
 
 export type Competition = {
-  teams: { id: string; name: string; status: Tables<"teams">["status"]; categoryId?: string | null }[];
+  teams: {
+    id: string;
+    name: string;
+    status: Tables<"teams">["status"];
+    categoryId?: string | null;
+    members?: { id: string; name: string }[];
+  }[];
   groups: GroupView[];
   matches: MatchView[];
   confirmations: ConfirmationView[];
@@ -91,7 +97,11 @@ export function toMatchView(m: Tables<"matches">): MatchView {
 export const getCompetition = cache(async (tournamentId: string): Promise<Competition> => {
   const supabase = await createClient();
   const [teams, groups, matches, confirmations, categories] = await Promise.all([
-    supabase.from("teams").select("*, team_members(id)").eq("tournament_id", tournamentId).order("name"),
+    supabase
+      .from("teams")
+      .select("*, team_members(id, display_name, email, profiles(full_name))")
+      .eq("tournament_id", tournamentId)
+      .order("name"),
     supabase
       .from("tournament_groups")
       .select("*, group_teams(team_id, position)")
@@ -114,12 +124,25 @@ export const getCompetition = cache(async (tournamentId: string): Promise<Compet
   const singleCategoryId = categories.length === 1 ? categories[0]!.id : null;
 
   return {
-    teams: (teams.data ?? []).map((t: Record<string, unknown>) => ({
-      id: t.id as string,
-      name: t.name as string,
-      status: t.status as Tables<"teams">["status"],
-      categoryId: ((t.category_id as string | null) ?? null) || singleCategoryId,
-    })),
+    teams: (teams.data ?? []).map((t: Record<string, unknown>) => {
+      const rawMembers = (t.team_members as Array<{
+        id: string;
+        display_name: string | null;
+        email: string | null;
+        profiles: { full_name: string | null } | null;
+      }>) ?? [];
+      const members = rawMembers.map((m) => ({
+        id: m.id,
+        name: m.profiles?.full_name || m.display_name || m.email || "Jugador",
+      }));
+      return {
+        id: t.id as string,
+        name: t.name as string,
+        status: t.status as Tables<"teams">["status"],
+        categoryId: ((t.category_id as string | null) ?? null) || singleCategoryId,
+        members,
+      };
+    }),
     groups: (groups.data ?? []).map((g: Record<string, unknown>) => ({
       id: g.id as string,
       categoryId: (g.category_id as string | null) ?? null,

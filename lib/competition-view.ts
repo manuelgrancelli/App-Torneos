@@ -21,7 +21,14 @@ export function groupStandings(
     rows: computeStandings({
       teamIds: group.teamIds,
       matches: matches
-        .filter((m) => m.groupId === group.id && m.homeTeamId && m.awayTeamId)
+        .filter(
+          (m) =>
+            m.stage === "group" &&
+            m.groupId === group.id &&
+            m.homeTeamId &&
+            m.awayTeamId &&
+            !m.isBye,
+        )
         .map((m) => ({
           homeTeamId: m.homeTeamId as string,
           awayTeamId: m.awayTeamId as string,
@@ -180,6 +187,8 @@ export function buildBoardMatches(
     .filter((m) => !m.isBye)
     .map((m) => {
       const rounds = m.stage === "playoff" ? (categoryRoundsMap.get(m.categoryId ?? null) ?? globalRounds) : globalRounds;
+      const group = m.groupId ? groups.find((g) => g.id === m.groupId) : undefined;
+      const is4TeamGroup = group && group.teamIds.length === 4;
       return {
         id: m.id,
         categoryId: m.categoryId ?? null,
@@ -193,14 +202,14 @@ export function buildBoardMatches(
         awayTeamId: m.awayTeamId,
         homeName: m.homeTeamId
           ? (teamNames.get(m.homeTeamId) ?? "Equipo")
-          : m.stage === "group" && m.round === 2
+          : is4TeamGroup && m.stage === "group" && m.round === 2
             ? m.position === 0
               ? "Ganador P1"
               : "Perdedor P1"
             : "A definir",
         awayName: m.awayTeamId
           ? (teamNames.get(m.awayTeamId) ?? "Equipo")
-          : m.stage === "group" && m.round === 2
+          : is4TeamGroup && m.stage === "group" && m.round === 2
             ? m.position === 0
               ? "Ganador P2"
               : "Perdedor P2"
@@ -404,7 +413,9 @@ export function buildProjectedBracket(
     const rawLetter = group.name.replace(/grupo\s*/i, "").trim();
     const groupLetter = (rawLetter.length <= 2 ? rawLetter : "") || String.fromCharCode(65 + g);
     const groupStanding = standings[g];
-    const groupMatches = matches.filter((m) => m.groupId === group.id);
+    const groupMatches = matches.filter(
+      (m) => m.stage === "group" && m.groupId === group.id && !m.isBye,
+    );
     const groupFinished = groupMatches.length > 0 && groupMatches.every((m) => m.resultStatus !== null);
     const effectivePerGroup = groupEffectiveQualifiers(group);
 

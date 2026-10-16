@@ -196,6 +196,8 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
                               ? 2
                               : (activeCategory?.playoffConfig?.qualifiersPerGroup ?? tournament.playoffConfig.qualifiersPerGroup)
                         }
+                        matches={filteredMatches}
+                        groupId={group.id}
                       />
                     ),
                   )}

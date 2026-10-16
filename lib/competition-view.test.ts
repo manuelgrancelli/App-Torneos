@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareMatchesChronological, buildBoardMatches, matchStageLabel, qualifiersFromStandings } from "./competition-view";
+import { compareMatchesChronological, buildBoardMatches, groupStandings, matchStageLabel, qualifiersFromStandings } from "./competition-view";
 import type { MatchView, GroupView, ConfirmationView } from "@/lib/data/competition";
 import type { StandingRow } from "@/lib/domain/standings";
 
@@ -289,4 +289,115 @@ describe("qualifiersFromStandings", () => {
     expect(qualifiers).toHaveLength(3);
   });
 });
+
+describe("groupStandings", () => {
+  it("solo contabiliza partidos de stage === 'group' y excluye byes y playoffs", () => {
+    const group: GroupView = {
+      id: "g1",
+      name: "Zona A",
+      position: 0,
+      teamIds: ["t1", "t2", "t3"],
+      tiebreakSeed: 0,
+    };
+
+    const matches: MatchView[] = [
+      // 2 partidos de fase de grupos para t1: ganó ambos (2 PJ, 2 PG)
+      {
+        id: "m1",
+        stage: "group",
+        groupId: "g1",
+        round: 1,
+        position: 0,
+        homeTeamId: "t1",
+        awayTeamId: "t2",
+        winnerTeamId: "t1",
+        isDraw: false,
+        isBye: false,
+        isThirdPlace: false,
+        isWalkover: false,
+        resultStatus: "confirmed",
+        result: { type: "sets", sets: [{ home: 6, away: 2 }, { home: 6, away: 3 }] },
+        nextMatchId: null,
+        nextMatchSide: null,
+        loserNextMatchId: null,
+        loserNextMatchSide: null,
+      },
+      {
+        id: "m2",
+        stage: "group",
+        groupId: "g1",
+        round: 2,
+        position: 0,
+        homeTeamId: "t1",
+        awayTeamId: "t3",
+        winnerTeamId: "t1",
+        isDraw: false,
+        isBye: false,
+        isThirdPlace: false,
+        isWalkover: false,
+        resultStatus: "confirmed",
+        result: { type: "sets", sets: [{ home: 6, away: 4 }, { home: 6, away: 3 }] },
+        nextMatchId: null,
+        nextMatchSide: null,
+        loserNextMatchId: null,
+        loserNextMatchSide: null,
+      },
+      // Partido de playoff: Bye en cuartos (no debe sumarse a la fase de grupos)
+      {
+        id: "m_bye",
+        stage: "playoff",
+        groupId: null,
+        round: 1,
+        position: 0,
+        homeTeamId: "t1",
+        awayTeamId: null,
+        winnerTeamId: "t1",
+        isDraw: false,
+        isBye: true,
+        isThirdPlace: false,
+        isWalkover: false,
+        resultStatus: "confirmed",
+        result: null,
+        nextMatchId: null,
+        nextMatchSide: null,
+        loserNextMatchId: null,
+        loserNextMatchSide: null,
+      },
+      // Partido de playoff con resultado (no debe sumarse a la fase de grupos)
+      {
+        id: "m_playoff",
+        stage: "playoff",
+        groupId: "g1" as any, // incluso si erróneamente tuviera groupId
+        round: 2,
+        position: 0,
+        homeTeamId: "t1",
+        awayTeamId: "t4",
+        winnerTeamId: "t1",
+        isDraw: false,
+        isBye: false,
+        isThirdPlace: false,
+        isWalkover: false,
+        resultStatus: "confirmed",
+        result: { type: "sets", sets: [{ home: 6, away: 0 }, { home: 6, away: 0 }] },
+        nextMatchId: null,
+        nextMatchSide: null,
+        loserNextMatchId: null,
+        loserNextMatchSide: null,
+      },
+    ];
+
+    const scoring = { type: "sets" as const, setsToWin: 2, gamesPerSet: 6, tiebreak: true };
+    const standingsConfig = { points: { win: 2, draw: 1, loss: 0 }, tiebreakers: ["points", "wins", "set_diff", "game_diff"] as any };
+
+    const [result] = groupStandings([group], matches, scoring, standingsConfig);
+    const rowT1 = result?.rows.find((r: StandingRow) => r.teamId === "t1");
+
+    expect(rowT1).toBeDefined();
+    // t1 debe tener EXACTAMENTE 2 partidos jugados y 2 ganados (nunca 3 ni 4)
+    expect(rowT1?.played).toBe(2);
+    expect(rowT1?.won).toBe(2);
+    expect(rowT1?.points).toBe(4);
+  });
+});
+
 

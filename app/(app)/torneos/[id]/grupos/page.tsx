@@ -83,6 +83,13 @@ export default async function GroupsPage({
     categoryStandings
   );
 
+  const teamMembersMap: Record<string, string[]> = {};
+  for (const t of competition.teams) {
+    if (t.members && t.members.length > 0) {
+      teamMembersMap[t.id] = t.members.map((m) => m.name);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {hasCategories ? (
@@ -187,6 +194,7 @@ export default async function GroupsPage({
                 title={group.name}
                 rows={rows}
                 teamNames={teamNames}
+                teamMembers={teamMembersMap}
                 scoringType={categoryScoring.type}
                 qualifiers={
                   group.teamIds.length === 4
@@ -195,6 +203,8 @@ export default async function GroupsPage({
                       ? 2
                       : categoryPlayoff.qualifiersPerGroup
                 }
+                matches={matches}
+                groupId={group.id}
               />
             ))}
           </div>

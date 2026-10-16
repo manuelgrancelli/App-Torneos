@@ -1294,6 +1294,26 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** corregir los fallos de renderizado en dispositivos móviles donde los botones de categoría colisionaban verticalmente, el menú de 3 puntos resultaba incómodo, el modal de carga de resultados quedaba ilegible y, al guardar, la pantalla se desplazaba indeseadamente hacia la derecha.
 - **Cómo aplicar:** implementado en `components/matches/matches-board.tsx`, `components/matches/result-dialog.tsx`, `components/matches/assign-slot-dialog.tsx`, `components/shared/number-input.tsx`, `components/ui/dialog.tsx`, `components/ui/alert-dialog.tsx`, `app/globals.css`, y `app/(app)/layout.tsx`.
 
+### D-090 — Aislamiento estricto de estadísticas en fase de grupos y modal interactivo de integrantes (2026-10-16)
+- **Decisión:**
+  - **Aislamiento estricto de partidos de fase de grupos (`lib/competition-view.ts`):**
+    - Se actualizó `groupStandings` para filtrar explícitamente `m.stage === "group" && m.groupId === group.id && m.homeTeamId && m.awayTeamId && !m.isBye`.
+    - Se asegura que ningún partido eliminatorio de playoffs (cuartos, semifinales, etc.) ni partidos definidos por BYE afecten o incrementen las estadísticas (`played`, `won`, `lost`, `points`, sets o games) de la tabla de posiciones de grupos.
+    - Se blindó `buildProjectedBracket` para considerar únicamente partidos de grupos reales (`stage === 'group' && !isBye`).
+  - **Corrección de propagación en fase de grupos (`app/(app)/torneos/[id]/partidos/actions.ts` y `lib/scheduling.ts`):**
+    - En `recordResult`, `clearResult` y `simulateResults`, se condicionó la propagación y limpieza dinámica de la Fecha 2 (`round === 2`) a que el grupo tenga exactamente 4 parejas (`count === 4`).
+    - En grupos de 3 parejas (o de tamaños distintos a 4 que disputan round-robin todos contra todos según las tablas de Berger), la Fecha 2 tiene cruces predefinidos. Anteriormente, la acción sobrescribía indebidamente el cruce de Fecha 2 con el ganador de la Fecha 1, provocando que un equipo jugara 3 partidos en lugar de 2 en una zona de 3.
+    - En `lib/scheduling.ts`, se ajustó la dependencia de franjas horarias de Fecha 2 para aplicar únicamente en grupos de 4 parejas.
+  - **Modal interactivo de integrantes y estadísticas en fase de grupos (`components/groups/standings-table.tsx`):**
+    - En la vista de fase de grupos (panel del organizador `/torneos/[id]/grupos` y pública `/t/[slug]`), al tocar cualquier pareja de la tabla se abre un diálogo modal (`Dialog` accesible, mobile-friendly) con:
+      - Título con el nombre de la pareja y badge con la posición y grupo (resaltando si clasifica).
+      - Sección de **Integrantes de la pareja**: nombres completos individuales de ambos jugadores (Jugador 1 y Jugador 2), resolviendo el truncamiento visual de pantallas móviles.
+      - Sección de **Estadísticas completas**: tarjetas con Puntos, Partidos Jugados (PJ), Ganados (PG), Perdidos (PP), Sets a favor/contra/diferencia (DS) y Games a favor/contra/diferencia (DG) o Goles (en fútbol).
+      - Sección de **Partidos en el grupo**: lista de encuentros disputados por esa pareja con fecha, rival y resultado detallado por sets.
+    - Se enriqueció `getCompetition` (`lib/data/competition.ts`) para incluir `team_members` con `profiles(full_name)` de cada equipo. En vistas públicas o parejas sin miembros registrados, el componente parsea y extrae los 2 nombres automáticamente a partir de los separadores (`/`, `-`, `y`).
+- **Motivo:** corregir la corrupción del fixture en zonas de 3 donde se asignaban 3 partidos jugados por propagación errónea de Fecha 2 y garantizar que el segundo nombre de las parejas de pádel se pueda leer en su totalidad junto a sus estadísticas detalladas con un toque.
+- **Cómo aplicar:** implementado en `lib/competition-view.ts`, `lib/competition-view.test.ts`, `app/(app)/torneos/[id]/partidos/actions.ts`, `lib/scheduling.ts`, `lib/data/competition.ts`, `components/groups/standings-table.tsx`, `app/(app)/torneos/[id]/grupos/page.tsx` y `app/t/[slug]/page.tsx`.
+
 
 
 

@@ -93,7 +93,7 @@ export async function runAutoSchedule(
 
   // 2. Group stage feeders (zona de 4: round 2 depende de round 1 del mismo grupo)
   for (const m of all) {
-    if (m.stage === "group" && m.round === 2 && m.group_id) {
+    if (m.stage === "group" && m.round === 2 && m.group_id && groupTeamsMap.get(m.group_id)?.length === 4) {
       const r1Matches = all.filter((o) => o.group_id === m.group_id && o.round === 1);
       const list = feederIdsMap.get(m.id) ?? [];
       for (const r1 of r1Matches) {
