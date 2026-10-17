@@ -74,10 +74,6 @@ test.describe("inscripción y disponibilidad (F5)", () => {
     await expect(card.getByText(partnerEmail)).toBeVisible();
     await card.getByRole("button", { name: `Aprobar ${teamName}` }).click();
     await expectToast(page, "Inscripción aprobada.");
-
-    // Resumen de disponibilidad: aparece en la matriz.
-    await page.getByRole("link", { name: "Disponibilidad" }).click();
-    await expect(page.getByRole("rowheader", { name: teamName })).toBeVisible();
     await logout(page);
 
     // 6. El compañero se sale: la inscripción vuelve a pendiente.

@@ -1,11 +1,11 @@
-import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
 import type { Metadata } from "next";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { CloseRegistrationButton } from "@/components/registration/close-registration-button";
 import { OrganizerRegistrationForm } from "@/components/registration/organizer-registration-form";
 import { RegistrationsList } from "@/components/registration/registrations-list";
 import { CollapsibleSection } from "@/components/shared/collapsible-section";
 import { InviteCard } from "@/components/tournaments/invite-card";
-import { OpenRegistrationCard } from "@/components/tournaments/open-registration-card";
 import { TournamentCelebrationCard } from "@/components/tournaments/tournament-celebration-card";
 import { TournamentSetupStepper } from "@/components/tournaments/tournament-setup-stepper";
 import { Button } from "@/components/ui/button";
@@ -72,13 +72,48 @@ export default async function RegistrationsPage({
         />
       ) : null}
 
-      {/* Si está en borrador: tarjeta de acción rápida para abrir inscripción */}
-      {tournament.status === "draft" ? (
-        <OpenRegistrationCard
-          tournamentId={tournament.id}
-          slotCount={slots.length}
-          categoryCount={categories.length}
-        />
+      {/* Botón y panel para cerrar inscripciones y empezar fase de grupos */}
+      {tournament.status === "registration_open" ? (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 sm:p-5 shadow-xs">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="relative flex size-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex size-2.5 rounded-full bg-emerald-500" />
+              </span>
+              <h2 className="text-base font-bold text-foreground">
+                Inscripciones abiertas
+              </h2>
+            </div>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Tenés <strong className="text-foreground">{approved} {approvedTeamsLabel(tournament.sport.min_team_size)}</strong>. Al cerrar la inscripción, los horarios y planteles quedarán confirmados y pasarás directamente a armar la fase de grupos.
+            </p>
+          </div>
+          <CloseRegistrationButton
+            tournamentId={tournament.id}
+            approvedCount={approved}
+            className="w-full sm:w-auto"
+          />
+        </div>
+      ) : null}
+
+      {tournament.status === "group_stage" ? (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-sky-500/30 bg-sky-500/10 p-4 shadow-xs">
+          <div className="space-y-0.5">
+            <h2 className="text-sm font-semibold text-foreground">
+              Inscripciones cerradas · Fase de grupos en marcha
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Los planteles están fijados y los partidos de fase de grupos ya fueron habilitados.
+            </p>
+          </div>
+          <Button asChild size="sm" className="bg-sky-600 hover:bg-sky-500 text-white font-medium">
+            <Link href={`/torneos/${tournament.id}/grupos`}>
+              <span>Ir a fase de grupos</span>
+              <ArrowRight className="size-3.5 ml-1.5" />
+            </Link>
+          </Button>
+        </div>
       ) : null}
 
       {/* Link y código de inscripción si está abierto */}
@@ -87,6 +122,7 @@ export default async function RegistrationsPage({
           title="Link y código de invitación"
           summary="Compartí el link para que los participantes se anoten"
           defaultOpen={true}
+          compact={true}
         >
           <InviteCard
             tournamentId={tournament.id}
@@ -132,47 +168,6 @@ export default async function RegistrationsPage({
           timezone={tournament.timezone}
         />
       </div>
-
-      {showWizard ? (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-primary/20 bg-muted/40 p-4">
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold text-foreground">
-                {tournament.status === "registration_open"
-                  ? "¡Inscripciones habilitadas!"
-                  : "Paso 4 de 4 del Asistente"}
-              </p>
-              {tournament.status === "registration_open" ? (
-                <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-300 font-medium">
-                  <CheckCircle2 className="size-3.5" />
-                  Listo
-                </span>
-              ) : null}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {tournament.status === "registration_open"
-                ? "Tu torneo ya está abierto al público. Podés revisar el resumen general o compartir el link."
-                : "Una vez que abras las inscripciones o cargues tus equipos, podés ir al Resumen del torneo."}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            <Button asChild variant="outline" size="default" className="w-full sm:w-auto">
-              <Link href={`/torneos/${tournament.id}/canchas-franjas?asistente=1`}>
-                <ArrowLeft className="size-4 mr-1.5" />
-                <span>Volver a Franjas</span>
-              </Link>
-            </Button>
-
-            <Button asChild size="default" className="w-full sm:w-auto shrink-0 shadow-xs">
-              <Link href={`/torneos/${tournament.id}`}>
-                <span>Ir al Resumen del torneo</span>
-                <ArrowRight className="size-4 ml-1.5" />
-              </Link>
-            </Button>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

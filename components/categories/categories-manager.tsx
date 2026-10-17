@@ -332,7 +332,11 @@ export function CategoriesManager({ tournamentId, categories, inSetup = false }:
                 : "Podés continuar sin subdivisiones si tu torneo se disputa con categoría única general."}
             </p>
           </div>
-          <Button asChild size="default" className="w-full sm:w-auto shrink-0 shadow-xs">
+          <Button
+            asChild
+            size="default"
+            className="w-full sm:w-auto shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-xs hover:shadow-md hover:shadow-emerald-600/20 active:scale-[0.98] transition-all duration-150"
+          >
             <Link href={`/torneos/${tournamentId}/canchas-franjas?asistente=1`}>
               <span>Siguiente paso: Franjas horarias</span>
               <ArrowRight className="size-4 ml-1.5" />

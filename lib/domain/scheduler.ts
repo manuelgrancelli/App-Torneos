@@ -466,3 +466,159 @@ export function checkManualAssignment(params: {
 
   return { conflicts: [...new Set(conflicts)], warnings: [...new Set(warnings)] };
 }
+
+export type SlotStatus = "green" | "yellow" | "red";
+
+export type SlotEvaluation = {
+  status: SlotStatus;
+  hasCourt: boolean;
+  homeCanPlay: boolean;
+  awayCanPlay: boolean;
+  label: string;
+  detail: string | null;
+  busyCourtsCount: number;
+  totalCourtsCount: number;
+  freeCourtsCount: number;
+};
+
+/**
+ * Evalúa la disponibilidad de una franja horaria para un partido según:
+ * - Verde: disponibilidad de alguna cancha y ambas parejas pueden jugar.
+ * - Amarillo: hay cancha libre, pero exactamente una de las parejas no puede jugar.
+ * - Rojo: todas las canchas están ocupadas, o ninguna de las parejas puede jugar (o choque de horario).
+ */
+export function getSlotEvaluation(params: {
+  slot: { id: string; startsAt: string; endsAt: string; courtId: string | null };
+  match: { id: string; homeTeamId: string | null; awayTeamId: string | null; homeName?: string; awayName?: string };
+  courts: readonly { id: string; name: string }[];
+  scheduled: readonly FixedAssignment[];
+  availability: Readonly<Record<string, readonly string[]>>;
+}): SlotEvaluation {
+  const { slot, match, courts, scheduled, availability } = params;
+  const start = Date.parse(slot.startsAt);
+  const end = Date.parse(slot.endsAt);
+  const interval = { start, end };
+
+  // Partidos concurrentes (que se superponen en el tiempo con esta franja)
+  const overlapping = scheduled.filter(
+    (o) => o.matchId !== match.id && overlaps(interval, o),
+  );
+
+  // 1. Canchas
+  const totalCourtsCount = Math.max(courts.length, 1);
+  let hasCourt = true;
+  let busyCourtsCount = 0;
+
+  if (slot.courtId) {
+    // La franja está fija a una cancha específica
+    const courtBusy = overlapping.some((o) => o.courtId === slot.courtId);
+    hasCourt = !courtBusy;
+    busyCourtsCount = courtBusy ? 1 : 0;
+  } else {
+    // La franja es general para el torneo
+    busyCourtsCount = overlapping.length;
+    hasCourt = busyCourtsCount < totalCourtsCount;
+  }
+  const freeCourtsCount = Math.max(0, totalCourtsCount - busyCourtsCount);
+
+  // 2. Disponibilidad de las parejas
+  const hasGlobalAvailability = Object.keys(availability).length > 0;
+
+  // Choque de horario con otro partido
+  const homeClash = Boolean(
+    match.homeTeamId &&
+      overlapping.some((o) => o.homeTeamId === match.homeTeamId || o.awayTeamId === match.homeTeamId),
+  );
+  const awayClash = Boolean(
+    match.awayTeamId &&
+      overlapping.some((o) => o.homeTeamId === match.awayTeamId || o.awayTeamId === match.awayTeamId),
+  );
+
+  // Marcó disponibilidad
+  const homeAvailable = match.homeTeamId
+    ? hasGlobalAvailability
+      ? (availability[match.homeTeamId] ?? []).includes(slot.id)
+      : true
+    : true;
+
+  const awayAvailable = match.awayTeamId
+    ? hasGlobalAvailability
+      ? (availability[match.awayTeamId] ?? []).includes(slot.id)
+      : true
+    : true;
+
+  const homeCanPlay = !homeClash && homeAvailable;
+  const awayCanPlay = !awayClash && awayAvailable;
+
+  const homeName = match.homeName || "Pareja 1";
+  const awayName = match.awayName || "Pareja 2";
+
+  // 3. Clasificación de color:
+  // ROJO: Todas las canchas ocupadas O las 2 parejas no pueden jugar (o choque duro)
+  const isAllCourtsBusy = !hasCourt;
+  const isBothCannotPlay = !homeCanPlay && !awayCanPlay;
+  const isHardClash = homeClash || awayClash;
+
+  if (isAllCourtsBusy || isBothCannotPlay || isHardClash) {
+    let detail = "No disponible";
+    if (isAllCourtsBusy) {
+      detail = slot.courtId ? "Cancha ocupada" : "Todas las canchas ocupadas";
+    } else if (homeClash && awayClash) {
+      detail = "Ambas parejas ya juegan a esta hora";
+    } else if (homeClash) {
+      detail = `${homeName} ya juega a esta hora`;
+    } else if (awayClash) {
+      detail = `${awayName} ya juega a esta hora`;
+    } else if (isBothCannotPlay) {
+      detail = "Ninguna de las dos parejas puede jugar";
+    }
+
+    return {
+      status: "red",
+      hasCourt,
+      homeCanPlay,
+      awayCanPlay,
+      label: "No disponible",
+      detail,
+      busyCourtsCount,
+      totalCourtsCount,
+      freeCourtsCount,
+    };
+  }
+
+  // AMARILLO: Alguna pareja no puede jugar (y hay cancha disponible)
+  if (!homeCanPlay || !awayCanPlay) {
+    let detail = "1 pareja no disponible";
+    if (!homeCanPlay) {
+      detail = `${homeName} no puede en este horario`;
+    } else if (!awayCanPlay) {
+      detail = `${awayName} no puede en este horario`;
+    }
+
+    return {
+      status: "yellow",
+      hasCourt: true,
+      homeCanPlay,
+      awayCanPlay,
+      label: "Una pareja no puede",
+      detail,
+      busyCourtsCount,
+      totalCourtsCount,
+      freeCourtsCount,
+    };
+  }
+
+  // VERDE: Disponibilidad de alguna cancha Y las dos parejas pueden jugar
+  return {
+    status: "green",
+    hasCourt: true,
+    homeCanPlay: true,
+    awayCanPlay: true,
+    label: "Disponible",
+    detail: freeCourtsCount > 1 ? `${freeCourtsCount} canchas libres` : "Cancha libre",
+    busyCourtsCount,
+    totalCourtsCount,
+    freeCourtsCount,
+  };
+}
+

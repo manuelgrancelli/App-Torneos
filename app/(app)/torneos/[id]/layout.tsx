@@ -14,9 +14,9 @@ import type { TournamentStatus } from "@/lib/domain/tournament-status";
 const RECOMMENDED_TAB: Record<TournamentStatus, NavGroupKey> = {
   draft: "canchas",
   registration_open: "inscripciones",
-  group_stage: "competencia",
-  playoffs: "competencia",
-  finished: "resumen",
+  group_stage: "grupos",
+  playoffs: "cuadro",
+  finished: "cuadro",
 };
 
 /** Panel del organizador: encabezado del torneo, progreso y pestañas de secciones (D-053). */
@@ -59,7 +59,8 @@ export default async function TournamentPanelLayout({ children, params }: Layout
           badges={{
             categorias: categories.length,
             inscripciones: tournament.status === "registration_open" ? counts.pendingTeams : 0,
-            competencia: tournament.status === "group_stage" ? counts.pendingGroupMatches : 0,
+            partidos: counts.pendingGroupMatches + counts.pendingPlayoffMatches,
+            grupos: tournament.status === "group_stage" && counts.groupMatches === 0 ? 1 : 0,
           }}
         />
       </header>

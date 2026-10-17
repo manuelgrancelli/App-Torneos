@@ -39,7 +39,7 @@ export function normalizePlayoffConfig(raw: unknown): PlayoffConfig {
   return { qualifiersPerGroup, thirdPlace };
 }
 
-export const MAX_BRACKET_SIZE = 32;
+export const MAX_BRACKET_SIZE = 64;
 
 export type Side = "home" | "away";
 

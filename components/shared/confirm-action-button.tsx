@@ -14,13 +14,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 
 type ConfirmActionButtonProps = {
   /** Contenido del botón que abre la confirmación. */
   children: React.ReactNode;
   title: string;
-  description: React.ReactNode;
-  confirmLabel: string;
+  description?: React.ReactNode;
+  confirmLabel?: string;
   /** La acción a confirmar. Si devuelve false, el diálogo queda abierto. */
   onConfirm: () => Promise<boolean | void>;
   variant?: React.ComponentProps<typeof Button>["variant"];
@@ -28,6 +29,7 @@ type ConfirmActionButtonProps = {
   destructive?: boolean;
   disabled?: boolean;
   className?: string;
+  confirmClassName?: string;
   "aria-label"?: string;
 };
 
@@ -36,13 +38,14 @@ export function ConfirmActionButton({
   children,
   title,
   description,
-  confirmLabel,
+  confirmLabel = "Confirmar",
   onConfirm,
   variant = "outline",
   size,
   destructive = false,
   disabled,
   className,
+  confirmClassName,
   ...rest
 }: ConfirmActionButtonProps) {
   const [open, setOpen] = useState(false);
@@ -67,9 +70,13 @@ export function ConfirmActionButton({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription asChild>
-            <div className="space-y-2 text-sm text-muted-foreground">{description}</div>
-          </AlertDialogDescription>
+          {description ? (
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">{description}</div>
+            </AlertDialogDescription>
+          ) : (
+            <AlertDialogDescription className="sr-only">{title}</AlertDialogDescription>
+          )}
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
@@ -77,7 +84,10 @@ export function ConfirmActionButton({
             variant={destructive ? "destructive" : "default"}
             onClick={handleConfirm}
             disabled={isPending}
-            className={destructive ? "!bg-destructive !text-white hover:!bg-destructive/90 shadow-xs" : undefined}
+            className={cn(
+              destructive && "!bg-destructive !text-white hover:!bg-destructive/90 shadow-xs",
+              confirmClassName,
+            )}
           >
             {isPending ? <Spinner /> : null}
             {confirmLabel}

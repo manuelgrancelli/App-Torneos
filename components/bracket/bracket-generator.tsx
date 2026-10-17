@@ -40,7 +40,7 @@ export function BracketGenerator(props: BracketGeneratorProps) {
   const preview = useMemo(() => {
     const effective = props.groupCount === 1 && perGroup < 2 ? 2 : perGroup;
     const qualifiers = props.candidates.filter((c) => c.place <= effective);
-    if (qualifiers.length < 2 || qualifiers.length > 32) return null;
+    if (qualifiers.length < 2 || qualifiers.length > 64) return null;
     return buildBracket(qualifiers, { thirdPlace });
   }, [props.candidates, props.groupCount, perGroup, thirdPlace]);
 

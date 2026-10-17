@@ -395,7 +395,7 @@ export function buildProjectedBracket(
     g.teamIds.length === 4 ? 3 : groups.length === 1 && rawPerGroup < 2 ? 2 : rawPerGroup;
 
   const totalQualifiers = groups.reduce((acc, g) => acc + groupEffectiveQualifiers(g), 0);
-  if (totalQualifiers < 2 || totalQualifiers > 32) return null;
+  if (totalQualifiers < 2 || totalQualifiers > 64) return null;
 
   const standings = groupStandings(groups, matches, scoring, standingsConfig);
 

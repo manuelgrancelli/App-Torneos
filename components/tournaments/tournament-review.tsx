@@ -1,6 +1,6 @@
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TIMEZONE_OPTIONS, formatDateRange } from "@/lib/dates";
+import { formatDateRange } from "@/lib/dates";
 import { teamNoun } from "@/lib/domain/tournament-status";
 import type { CreateTournamentInput } from "@/lib/validation/tournament";
 import { playoffSummary, scoringSummary, standingsSummary } from "./config-summary";
@@ -22,7 +22,6 @@ export function TournamentReview({
   teamSize: number;
   onEdit: (step: number) => void;
 }) {
-  const timezone = TIMEZONE_OPTIONS.find((tz) => tz.value === values.timezone)?.label ?? values.timezone;
   const description = values.description.trim();
 
   const rows: ReviewRow[] = [
@@ -30,8 +29,6 @@ export function TournamentReview({
     { label: "Deporte", value: sportName, step: 0 },
     ...(description ? [{ label: "Descripción", value: description, step: 0 }] : []),
     { label: "Fechas", value: formatDateRange(values.startsOn, values.endsOn), step: 1 },
-    { label: "Zona horaria", value: timezone, step: 1 },
-    { label: "Cupos de parejas", value: "Se definen por categoría (abiertos o con límite)", step: 1 },
     { label: "Canchas / sedes", value: String(values.courtCount), step: 1 },
     {
       label: "Resultados",

@@ -157,7 +157,7 @@ export async function ensurePlayoffBracket(
   const qualifiers = qualifiersFromStandings(standings, qualifiersPerGroup, scoring.type);
 
   if (qualifiers.length < 2) return { ok: false, error: "Tienen que clasificar al menos 2 equipos." };
-  if (qualifiers.length > 32) return { ok: false, error: "El cuadro admite hasta 32 clasificados." };
+  if (qualifiers.length > 64) return { ok: false, error: "El cuadro admite hasta 64 clasificados." };
 
   const plan = buildBracket(qualifiers, { thirdPlace });
   const payload = plan.matches.map((m) => ({

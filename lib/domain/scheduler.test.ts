@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type ScheduleInput, type SchedulerSlot, checkManualAssignment, computeGapPenalty, scheduleMatches } from "./scheduler";
+import { type ScheduleInput, type SchedulerSlot, checkManualAssignment, computeGapPenalty, getSlotEvaluation, scheduleMatches } from "./scheduler";
 
 const H = 60 * 60 * 1000;
 const T0 = Date.UTC(2026, 9, 10, 12); // 10/10/2026 09:00 en Argentina
@@ -350,3 +350,98 @@ describe("asignación inteligente de horarios y proximidad", () => {
     expect(computeGapPenalty(24 * 60 * 60 * 1000)).toBe(1080); // 24h
   });
 });
+
+describe("getSlotEvaluation (identificación de franjas por colores)", () => {
+  const courts = [{ id: "c1", name: "Cancha 1" }, { id: "c2", name: "Cancha 2" }];
+  const testSlot = {
+    id: "s1",
+    startsAt: new Date(T0).toISOString(),
+    endsAt: new Date(T0 + 1.5 * H).toISOString(),
+    courtId: null,
+  };
+  const match = {
+    id: "m1",
+    homeTeamId: "A",
+    awayTeamId: "B",
+    homeName: "Pareja A",
+    awayName: "Pareja B",
+  };
+
+  it("verde: disponibilidad de alguna cancha y las dos parejas pueden jugar", () => {
+    const evalResult = getSlotEvaluation({
+      slot: testSlot,
+      match,
+      courts,
+      scheduled: [],
+      availability: { A: ["s1"], B: ["s1"] },
+    });
+    expect(evalResult.status).toBe("green");
+    expect(evalResult.hasCourt).toBe(true);
+    expect(evalResult.homeCanPlay).toBe(true);
+    expect(evalResult.awayCanPlay).toBe(true);
+  });
+
+  it("amarillo: cancha libre pero alguna pareja no puede jugar", () => {
+    // A puede pero B no
+    const evalResult = getSlotEvaluation({
+      slot: testSlot,
+      match,
+      courts,
+      scheduled: [],
+      availability: { A: ["s1"], B: [] },
+    });
+    expect(evalResult.status).toBe("yellow");
+    expect(evalResult.hasCourt).toBe(true);
+    expect(evalResult.homeCanPlay).toBe(true);
+    expect(evalResult.awayCanPlay).toBe(false);
+    expect(evalResult.detail).toContain("Pareja B no puede");
+  });
+
+  it("rojo: las 2 parejas no pueden jugar en ese horario", () => {
+    const evalResult = getSlotEvaluation({
+      slot: testSlot,
+      match,
+      courts,
+      scheduled: [],
+      availability: { A: [], B: [] },
+    });
+    expect(evalResult.status).toBe("red");
+    expect(evalResult.homeCanPlay).toBe(false);
+    expect(evalResult.awayCanPlay).toBe(false);
+    expect(evalResult.detail).toBe("Ninguna de las dos parejas puede jugar");
+  });
+
+  it("rojo: todas las canchas están ocupadas en ese horario", () => {
+    // 2 canchas, ambas ocupadas por otros partidos concurrentes
+    const scheduled = [
+      { matchId: "o1", homeTeamId: "X", awayTeamId: "Y", courtId: "c1", start: T0, end: T0 + 1.5 * H },
+      { matchId: "o2", homeTeamId: "W", awayTeamId: "Z", courtId: "c2", start: T0, end: T0 + 1.5 * H },
+    ];
+    const evalResult = getSlotEvaluation({
+      slot: testSlot,
+      match,
+      courts,
+      scheduled,
+      availability: { A: ["s1"], B: ["s1"] },
+    });
+    expect(evalResult.status).toBe("red");
+    expect(evalResult.hasCourt).toBe(false);
+    expect(evalResult.detail).toBe("Todas las canchas ocupadas");
+  });
+
+  it("rojo: una de las parejas ya juega otro partido a esa misma hora", () => {
+    const scheduled = [
+      { matchId: "o1", homeTeamId: "A", awayTeamId: "X", courtId: "c1", start: T0, end: T0 + 1.5 * H },
+    ];
+    const evalResult = getSlotEvaluation({
+      slot: testSlot,
+      match,
+      courts,
+      scheduled,
+      availability: { A: ["s1"], B: ["s1"] },
+    });
+    expect(evalResult.status).toBe("red");
+    expect(evalResult.detail).toContain("Pareja A ya juega a esta hora");
+  });
+});
+

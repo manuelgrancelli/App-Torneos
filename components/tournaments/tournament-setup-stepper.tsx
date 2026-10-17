@@ -2,8 +2,15 @@
 
 import { ArrowLeft, ArrowRight, Check, Clock, Layers, Sparkles, Trophy, Users } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
+import { toast } from "sonner";
+import { changeTournamentStatus } from "@/app/(app)/torneos/[id]/actions";
+import { CloseRegistrationButton } from "@/components/registration/close-registration-button";
+import { ConfirmActionButton } from "@/components/shared/confirm-action-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 export type SetupStepKey = "torneo" | "categorias" | "franjas" | "inscripciones";
@@ -25,7 +32,7 @@ const STEPS: readonly SetupStepInfo[] = [
     label: "Datos del torneo",
     shortLabel: "Torneo",
     icon: Trophy,
-    path: "",
+    path: "configuracion",
     description: "Información básica, deporte, fechas y cupo de participantes.",
   },
   {
@@ -78,6 +85,30 @@ export function TournamentSetupStepper({
   isRegistrationOpen = false,
   compact = false,
 }: TournamentSetupStepperProps) {
+  const router = useRouter();
+  const [isOpeningRegistration, startTransition] = useTransition();
+
+  async function handleOpenRegistration() {
+    if ((counts.slots ?? 0) === 0) {
+      toast.error("Cargá al menos una franja horaria antes de abrir la inscripción.");
+      return;
+    }
+    startTransition(async () => {
+      const res = await changeTournamentStatus({
+        tournamentId,
+        status: "registration_open",
+      });
+
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+
+      toast.success("¡Inscripción abierta con éxito! Ya podés compartir el código o link.");
+      router.refresh();
+    });
+  }
+
   const foundIndex = STEPS.findIndex((s) => s.key === currentStep);
   const currentIndex = foundIndex === -1 ? 0 : foundIndex;
   const currentStepInfo: SetupStepInfo = STEPS[currentIndex] ?? (STEPS[0] as SetupStepInfo);
@@ -219,27 +250,37 @@ export function TournamentSetupStepper({
             ) : null}
 
             {nextStep ? (
-              <Button
-                asChild
-                size="sm"
+              currentStep !== "categorias" ? (
+                <Button
+                  asChild
+                  size="sm"
+                  className="h-9 font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs hover:shadow-md hover:shadow-emerald-600/20 active:scale-[0.98] transition-all duration-150"
+                >
+                  <Link href={nextHref}>
+                    <span>Siguiente: {nextStep.shortLabel}</span>
+                    <ArrowRight className="size-3.5 ml-1" aria-hidden="true" />
+                  </Link>
+                </Button>
+              ) : null
+            ) : currentStep === "inscripciones" && !isRegistrationOpen ? (
+              <ConfirmActionButton
+                title="¿Abrir la inscripción al público?"
+                description="El torneo pasará a ser público y las parejas o equipos se podrán inscribir con el link o el código."
+                confirmLabel="Abrir inscripción"
+                confirmClassName="!bg-emerald-600 hover:!bg-emerald-500 !text-white font-semibold shadow-xs"
+                disabled={isOpeningRegistration}
+                onConfirm={handleOpenRegistration}
                 className="h-9 font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs hover:shadow-md hover:shadow-emerald-600/20 active:scale-[0.98] transition-all duration-150"
               >
-                <Link href={nextHref}>
-                  <span>Siguiente: {nextStep.shortLabel}</span>
-                  <ArrowRight className="size-3.5 ml-1" aria-hidden="true" />
-                </Link>
-              </Button>
+                {isOpeningRegistration ? <Spinner className="size-3.5 mr-1" /> : <Sparkles className="size-3.5 mr-1" />}
+                <span>Abrir inscripciones ahora</span>
+              </ConfirmActionButton>
             ) : (
-              <Button
-                asChild
+              <CloseRegistrationButton
+                tournamentId={tournamentId}
+                approvedCount={counts.approvedTeams ?? 0}
                 size="sm"
-                className="h-9 font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs hover:shadow-md hover:shadow-emerald-600/20 active:scale-[0.98] transition-all duration-150"
-              >
-                <Link href={base}>
-                  <span>Finalizar y ver resumen</span>
-                  <ArrowRight className="size-3.5 ml-1" aria-hidden="true" />
-                </Link>
-              </Button>
+              />
             )}
           </div>
         </div>

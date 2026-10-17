@@ -8,7 +8,7 @@ import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { createOrganizerTeam } from "@/app/(app)/torneos/[id]/inscripciones/actions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -127,11 +127,6 @@ export function OrganizerRegistrationForm({
               {isPadel ? "Inscribir pareja manualmente" : "Inscribir desde el panel"}
             </h2>
           </CardTitle>
-          <CardDescription>
-            {isPadel
-              ? "Cargá los nombres de los dos integrantes de la pareja (Jugador 1 y Jugador 2) y las franjas horarias en las que pueden jugar. La inscripción queda aprobada automáticamente sin mails ni cuentas."
-              : "Cargá el nombre del equipo, sus integrantes y las franjas en las que pueden jugar. No hace falta ingresar emails. La inscripción queda aprobada automáticamente."}
-          </CardDescription>
         </div>
 
         <div className="shrink-0">

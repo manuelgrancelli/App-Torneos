@@ -85,7 +85,6 @@ test.describe("accesibilidad y CSP (F9)", () => {
       `${base}/configuracion`,
       `${base}/canchas-franjas`,
       `${base}/inscripciones`,
-      `${base}/disponibilidad`,
       `${base}/grupos`,
       `${base}/partidos`,
       `${base}/cuadro`,

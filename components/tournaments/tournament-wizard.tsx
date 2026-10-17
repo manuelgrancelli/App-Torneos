@@ -26,7 +26,6 @@ import {
   DescriptionField,
   MaxTeamsField,
   NameField,
-  TimezoneField,
 } from "./tournament-fields";
 import type { SportOption } from "./tournament-form";
 import { TournamentReview } from "./tournament-review";
@@ -47,7 +46,7 @@ const STEP_TITLES = [
 /** Campos que se validan en cada paso (el último solo revisa). */
 const STEP_FIELDS = [
   ["name", "sportId", "description"],
-  ["startsOn", "endsOn", "timezone", "courtCount"],
+  ["startsOn", "endsOn", "courtCount"],
   ["resultsRequireConfirmation", "scoringConfig", "standingsConfig", "playoffConfig"],
 ] as const satisfies readonly (readonly (keyof CreateTournamentInput)[])[];
 
@@ -205,14 +204,7 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
           {step === 1 ? (
             <FieldGroup>
               <DateFields form={form} />
-              <TimezoneField form={form} />
               <CourtCountField form={form} />
-              <div className="rounded-2xl border border-border/80 bg-muted/40 p-4 shadow-2xs">
-                <p className="text-xs font-semibold text-foreground">Cupos de inscripción</p>
-                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                  Podrás configurar los cupos libremente dentro de cada categoría al preparar el torneo (con límite específico o abiertos hasta cerrar la inscripción).
-                </p>
-              </div>
             </FieldGroup>
           ) : null}
 

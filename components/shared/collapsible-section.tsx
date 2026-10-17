@@ -15,6 +15,8 @@ type CollapsibleSectionProps = {
   forceOpen?: boolean;
   /** Marca que hay campos bloqueados adentro (D-029). */
   locked?: boolean;
+  /** Versión compacta con menor altura y relleno */
+  compact?: boolean;
   className?: string;
   children: ReactNode;
 };
@@ -33,6 +35,7 @@ export function CollapsibleSection({
   defaultOpen = false,
   forceOpen = false,
   locked = false,
+  compact = false,
   className,
   children,
 }: CollapsibleSectionProps) {
@@ -46,23 +49,28 @@ export function CollapsibleSection({
     >
       <summary
         className={cn(
-          "flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-2 [&::-webkit-details-marker]:hidden",
+          "flex cursor-pointer list-none items-center gap-3 px-4 py-2 [&::-webkit-details-marker]:hidden",
+          compact ? "min-h-11 py-1.5 px-3.5" : "min-h-14",
           "hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
         )}
       >
         <span className="min-w-0 flex-1">
-          <h2 className="flex items-center gap-2 text-base font-semibold">
+          <h2 className={cn("flex items-center gap-2 font-semibold", compact ? "text-sm" : "text-base")}>
             {title}
             {locked ? <Lock className="size-3.5 text-muted-foreground" aria-label="Con campos bloqueados" /> : null}
           </h2>
-          {summary ? <span className="block truncate text-sm text-muted-foreground group-open/section:hidden">{summary}</span> : null}
+          {summary ? (
+            <span className={cn("block truncate text-muted-foreground group-open/section:hidden", compact ? "text-xs" : "text-sm")}>
+              {summary}
+            </span>
+          ) : null}
         </span>
         <ChevronDown
           className="size-4 shrink-0 text-muted-foreground transition-transform group-open/section:rotate-180"
           aria-hidden="true"
         />
       </summary>
-      <div className="space-y-4 border-t px-4 py-4">
+      <div className={cn("border-t", compact ? "space-y-3 px-3.5 py-3" : "space-y-4 px-4 py-4")}>
         {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
         {children}
       </div>

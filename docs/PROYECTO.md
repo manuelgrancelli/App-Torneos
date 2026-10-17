@@ -1335,18 +1335,99 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** responder al flujo real de torneos donde el organizador define las franjas de juego antes de abrir la inscripción, carga las parejas pegando la lista recibida por WhatsApp sin disponibilidad, y luego va pareja por pareja asignando las franjas específicas en las que cada una puede jugar según lo coordinado privadamente.
 - **Cómo aplicar:** aplicar `supabase/migrations/20261016200000_allow_organizer_manage_team_availability.sql` en el SQL Editor de Supabase.
 
+### D-091 — Simplificación y pulido del flujo de creación y preparación del torneo (2026-10-17)
+- **Decisión:**
+  - **Eliminación del campo de zona horaria y cartel de cupos en la creación:** en `TournamentWizard` (`components/tournaments/tournament-wizard.tsx`) y `TournamentReview` (`components/tournaments/tournament-review.tsx`), se eliminó la selección de zona horaria del paso "Fechas y canchas", el cartel explicativo de "Cupos de inscripción", y sus respectivas filas en el resumen, adoptando de forma predeterminada `DEFAULT_TIMEZONE` ("America/Argentina/Buenos_Aires").
+  - **Consolidación del botón a Franjas en Categorías:** en `TournamentSetupStepper` (`components/tournaments/tournament-setup-stepper.tsx`), se ocultó el botón superior "Siguiente: Franjas" cuando `currentStep === "categorias"`, y en `CategoriesManager` (`components/categories/categories-manager.tsx`) el botón inferior se estilizó con acento esmeralda principal (`bg-emerald-600`), quedando un único botón inferior visible y consistente para avanzar a franjas.
+  - **Reubicación de apertura de inscripciones en el Asistente:**
+    - Se eliminó la tarjeta central voluminosa `OpenRegistrationCard` en `/torneos/[id]/inscripciones`.
+    - En su lugar, cuando el torneo está en borrador (`draft`), `TournamentSetupStepper` reemplaza el botón estático "Finalizar y ver resumen" por la acción "Abrir inscripciones ahora" con diálogo de confirmación y feedback por toast, validando que existan franjas horarias configuradas.
+    - Una vez habilitada la inscripción, el botón del asistente pasa a ser "Finalizar y ver resumen" para acceder al panel principal.
+  - **Compactación del código y recuadro de invitación (`InviteCard` & `CollapsibleSection`):**
+    - Se redujo la tipografía del código de invitación de `text-2xl` a `text-sm sm:text-base font-bold`, integrándolo junto al link en una fila horizontal compacta y ordenada con botones de acción reducidos (`size="sm"`).
+    - Se incorporó la prop `compact?: boolean` en `CollapsibleSection` para un encabezado más esbelto y menor relleno vertical.
+  - **Limpieza en el formulario de inscripción manual (`OrganizerRegistrationForm`):**
+    - Se removió la descripción explicativa en texto gris bajo el título "Inscribir pareja manualmente" para una interfaz más despejada.
+  - **Eliminación de cartelería redundante al pie de franjas e inscripciones:** en `app/(app)/torneos/[id]/canchas-franjas/page.tsx` y `app/(app)/torneos/[id]/inscripciones/page.tsx`, se retiraron los recuadros inferiores redundantes ("¿Listo con las franjas horarias?" y "Paso 4 de 4 del Asistente"), centralizando las acciones de navegación y finalización en el stepper superior.
+- **Motivo:** responder a las solicitudes de usabilidad del usuario para agilizar la creación del torneo, evitar duplicación de botones, eliminar pasos y textos redundantes, y compactar la tarjeta de invitación.
+### D-092 — Inscripciones agrupadas por categoría plegable y eliminación de pestaña Disponibilidad (2026-10-17)
+- **Decisión:**
+  - **Eliminación de la pestaña y vista "Disponibilidad":** en `TournamentNav` (`components/tournaments/tournament-nav.tsx`), el grupo `inscripciones` se redujo a un único elemento (`[{ segment: "inscripciones", label: "Inscripciones" }]`), suprimiendo la barra secundaria de subpestañas ("Equipos" / "Disponibilidad"). La ruta `app/(app)/torneos/[id]/disponibilidad/page.tsx` redirige de forma permanente a `/torneos/[id]/inscripciones`. La gestión de franjas por pareja se mantiene accesible de manera directa e intuitiva a través del modal `TeamAvailabilityDialog` en cada tarjeta de pareja.
+  - **Inscripciones plegables por categoría (`RegistrationsList`):**
+    - En `components/registration/registrations-list.tsx`, las parejas inscriptas ya no se presentan en un listado plano genérico, sino organizadas en tarjetas/secciones desplegables (accordions) independientes por cada categoría del torneo (más un grupo de contingencia para parejas no asignadas si existieran).
+    - Cada encabezado de categoría muestra de forma clara el nombre de la categoría, el total de parejas inscriptas, el cupo ocupado/máximo, el desglose de aprobadas, pendientes y rechazadas, y un botón interactivo para abrir o plegar la lista de parejas.
+    - Se incorporaron accesos rápidos "Expandir todas" y "Plegar todas" para agilizar la navegación del organizador.
+    - Cuando una categoría se despliega, renderiza la grilla de parejas con su respectiva información (integrantes, roles de capitán/invitación, badges, selectores y acciones de aprobación/rechazo y franjas).
+- **Motivo:** atender la solicitud directa del usuario de eliminar la pantalla de Disponibilidad y separar visualmente las parejas por categoría en paneles plegables accesibles mediante botón, simplificando la visualización y administración del torneo.
+- **Cómo aplicar:** implementado en `components/tournaments/tournament-nav.tsx`, `app/(app)/torneos/[id]/disponibilidad/page.tsx`, `tests/e2e/a11y-security.spec.ts` y `components/registration/registrations-list.tsx`.
 
+### D-093 — Eliminación de pestaña Resumen y botón verde para cerrar inscripciones y empezar fase de grupos (2026-10-17)
+- **Decisión:**
+  - **Eliminación completa de la sección "Resumen":**
+    - En `TournamentNav` (`components/tournaments/tournament-nav.tsx`), se eliminó el grupo `resumen` de la barra de navegación principal. Las pestañas del panel del organizador quedan limpias y directas: Categorías, Canchas y franjas, Inscripciones, Competencia (Grupos, Partidos, Cuadro) y Configuración.
+    - En `app/(app)/torneos/[id]/layout.tsx`, la recomendación para torneos finalizados se derivó a `competencia`.
+    - La ruta raíz `app/(app)/torneos/[id]/page.tsx` se transformó en una redirección inteligente hacia la fase de trabajo activa del torneo (`/categorias` en borrador, `/inscripciones` con inscripción abierta, `/grupos` en fase de grupos, o `/cuadro` en playoffs/finalizado).
+    - En el stepper de preparación (`components/tournaments/tournament-setup-stepper.tsx`), el paso inicial "Datos del torneo" ahora apunta a `configuracion` y se eliminó el botón "Finalizar y ver resumen".
+  - **Botón verde "Cerrar inscripciones y empezar fase de grupos" (`CloseRegistrationButton`):**
+    - Se creó el componente `CloseRegistrationButton` (`components/registration/close-registration-button.tsx`) estilizado con color verde esmeralda (`bg-emerald-600 hover:bg-emerald-500 text-white`).
+    - Requiere al menos 2 parejas aprobadas para poder avanzar (deshabilitado con tooltip/aviso si no se cumple el cupo mínimo).
+    - Al confirmarse, ejecuta la transición de estado a `group_stage` mediante `changeTournamentStatus`, notifica con toast y redirige inmediatamente al organizador a la pantalla de armado de zonas (`/torneos/[id]/grupos`).
+    - Se integró tanto en la cabecera destacada de la pantalla de Inscripciones (`app/(app)/torneos/[id]/inscripciones/page.tsx`) como en el asistente superior `TournamentSetupStepper` al tener la inscripción abierta.
+    - El diálogo modal de confirmación se simplificó por completo: muestra únicamente el título "¿Cerrar inscripciones?", sin párrafos de texto explicativo redundante, y con los dos botones limpios y proporcionales: "Cancelar" y "Confirmar" (estilizado con fondo verde esmeralda `!bg-emerald-600` y texto blanco nítido `!text-white` para garantizar alto contraste y legibilidad óptima).
+- **Motivo:** responder a la solicitud del organizador de no tener la pantalla de Resumen y contar con un botón verde directo en Inscripciones para cerrar las inscripciones y pasar a la fase de grupos, con un diálogo de confirmación limpio y botones con contraste claro.
+- **Cómo aplicar:** implementado en `components/tournaments/tournament-nav.tsx`, `app/(app)/torneos/[id]/layout.tsx`, `app/(app)/torneos/[id]/page.tsx`, `components/registration/close-registration-button.tsx`, `components/shared/confirm-action-button.tsx`, `components/tournaments/tournament-setup-stepper.tsx`, `app/(app)/torneos/[id]/inscripciones/page.tsx` y `tests/e2e/organizer.spec.ts`.
 
+### D-094 — Reestructuración de pestañas con inscripción cerrada: Grupos, Partidos, Cuadro y Más (...) (2026-10-17)
+- **Decisión:**
+  - **Reorganización de la barra de navegación del torneo (`TournamentNav` en `components/tournaments/tournament-nav.tsx`):**
+    - **Al cerrar la inscripción** (estados `group_stage`, `playoffs` o `finished`), las pestañas de primer nivel pasan a ser exclusivamente las secciones de competencia activa en el orden exacto solicitado:
+      1. **Grupos** (`/torneos/[id]/grupos`)
+      2. **Partidos** (`/torneos/[id]/partidos`)
+      3. **Cuadro** (`/torneos/[id]/cuadro`)
+      4. **Más (...)**: botón con icono de tres puntos horizontales (`MoreHorizontal`) y etiqueta *"Más"*, que despliega un menú flotante con las secciones de gestión y preparación en el orden estipulado:
+         - **Canchas y franjas** (`/torneos/[id]/canchas-franjas`)
+         - **Inscripciones** (`/torneos/[id]/inscripciones`)
+         - **Configuración** (`/torneos/[id]/configuracion`)
+         - **Categorías** (`/torneos/[id]/categorias`)
+    - **Antes de cerrar la inscripción** (estados `draft` y `registration_open`), la barra presenta de forma limpia las secciones de preparación: Categorías, Canchas y franjas, Inscripciones y Configuración.
+    - Se eliminó la subbarra secundaria de pestañas, logrando una interfaz de una sola línea horizontal con acceso directo y contextual.
+    - El disparador *"Más"* se resalta automáticamente con borde activo cuando el organizador se encuentra navegando dentro de cualquiera de sus subopciones.
+- **Motivo:** responder al pedido explícito del usuario de priorizar las vistas de competencia (Grupos, Partidos, Cuadro) de manera inmediata una vez cerrado el registro, agrupando las opciones de preparación en un menú desplegable "Más" con tres puntos.
+- **Cómo aplicar:** implementado en `components/tournaments/tournament-nav.tsx`, `app/(app)/torneos/[id]/layout.tsx` y `tests/e2e/registration.spec.ts`.
 
+### D-095 — Expansión del cuadro eliminatorio hasta 64 clasificados (32avos de final) (2026-10-17)
+- **Decisión:**
+  - **Límite máximo de clasificados:** se amplió `MAX_BRACKET_SIZE` de 32 a 64 en el dominio del cuadro (`lib/domain/bracket.ts`), permitiendo albergar categorías masivas de hasta 64 parejas (ej. 16 grupos de 4 o 3 parejas, con 45 a 64 clasificados).
+  - **Ronda inicial de 32avos de final:** `roundName(round, totalRounds)` calcula dinámicamente los nombres de rondas (`${2 ** fromEnd}avos de final`), resolviendo `32avos de final` para la primera ronda en cuadros de tamaño 64 (6 rondas en total: 32avos, 16avos, Octavos, Cuartos, Semifinal y Final).
+  - **Cuadro proyectado en fase de grupos:** en `lib/competition-view.ts` (`buildProjectedBracket`), se actualizó la validación del total de clasificados permitiendo entre 2 y 64 parejas (`totalQualifiers > 64`), de modo que categorías grandes con 16 zonas proyecten sus 63 cruces en tiempo real con sus respectivos byes para los mejores sembrados.
+  - **Acciones y previsualización:** se actualizaron los topes de validación en `ensurePlayoffBracket` (`app/(app)/torneos/[id]/cuadro/actions.ts`) y `BracketGenerator` (`components/bracket/bracket-generator.tsx`), permitiendo armar y persistir cuadros de playoffs de hasta 64 parejas (aprovechando que la RPC `apply_bracket` ya soporta hasta 64 partidos en la base de datos).
+- **Motivo:** solucionar el problema reportado por el usuario donde en categorías masivas (como 16 grupos y 61 parejas) el cuadro quedaba en blanco o fallaba por el tope previo de 32 clasificados.
+- **Cómo aplicar:** implementado en `lib/domain/bracket.ts`, `lib/competition-view.ts`, `app/(app)/torneos/[id]/cuadro/actions.ts`, `components/bracket/bracket-generator.tsx` y testeado exhaustivamente en `lib/domain/bracket.test.ts`.
 
+### D-096 — Identificación visual de horarios por colores (Verde, Amarillo y Rojo) al asignar franja (2026-10-17)
+- **Decisión:**
+  - **Función pura de evaluación de franjas (`getSlotEvaluation` en `lib/domain/scheduler.ts`):** evalúa en tiempo real cada franja horaria para el partido seleccionado según tres reglas determinísticas y mutuamente excluyentes:
+    1. **Verde recuadrado (Disponible):** hay disponibilidad de al menos una cancha en ese horario y ambas parejas tienen disponibilidad para jugar.
+    2. **Amarillo recuadrado (Una pareja no puede):** hay cancha libre, pero exactamente una de las dos parejas no puede jugar en ese horario (o no marcó disponibilidad).
+    3. **Rojo recuadrado (No disponible / Conflicto):** todas las canchas están ocupadas en ese horario, o ninguna de las dos parejas puede jugar, o alguna de las dos parejas ya tiene otro partido fijado a esa misma hora.
+  - **Selector interactivo con recuadros en `AssignSlotDialog` (`components/matches/assign-slot-dialog.tsx`):**
+    - Se reemplazó el selector nativo HTML (`<NativeSelect>`) por una interfaz moderna con recuadros estilizados (`border-2 rounded-xl`) según el boceto del organizador:
+      - Verde: `border-emerald-500/80 bg-emerald-500/10` con badge verde "Disponible" y detalle de canchas libres.
+      - Amarillo: `border-amber-400 bg-amber-400/15` con badge ámbar "1 no puede" y detalle de qué pareja no tiene disponibilidad.
+      - Rojo: `border-rose-500/80 bg-rose-500/10` con badge rojo "No disponible" y motivo explícito (canchas ocupadas o incompatibilidad de ambas parejas).
+    - Incluye una barra de referencia visual en la cabecera (leyenda idéntica al boceto), filtro por días y selector de canchas libre/ocupada cuando la franja no tiene cancha preasignada.
+- **Motivo:** responder a la solicitud del usuario de identificar visualmente en la asignación manual de horarios con verde, amarillo y rojo la disponibilidad real de canchas y parejas según su boceto.
+- **Cómo aplicar:** implementado en `lib/domain/scheduler.ts`, `components/matches/assign-slot-dialog.tsx` y testeado exhaustivamente en `lib/domain/scheduler.test.ts`.
 
-
-
-
-
-
-
-
-
+### D-097 — Navegación 100% vertical en el cuadro de playoffs sin desplazamientos laterales (2026-10-17)
+- **Decisión:**
+  - **Navegación vertical-first en `BracketView` (`components/bracket/bracket-view.tsx`):**
+    - Por defecto, el cuadro se muestra en **Vista vertical**, organizando los cruces de forma secuencial y responsiva en columnas verticales (`grid-cols-1 md:grid-cols-2 xl:grid-cols-3`) que se adaptan al ancho completo de la pantalla sin requerir ningún movimiento o scroll horizontal.
+    - Se incorporó una barra superior de selección rápida de rondas (`flex-wrap`): "Todas las rondas", "32avos de final", "16avos de final", "Octavos de final", "Cuartos de final", "Semifinales" y "Final" para leer o filtrar directamente cualquier etapa del torneo de arriba hacia abajo.
+    - Se preservó un conmutador alternativo a "Árbol" para quienes deseen ver el diagrama clásico en formato ramificado horizontal.
+  - **Eliminación de scroll horizontal en `AssignSlotDialog` (`components/matches/assign-slot-dialog.tsx`):**
+    - Los botones de filtro por día ahora utilizan `flex-wrap` en lugar de `overflow-x-auto`, y el diálogo cuenta con `overflow-x-hidden`, garantizando que todo el contenido se lea con desplazamiento exclusivamente vertical.
+- **Motivo:** atender el pedido directo del usuario de leer el cuadro y los horarios únicamente con desplazamientos verticales, eliminando la necesidad de moverse hacia los lados.
+- **Cómo aplicar:** implementado en `components/bracket/bracket-view.tsx` y `components/matches/assign-slot-dialog.tsx`.
 
 

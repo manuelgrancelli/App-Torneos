@@ -30,8 +30,10 @@ describe("bracketSize / seedPositions / roundName", () => {
     expect(bracketSize(3)).toBe(4);
     expect(bracketSize(6)).toBe(8);
     expect(bracketSize(16)).toBe(16);
+    expect(bracketSize(33)).toBe(64);
+    expect(bracketSize(64)).toBe(64);
     expect(() => bracketSize(1)).toThrow(RangeError);
-    expect(() => bracketSize(33)).toThrow(RangeError);
+    expect(() => bracketSize(65)).toThrow(RangeError);
   });
 
   it("siembra estándar", () => {
@@ -45,6 +47,7 @@ describe("bracketSize / seedPositions / roundName", () => {
     expect(roundName(1, 3)).toBe("Cuartos de final");
     expect(roundName(1, 4)).toBe("Octavos de final");
     expect(roundName(1, 5)).toBe("16avos de final");
+    expect(roundName(1, 6)).toBe("32avos de final");
   });
 });
 
@@ -308,4 +311,29 @@ describe("buildProjectedBracket & buildTeamSeedMap", () => {
     const cards = buildProjectedBracket([], [], scoring, standingsConfig, playoffConfig, new Map());
     expect(cards).toBeNull();
   });
+
+  it("buildProjectedBracket soporta torneos grandes con 16 grupos y 61 parejas (cuadro de 64)", () => {
+    // 16 grupos: 13 grupos de 4 y 3 grupos de 3 (61 parejas en total)
+    // Con grupos de 4 clasifican 3 (D-077), con grupos de 3 clasifican 2:
+    // 13 * 3 + 3 * 2 = 45 clasificados -> cuadro tamaño 64 con byes
+    const largeGroups = Array.from({ length: 16 }, (_, i) => ({
+      id: `g-${i}`,
+      name: `Grupo ${String.fromCharCode(65 + i)}`,
+      position: i + 1,
+      tiebreakSeed: i + 1,
+      teamIds: i < 13 ? [`t${i}_1`, `t${i}_2`, `t${i}_3`, `t${i}_4`] : [`t${i}_1`, `t${i}_2`, `t${i}_3`],
+    }));
+
+    const cards = buildProjectedBracket(largeGroups, [], scoring, standingsConfig, playoffConfig, new Map());
+    expect(cards).not.toBeNull();
+    // Cuadro de 64 sin 3er puesto: 32 + 16 + 8 + 4 + 2 + 1 = 63 partidos
+    expect(cards).toHaveLength(63);
+
+    const rounds = cards!.map((c) => c.round);
+    expect(Math.max(...rounds)).toBe(6); // 6 rondas: 32avos hasta Final
+
+    const r1 = cards!.filter((c) => c.round === 1);
+    expect(r1).toHaveLength(32); // 32 partidos en 32avos de final
+  });
 });
+

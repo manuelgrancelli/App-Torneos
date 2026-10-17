@@ -25,12 +25,13 @@ test.describe("organizador: torneos (F4)", () => {
     await page.getByRole("button", { name: "Crear torneo" }).click();
     await expectToast(page, /Torneo creado/);
     await page.waitForURL(/\/torneos\/[0-9a-f-]{36}\/categorias/);
-    await page.getByRole("link", { name: "Resumen" }).click();
     await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
     await expect(page.getByText("Borrador").first()).toBeVisible();
 
-    // Abrir la inscripción está bloqueado hasta cargar franjas.
-    await expect(page.getByText("Cargá al menos una franja horaria antes de abrir la inscripción.")).toBeVisible();
+    // En inscripciones, abrir está bloqueado hasta cargar franjas.
+    await page.getByRole("link", { name: "Inscripciones" }).click();
+    await page.getByRole("button", { name: "Abrir inscripciones ahora" }).click();
+    await expectToast(page, "Cargá al menos una franja horaria antes de abrir la inscripción.");
 
     // Configuración: cambiar la tabla y guardar.
     await page.getByRole("link", { name: "Configuración" }).click();
@@ -67,11 +68,11 @@ test.describe("organizador: torneos (F4)", () => {
     await page.getByRole("button", { name: "Crear 4 franjas" }).click();
     await expectToast(page, /Creamos 0 franjas; 4 ya existían/);
 
-    // Abrir la inscripción.
-    await page.getByRole("link", { name: "Resumen" }).click();
-    await page.getByRole("button", { name: "Abrir inscripción" }).click();
-    await page.getByRole("alertdialog").getByRole("button", { name: /Pasar a/ }).click();
-    await expectToast(page, "Actualizamos el estado del torneo.");
+    // Abrir la inscripción desde inscripciones.
+    await page.getByRole("link", { name: "Inscripciones" }).click();
+    await page.getByRole("button", { name: "Abrir inscripciones ahora" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Abrir inscripción" }).click();
+    await expectToast(page, /Inscripción abierta/);
     await expect(page.getByText("Inscripción abierta").first()).toBeVisible();
 
     // La zona horaria queda bloqueada porque ya hay franjas.
@@ -79,7 +80,7 @@ test.describe("organizador: torneos (F4)", () => {
     await expect(page.getByText("La zona horaria no se puede cambiar porque ya hay franjas cargadas.")).toBeVisible();
 
     // Código: regenerar cambia el link.
-    await page.getByRole("link", { name: "Resumen" }).click();
+    await page.getByRole("link", { name: "Inscripciones" }).click();
     const before = await page.getByTestId("invite-code").textContent();
     await page.getByRole("button", { name: "Regenerar" }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Generar código nuevo" }).click();
@@ -106,7 +107,6 @@ test.describe("organizador: torneos (F4)", () => {
     await page.getByRole("button", { name: "Crear torneo" }).click();
     await expectToast(page, /Torneo creado/);
     await page.waitForURL(/\/torneos\/[0-9a-f-]{36}\/categorias/);
-    await page.getByRole("link", { name: "Resumen" }).click();
     const panelUrl = page.url();
 
     // Otro usuario ve "no encontrado" en el panel ajeno (no se revela que existe).
