@@ -10,6 +10,18 @@ export const saveGroupsSchema = z.object({
   groups: z.array(z.array(z.uuid()).min(2, { error: "Cada grupo tiene que tener al menos 2 equipos." })).min(1).max(26),
 });
 
+export const drawAllCategoriesSchema = z.object({
+  tournamentId: z.uuid(),
+  categoryConfigs: z
+    .array(
+      z.object({
+        categoryId: z.uuid(),
+        groupCount: z.number().int().min(1).max(26).optional(),
+      })
+    )
+    .optional(),
+});
+
 export const autoScheduleSchema = z.object({
   tournamentId: z.uuid(),
   mode: z.enum(["unscheduled", "all"]),

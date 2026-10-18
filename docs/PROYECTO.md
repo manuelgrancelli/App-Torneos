@@ -1430,4 +1430,59 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** atender el pedido directo del usuario de leer el cuadro y los horarios únicamente con desplazamientos verticales, eliminando la necesidad de moverse hacia los lados.
 - **Cómo aplicar:** implementado en `components/bracket/bracket-view.tsx` y `components/matches/assign-slot-dialog.tsx`.
 
+### D-098 — Sorteo simultáneo de todas las categorías y optimización profunda de programación de partidos (2026-10-18)
+- **Decisión:**
+  - **Sorteo masivo de categorías en lote (`drawAllCategories` en `app/(app)/torneos/[id]/grupos/actions.ts`):**
+    - Permite al organizador sortear los grupos de todas las categorías del torneo en una sola operación desde la pestaña de Grupos (`/torneos/[id]/grupos`).
+    - Excluye automáticamente categorías con resultados cargados (`result_status is not null`) para proteger los cruces ya jugados.
+    - Sortea únicamente categorías con al menos 2 parejas aprobadas, calculando la cantidad recomendada de zonas (priorizando grupos de 4 con formato GSL o de 3/5 con Round-Robin) o respetando la configuración elegida por el organizador.
+    - Aplica a cada categoría el algoritmo `drawGroups` consciente de la disponibilidad horaria declarada de cada pareja (D-063), maximizando la compatibilidad intrazona y persistiendo los partidos iniciales mediante la RPC `apply_groups`.
+    - Si una categoría elegible se encontraba en inscripción abierta (`registration_open`) o borrador (`draft`), la avanza automáticamente a `group_stage` mediante `set_category_status`.
+  - **Interfaz de usuario en `BulkDrawDialog` (`components/groups/bulk-draw-dialog.tsx`):**
+    - Botón destacado en el encabezado de categorías: "Sortear todas las categorías".
+    - Modal accesible y responsive que lista todas las categorías, su estado, cantidad de parejas aprobadas y selector de cantidad de zonas sugeridas (editable).
+    - Mantiene intacta la posibilidad de ingresar a la pestaña de cualquier categoría para reordenar parejas individualmente con Drag & Drop (`GroupBuilder`) antes de iniciar los partidos.
+  - **Optimización del programador automático (`scheduleMatches` y `drawGroups`):**
+    - Se incrementó `DEFAULT_MAX_ITERATIONS` de 50.000 a 150.000 en `lib/domain/scheduler.ts`, triplicando la profundidad de exploración del algoritmo de backtracking con poda branch & bound. Esto asegura que en torneos con múltiples categorías y decenas de partidos en simultáneo no se corte la búsqueda prematuramente y se agende la mayor cantidad de partidos en cancha.
+    - En `drawGroups` (`lib/domain/groups.ts`), se amplió la cantidad de reinicios (`RESTARTS`) de 40 a 60 cuando persisten incompatibilidades horarias, reduciendo al mínimo la probabilidad de que parejas sin franjas comunes compartan grupo y asegurando que luego todos los partidos tengan horarios disponibles.
+- **Motivo:** agilizar sustancialmente el flujo del organizador en torneos con múltiples categorías evitando tener que sortear categoría por categoría de forma manual, y asegurar la máxima tasa de ocupación de canchas y partidos programados sin dejar parejas sin horario.
+- **Cómo aplicar:** implementado en `lib/domain/groups.ts`, `lib/domain/scheduler.ts`, `lib/validation/competition.ts`, `app/(app)/torneos/[id]/grupos/actions.ts`, `components/groups/bulk-draw-dialog.tsx`, `app/(app)/torneos/[id]/grupos/page.tsx` y verificado con la suite completa de tests de Vitest.
 
+### D-099 — Disponibilidad completa por defecto al cargar parejas (2026-10-18) *(modifica D-091)*
+- **Decisión:**
+  - **Carga masiva (`BulkRegistrationDialog` en `components/registration/bulk-registration-dialog.tsx`):**
+    - La opción `allSlots` ("Asignar disponibilidad completa a todas las parejas importadas") ahora se inicializa activada por defecto (`true`), asegurando que al importar listas de texto o WhatsApp todas las parejas queden inmediatamente habilitadas para jugar en cualquier franja del torneo.
+    - En `bulkImportTeams` (`app/(app)/torneos/[id]/inscripciones/actions.ts`), si el torneo aún no cuenta con franjas horarias creadas al momento de importar, la importación se completa igualmente sin interrumpirse por error.
+  - **Carga individual manual (`OrganizerRegistrationForm` en `components/registration/organizer-registration-form.tsx`):**
+    - El formulario manual ahora preselecciona todas las franjas horarias del torneo por defecto (`slotIds: slots.map(s => s.id)`), tanto en la carga inicial como al resetear el formulario tras inscribir cada pareja.
+    - Si el organizador desea restringir alguna franja particular para una pareja específica, puede deseleccionar las franjas no deseadas o ajustarlas con los botones "Deseleccionar todas" / "Ninguna".
+- **Motivo:** responder a la solicitud del organizador de que las parejas nuevas cuenten por defecto con disponibilidad en todas las franjas horarias del torneo, evitando que queden parejas sin franjas y facilitando la programación automática al 100% de ocupación de canchas.
+- **Cómo aplicar:** implementado en `components/registration/bulk-registration-dialog.tsx`, `components/registration/organizer-registration-form.tsx` y `app/(app)/torneos/[id]/inscripciones/actions.ts`.
+
+### D-100 — Rediseño UI de tarjetas de torneo y corrección del cálculo de cupos por categorías (2026-10-18) *(modifica D-053)*
+- **Decisión:**
+  - **Eliminación del bug de cupo estático (`/16`) en torneos:**
+    - Se corrigió la consulta de torneos organizados (`listOrganizedTournaments` en `lib/data/tournaments.ts`) para cargar las categorías del torneo (`tournament_categories`) y asociar los equipos inscriptos a sus categorías respectivas.
+    - Se erradicó el indicador erróneo que forzaba `X / 16 parejas` proveniente de la columna estática legacy `tournaments.max_teams`. Ahora, si todas las categorías tienen cupo configurado, el cupo total es la suma de los cupos de las categorías (`totalCapacity`). Si las categorías tienen cupo abierto o no poseen límite fijo, se muestra claramente como inscripción libre/abierta sin barra desbordada ni tope artificial.
+  - **Diseño de interfaz y experiencia de usuario (UI/UX) mejorada:**
+    - **Tarjetas de torneos organizados (`OrganizedTournamentCard` en `components/tournaments/tournament-card.tsx`):**
+      - Muestra un listado estilizado de chips de las categorías del torneo (ej. `3 categorías: 7ma Damas (12) · 6ta Caballeros (10) · 5ta Libre (8)`), permitiendo al organizador y jugador saber inmediatamente qué categorías integran la competencia.
+      - Panel de inscripciones directo: `{tournament.approvedTeams} parejas inscriptas` sin fracciones confusas ni barras de progreso artificiales contra 16, más alerta en ámbar si existen parejas esperando aprobación.
+      - Barra superior de estado con degradados vibrantes e identificatorios por fase.
+      - Botón de navegación contextual que guía al organizador directamente a la acción clave de la fase (ej. "Gestionar inscripciones", "Gestionar grupos", "Ver cuadro").
+    - **Panel principal de torneos (`TournamentDashboard` en `components/tournaments/tournament-dashboard.tsx`):**
+      - Vista limpia y directa centrada en las tarjetas de torneos y el selector de pestañas, sin bloques redundantes de métricas superiores a pedido del usuario.
+    - **Página de inscripciones del torneo (`app/(app)/torneos/[id]/inscripciones/page.tsx`):**
+      - Se actualizó el encabezado de cupos para reflejar la suma real de las categorías configuradas y evitar la mención estática a 16.
+- **Motivo:** responder a la solicitud del usuario de actuar con rol de diseñador profesional de UI/UX, eliminar la indicación incongruente de "30/16 parejas" derivada del valor inicial de 16 de la tabla tournaments, y dotar a la vista de un diseño moderno, claro y alineado con la arquitectura multicategoría sin elementos distractores.
+- **Cómo aplicar:** implementado en `lib/data/tournaments.ts`, `components/tournaments/tournament-card.tsx`, `components/tournaments/tournament-dashboard.tsx` y `app/(app)/torneos/[id]/inscripciones/page.tsx`.
+
+### D-101 — Botones de navegación superior con estado hover destacado dinámico (2026-10-18) *(modifica D-058)*
+- **Decisión:**
+  - **Identificación visual y comportamiento en la barra de navegación superior:**
+    - El enlace del logo de marca **Torneos** (`AppHeader` en `components/layout/app-header.tsx`) se mantiene como logo limpio sin recuadro permanente ni fondo coloreado en ningún momento.
+    - Las opciones de navegación (`MainNav` en `components/layout/main-nav.tsx`: Circuitos, Próximos, Mi historial) tienen formato píldora (`h-9 px-3.5 rounded-xl border border-transparent`).
+    - **En reposo:** no tienen fondo de color permanente (la opción activa solo resalta con tipografía clara `text-foreground font-semibold`).
+    - **Hover (al posar el cursor):** exclusivamente cuando el usuario se para sobre una opción con el mouse, todo el botón se rellena ("pinta") con fondo ámbar dorado (`bg-amber-500/15 dark:bg-amber-500/20`), borde visible (`border-amber-500/30`) y texto contrastante (`text-amber-900 dark:text-amber-200`). Al retirar el cursor, el color se apaga de inmediato.
+- **Motivo:** corregir la fijación permanente del fondo dorado en "Torneos" que entorpecía la cabecera, asegurando que la acción de "pintar" el botón ocurra únicamente de manera dinámica al interactuar con el cursor.
+- **Cómo aplicar:** implementado en `components/layout/main-nav.tsx` y `components/layout/app-header.tsx`.

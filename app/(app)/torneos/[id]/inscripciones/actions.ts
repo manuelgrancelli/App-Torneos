@@ -164,11 +164,6 @@ export const bulkImportTeams = createAction(
       .select("id")
       .eq("tournament_id", tournamentId);
 
-    if (slotsError) return actionError(dbErrorMessage(slotsError));
-    if (allSlots && (!slots || slots.length === 0)) {
-      return actionError("El torneo no tiene franjas horarias cargadas. Creá las canchas y franjas antes de importar con disponibilidad completa.");
-    }
-
     const availableSlotIds = (slots ?? []).map((s) => s.id);
     const slotIdsToUse = allSlots
       ? availableSlotIds

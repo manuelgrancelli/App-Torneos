@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useTransition } from "react";
+import { useEffect, useMemo, useTransition } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { createOrganizerTeam } from "@/app/(app)/torneos/[id]/inscripciones/actions";
@@ -48,6 +48,8 @@ export function OrganizerRegistrationForm({
   const [isPending, startTransition] = useTransition();
   const isPadel = sportId === "padel";
 
+  const allSlotIds = useMemo(() => slots.map((s) => s.id), [slots]);
+
   const form = useForm<OrganizerCreateTeamInput>({
     resolver: zodResolver(organizerCreateTeamSchema),
     defaultValues: {
@@ -55,9 +57,17 @@ export function OrganizerRegistrationForm({
       categoryId: categories && categories.length > 0 ? categories[0]?.id : undefined,
       teamName: "",
       playerNames: Array(teamSize).fill(""),
-      slotIds: [],
+      slotIds: allSlotIds,
     },
   });
+
+  useEffect(() => {
+    const current = form.getValues("slotIds");
+    if (allSlotIds.length > 0 && (!current || current.length === 0) && !form.formState.isDirty) {
+      form.setValue("slotIds", allSlotIds);
+    }
+  }, [allSlotIds, form]);
+
   const selectedSlots = useWatch({ control: form.control, name: "slotIds" });
   const selected = useMemo(() => new Set(selectedSlots), [selectedSlots]);
   const dayWindows = useMemo(
@@ -113,7 +123,13 @@ export function OrganizerRegistrationForm({
         return;
       }
       toast.success(result.message ?? (isPadel ? "Inscribimos la pareja." : "Inscribimos el equipo."));
-      form.reset({ tournamentId, teamName: "", playerNames: Array(teamSize).fill(""), slotIds: [] });
+      form.reset({
+        tournamentId,
+        categoryId: categories && categories.length > 0 ? categories[0]?.id : undefined,
+        teamName: "",
+        playerNames: Array(teamSize).fill(""),
+        slotIds: slots.map((s) => s.id),
+      });
       router.refresh();
     });
   });

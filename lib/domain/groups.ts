@@ -165,7 +165,7 @@ export function drawGroups(
   let minConflicts = Infinity;
   let maxOverlap = -Infinity;
 
-  const RESTARTS = 40;
+  const RESTARTS = 60;
 
   for (let attempt = 0; attempt < RESTARTS; attempt++) {
     const shuffledTeams = shuffle([...teamIds], rng);

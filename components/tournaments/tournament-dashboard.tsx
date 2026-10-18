@@ -275,48 +275,6 @@ export function TournamentDashboard({
               ))}
             </div>
           )}
-
-          {/* Banner discreto avisando de torneos finalizados en el historial si el usuario los tiene */}
-          {finishedOrganized.length > 0 ? (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-border/70 bg-muted/30 p-4 transition-colors hover:bg-muted/50">
-              <div className="flex items-center gap-3">
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                  <Trophy className="size-4" aria-hidden="true" />
-                </div>
-                <div>
-                  <p className="font-semibold text-sm text-foreground">
-                    Historial de torneos organizados
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {finishedOrganized.length === 1
-                      ? "Tenés 1 torneo finalizado archivado con su campeón y resultados."
-                      : `Tenés ${finishedOrganized.length} torneos finalizados archivados con sus campeones y resultados.`}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setActiveTab("history")}
-                  className="text-xs font-medium"
-                >
-                  Ver en esta lista
-                </Button>
-                <Button
-                  asChild
-                  variant="outline"
-                  size="sm"
-                  className="text-xs font-medium"
-                >
-                  <Link href="/torneos/historial">
-                    Ver historial completo
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          ) : null}
         </section>
       ) : null}
 

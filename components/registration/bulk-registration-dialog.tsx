@@ -47,7 +47,7 @@ export function BulkRegistrationDialog({
   const [open, setOpen] = useState(false);
   const [rawText, setRawText] = useState("");
   const [overrideCategoryMap, setOverrideCategoryMap] = useState<Record<string, string>>({});
-  const [allSlots, setAllSlots] = useState(false);
+  const [allSlots, setAllSlots] = useState(true);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const textareaId = useId();
@@ -259,7 +259,7 @@ export function BulkRegistrationDialog({
               />
               <div className="space-y-0.5">
                 <Label htmlFor="allSlotsCheckbox" className="text-xs font-semibold text-foreground cursor-pointer">
-                  Asignar disponibilidad completa a todas las parejas importadas
+                  Asignar disponibilidad completa a todas las parejas importadas (predeterminado)
                 </Label>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
                   {allSlots

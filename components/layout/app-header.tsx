@@ -10,7 +10,7 @@ import { UserMenu } from "./user-menu";
 export function AppHeader({ user }: { user: CurrentUser }) {
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-4 px-4">
+      <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-3 px-4">
         <Link
           href="/torneos"
           title="Torneos"
@@ -29,3 +29,5 @@ export function AppHeader({ user }: { user: CurrentUser }) {
     </header>
   );
 }
+
+

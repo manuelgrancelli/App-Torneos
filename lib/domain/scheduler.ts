@@ -107,7 +107,7 @@ type Interval = {
   round?: number;
 };
 
-const DEFAULT_MAX_ITERATIONS = 50_000;
+const DEFAULT_MAX_ITERATIONS = 150_000;
 
 function overlaps(a: Interval, b: Interval): boolean {
   return a.start < b.end && b.start < a.end;

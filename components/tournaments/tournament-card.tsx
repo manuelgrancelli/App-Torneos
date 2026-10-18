@@ -1,4 +1,4 @@
-import { CalendarDays, CheckCircle2, ChevronRight, ShieldCheck, Trophy, Users } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronRight, Layers, ShieldCheck, Trophy, Users } from "lucide-react";
 import Link from "next/link";
 import type { ParticipationItem, TournamentListItem } from "@/lib/data/tournaments";
 import { formatDateRange } from "@/lib/dates";
@@ -8,11 +8,20 @@ import { StatusBadge, TeamStatusBadge, getSportEmoji } from "./status-badge";
 
 /** Tarjeta táctil moderna de un torneo que organiza el usuario (estilo Linear/Vercel). */
 export function OrganizedTournamentCard({ tournament }: { tournament: TournamentListItem }) {
-  const percentFilled =
-    tournament.maxTeams > 0
-      ? Math.min(100, Math.round((tournament.approvedTeams / tournament.maxTeams) * 100))
-      : 0;
-  const isComplete = tournament.maxTeams > 0 && tournament.approvedTeams >= tournament.maxTeams;
+  const categories = tournament.categories ?? [];
+  const hasCategories = categories.length > 0;
+
+  // Acción contextual según el momento del torneo
+  const actionLabel =
+    tournament.status === "registration_open"
+      ? "Gestionar inscripciones"
+      : tournament.status === "group_stage"
+        ? "Gestionar grupos"
+        : tournament.status === "playoffs"
+          ? "Ver cuadro"
+          : tournament.status === "draft"
+            ? "Configurar torneo"
+            : "Administrar torneo";
 
   return (
     <Link
@@ -23,9 +32,9 @@ export function OrganizedTournamentCard({ tournament }: { tournament: Tournament
       <div
         className={cn(
           "absolute inset-x-0 top-0 h-1 transition-opacity",
-          tournament.status === "registration_open" && "bg-emerald-500",
-          tournament.status === "group_stage" && "bg-sky-500",
-          tournament.status === "playoffs" && "bg-amber-500",
+          tournament.status === "registration_open" && "bg-gradient-to-r from-emerald-500 to-teal-400",
+          tournament.status === "group_stage" && "bg-gradient-to-r from-sky-500 to-blue-500",
+          tournament.status === "playoffs" && "bg-gradient-to-r from-amber-500 to-orange-400",
           tournament.status === "draft" && "bg-muted-foreground/30",
           tournament.status === "finished" && "bg-zinc-400"
         )}
@@ -60,33 +69,49 @@ export function OrganizedTournamentCard({ tournament }: { tournament: Tournament
           </div>
         </div>
 
-        {/* Barra de progreso de cupos */}
+        {/* Categorías del torneo */}
+        {hasCategories ? (
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground mr-0.5">
+              <Layers className="size-3 text-muted-foreground/70" aria-hidden="true" />
+              <span>{categories.length} {categories.length === 1 ? "categoría" : "categorías"}:</span>
+            </span>
+            {categories.slice(0, 4).map((cat) => (
+              <span
+                key={cat.id}
+                className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-foreground transition-colors group-hover:border-primary/30"
+              >
+                <span className="truncate max-w-[120px]">{cat.name}</span>
+                <span className="font-mono text-[10px] text-muted-foreground">({cat.approvedTeams})</span>
+              </span>
+            ))}
+            {categories.length > 4 ? (
+              <span className="text-[10px] font-medium text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded-md">
+                +{categories.length - 4} más
+              </span>
+            ) : null}
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/80 italic">
+            <Layers className="size-3" aria-hidden="true" />
+            <span>Sin categorías configuradas aún</span>
+          </div>
+        )}
+
+        {/* Panel de parejas inscriptas */}
         <div className="space-y-1.5 rounded-xl bg-muted/30 p-3 border border-border/40">
           <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
-              <Users className="size-3.5 text-muted-foreground" aria-hidden="true" />
-              <span>Cupo del torneo:</span>
+              <Users className="size-3.5 text-primary" aria-hidden="true" />
+              <span>Inscripciones:</span>
             </span>
             <span className="font-semibold tabular-nums text-foreground">
-              {tournament.approvedTeams} / {tournament.maxTeams} {approvedTeamsLabel(tournament.teamSize)}
-              {isComplete ? (
-                <span className="ml-1 text-emerald-600 dark:text-emerald-400 font-bold">· Completo</span>
-              ) : null}
+              {tournament.approvedTeams} {approvedTeamsLabel(tournament.teamSize)} inscriptas
             </span>
-          </div>
-
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className={cn(
-                "h-full rounded-full transition-all duration-500",
-                isComplete ? "bg-emerald-500" : "bg-primary"
-              )}
-              style={{ width: `${percentFilled}%` }}
-            />
           </div>
 
           {tournament.pendingTeams > 0 ? (
-            <div className="pt-1 flex items-center justify-between">
+            <div className="pt-1 flex items-center justify-between border-t border-border/30">
               <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30">
                 <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
                 {tournament.pendingTeams} {tournament.pendingTeams === 1 ? "pareja espera" : "parejas esperan"} aprobación
@@ -104,7 +129,7 @@ export function OrganizedTournamentCard({ tournament }: { tournament: Tournament
         </span>
 
         <span className="inline-flex items-center gap-1 font-medium text-foreground group-hover:text-primary transition-colors">
-          <span>Administrar</span>
+          <span>{actionLabel}</span>
           <ChevronRight className="size-4 group-hover:translate-x-1 transition-transform" aria-hidden="true" />
         </span>
       </div>
@@ -184,6 +209,9 @@ export function ParticipationCard({ participation }: { participation: Participat
 
 /** Tarjeta táctil moderna de un torneo finalizado en el historial del organizador. */
 export function FinishedTournamentCard({ tournament }: { tournament: TournamentListItem }) {
+  const categories = tournament.categories ?? [];
+  const hasCategories = categories.length > 0;
+
   return (
     <Link
       href={`/torneos/${tournament.id}`}
@@ -221,6 +249,30 @@ export function FinishedTournamentCard({ tournament }: { tournament: TournamentL
           </div>
         </div>
 
+        {/* Categorías del torneo */}
+        {hasCategories ? (
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground mr-0.5">
+              <Layers className="size-3 text-muted-foreground/70" aria-hidden="true" />
+              <span>{categories.length} {categories.length === 1 ? "categoría" : "categorías"}:</span>
+            </span>
+            {categories.slice(0, 3).map((cat) => (
+              <span
+                key={cat.id}
+                className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-foreground"
+              >
+                <span className="truncate max-w-[110px]">{cat.name}</span>
+                <span className="font-mono text-[10px] text-muted-foreground">({cat.approvedTeams})</span>
+              </span>
+            ))}
+            {categories.length > 3 ? (
+              <span className="text-[10px] font-medium text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded-md">
+                +{categories.length - 3} más
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+
         {/* Destacado del Campeón o estado final */}
         {tournament.championName ? (
           <div className="flex items-center gap-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 text-xs text-amber-950 dark:text-amber-200">
@@ -251,6 +303,7 @@ export function FinishedTournamentCard({ tournament }: { tournament: TournamentL
           </span>
           <span className="font-medium text-foreground tabular-nums">
             {tournament.approvedTeams} {approvedTeamsLabel(tournament.teamSize)}
+            {hasCategories ? ` · ${categories.length} cat.` : ""}
           </span>
         </div>
       </div>

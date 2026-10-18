@@ -46,6 +46,11 @@ export default async function RegistrationsPage({
 
   const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name, maxTeams: c.maxTeams }));
 
+  const totalCupo =
+    categories.length > 0 && categories.every((c) => typeof c.maxTeams === "number" && c.maxTeams > 0)
+      ? categories.reduce((sum, c) => sum + (c.maxTeams ?? 0), 0)
+      : null;
+
   return (
     <div className="space-y-6">
       {showWizard ? (
@@ -149,9 +154,11 @@ export default async function RegistrationsPage({
 
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          {approved} de {tournament.maxTeams} {approvedTeamsLabel(tournament.sport.min_team_size)}.
+          <strong className="text-foreground font-semibold">{approved}</strong> {approvedTeamsLabel(tournament.sport.min_team_size)} inscriptas
+          {totalCupo !== null ? <> de <strong className="text-foreground font-semibold">{totalCupo}</strong> cupos totales</> : null}
+          {categories.length > 0 ? ` en ${categories.length} ${categories.length === 1 ? "categoría" : "categorías"}` : ""}.
           {tournament.status === "registration_open"
-            ? " Las pendientes que superen el cupo quedan en lista de espera."
+            ? (totalCupo !== null ? " Las pendientes que superen el cupo de su categoría quedan en lista de espera." : " Revisá y aprobá las inscripciones pendientes.")
             : " Con la inscripción cerrada ya no se aprueban ni rechazan inscripciones."}
         </p>
 
@@ -159,7 +166,7 @@ export default async function RegistrationsPage({
           tournamentId={tournament.id}
           teams={teams}
           teamSize={tournament.sport.min_team_size}
-          maxTeams={tournament.maxTeams}
+          maxTeams={totalCupo ?? tournament.maxTeams}
           isTestTournament={tournament.isTest}
           canReview={tournament.status === "registration_open"}
           filter={filter}

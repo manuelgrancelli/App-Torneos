@@ -21,6 +21,13 @@ export const getSports = cache(async (): Promise<Sport[]> => {
   return data;
 });
 
+export type TournamentCategorySummary = {
+  id: string;
+  name: string;
+  maxTeams: number | null;
+  approvedTeams: number;
+};
+
 export type TournamentListItem = {
   id: string;
   name: string;
@@ -36,6 +43,8 @@ export type TournamentListItem = {
   championTeamId?: string | null;
   championName?: string | null;
   isTest: boolean;
+  categories: TournamentCategorySummary[];
+  totalCapacity: number | null;
 };
 
 /** Torneos que organiza el usuario, del más reciente al más viejo. */
@@ -44,30 +53,76 @@ export const listOrganizedTournaments = cache(async (userId: string): Promise<To
   const { data, error } = await supabase
     .from("tournaments")
     .select(
-      "id, name, slug, status, is_test, starts_on, ends_on, max_teams, champion_team_id, sports(name, min_team_size), teams!teams_tournament_id_fkey(id, name, status)",
+      "id, name, slug, status, is_test, starts_on, ends_on, max_teams, champion_team_id, sports(name, min_team_size), teams!teams_tournament_id_fkey(id, name, status, category_id)",
     )
     .eq("organizer_id", userId)
     .order("starts_on", { ascending: false });
   if (error) throw error;
 
-  return data.map((t) => ({
-    id: t.id,
-    name: t.name,
-    slug: t.slug,
-    status: t.status,
-    startsOn: t.starts_on,
-    endsOn: t.ends_on,
-    sportName: t.sports?.name ?? "",
-    teamSize: t.sports?.min_team_size ?? 2,
-    maxTeams: t.max_teams,
-    approvedTeams: t.teams.filter((team) => team.status === "approved").length,
-    pendingTeams: t.teams.filter((team) => team.status === "pending").length,
-    championTeamId: t.champion_team_id,
-    championName: t.champion_team_id
-      ? t.teams.find((team) => team.id === t.champion_team_id)?.name ?? null
-      : null,
-    isTest: t.is_test,
-  }));
+  const tournamentIds = data.map((t) => t.id);
+  const categoriesMap = new Map<string, Array<{ id: string; name: string; max_teams: number | null; position: number }>>();
+
+  if (tournamentIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: catRows, error: catError } = await (supabase as any)
+      .from("tournament_categories")
+      .select("id, tournament_id, name, max_teams, position")
+      .in("tournament_id", tournamentIds)
+      .order("position");
+
+    if (!catError && catRows) {
+      for (const row of catRows) {
+        const list = categoriesMap.get(row.tournament_id) ?? [];
+        list.push(row);
+        categoriesMap.set(row.tournament_id, list);
+      }
+    }
+  }
+
+  return data.map((t) => {
+    const rawCategories = categoriesMap.get(t.id) ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const teams = (t.teams as any[]) ?? [];
+
+    const categories: TournamentCategorySummary[] = rawCategories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      maxTeams: c.max_teams ?? null,
+      approvedTeams: teams.filter((team) => team.status === "approved" && team.category_id === c.id).length,
+    }));
+
+    let totalCapacity: number | null = null;
+    if (categories.length > 0) {
+      const allHaveLimit = categories.every((c) => typeof c.maxTeams === "number" && c.maxTeams > 0);
+      if (allHaveLimit) {
+        totalCapacity = categories.reduce((sum, c) => sum + (c.maxTeams as number), 0);
+      }
+    }
+
+    const approvedTeams = teams.filter((team) => team.status === "approved").length;
+    const pendingTeams = teams.filter((team) => team.status === "pending").length;
+
+    return {
+      id: t.id,
+      name: t.name,
+      slug: t.slug,
+      status: t.status,
+      startsOn: t.starts_on,
+      endsOn: t.ends_on,
+      sportName: t.sports?.name ?? "",
+      teamSize: t.sports?.min_team_size ?? 2,
+      maxTeams: totalCapacity ?? t.max_teams,
+      approvedTeams,
+      pendingTeams,
+      championTeamId: t.champion_team_id,
+      championName: t.champion_team_id
+        ? teams.find((team) => team.id === t.champion_team_id)?.name ?? null
+        : null,
+      isTest: t.is_test,
+      categories,
+      totalCapacity,
+    };
+  });
 });
 
 export type ParticipationItem = {

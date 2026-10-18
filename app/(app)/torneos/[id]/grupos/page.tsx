@@ -2,6 +2,7 @@ import { AlertCircle, LayoutGrid } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CategoryTabs } from "@/components/categories/category-tabs";
+import { BulkDrawDialog } from "@/components/groups/bulk-draw-dialog";
 import { ExportGroupsImageModal } from "@/components/groups/export-groups-image-modal";
 import { GroupBuilder } from "@/components/groups/group-builder";
 import { StandingsTable } from "@/components/groups/standings-table";
@@ -94,14 +95,33 @@ export default async function GroupsPage({
     <div className="space-y-6">
       {hasCategories ? (
         <div className="space-y-1">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-sm font-medium text-muted-foreground">Categoría seleccionada:</h2>
-            <Link
-              href={`/torneos/${tournament.id}/categorias`}
-              className="text-xs text-primary hover:underline font-medium"
-            >
-              Gestionar categorías
-            </Link>
+            <div className="flex items-center gap-3">
+              <BulkDrawDialog
+                tournamentId={tournament.id}
+                categories={competition.categories.map((c) => ({
+                  id: c.id,
+                  name: c.name,
+                  approvedCount: competition.teams.filter(
+                    (t) =>
+                      t.status === "approved" &&
+                      (t.categoryId === c.id || (!t.categoryId && competition.categories.length === 1)),
+                  ).length,
+                  hasResults: competition.matches.some(
+                    (m) => m.categoryId === c.id && m.resultStatus !== null,
+                  ),
+                  existingGroupsCount: competition.groups.filter((g) => g.categoryId === c.id).length,
+                  status: c.status,
+                }))}
+              />
+              <Link
+                href={`/torneos/${tournament.id}/categorias`}
+                className="text-xs text-primary hover:underline font-medium"
+              >
+                Gestionar categorías
+              </Link>
+            </div>
           </div>
           <CategoryTabs
             categories={competition.categories.map((c) => ({

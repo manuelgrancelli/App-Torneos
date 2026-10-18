@@ -10,7 +10,7 @@ export function MainNav({ className }: { className?: string }) {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Secciones" className={cn("items-center gap-1", className)}>
+    <nav aria-label="Secciones" className={cn("flex items-center gap-1.5", className)}>
       {MAIN_NAV_ITEMS.map((item) => {
         const active = isNavItemActive(pathname, item.href);
         return (
@@ -19,10 +19,10 @@ export function MainNav({ className }: { className?: string }) {
             href={item.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors",
-              "hover:bg-accent hover:text-accent-foreground",
+              "flex h-9 items-center justify-center rounded-xl px-3.5 text-sm font-medium transition-all duration-150 border border-transparent",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              active && "bg-accent text-accent-foreground",
+              active ? "text-foreground font-semibold" : "text-muted-foreground",
+              "hover:bg-amber-500/15 hover:text-amber-900 dark:hover:text-amber-200 hover:border-amber-500/30",
             )}
           >
             {item.label}
@@ -32,3 +32,4 @@ export function MainNav({ className }: { className?: string }) {
     </nav>
   );
 }
+
