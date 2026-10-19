@@ -51,12 +51,11 @@ test.describe("playoffs (F7)", () => {
       await expect(dialog).toBeHidden();
     }
 
-    // Finalizar el torneo: aparece el campeón.
+    // Finalizar el torneo.
     await page.goto(base);
     await page.getByRole("button", { name: "Finalizar torneo" }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: /Pasar a/ }).click();
     await expectToast(page, "Actualizamos el estado del torneo.");
-    await expect(page.getByText(/Campeón: /)).toBeVisible();
     await expect(page.getByText("Finalizado").first()).toBeVisible();
   });
 });

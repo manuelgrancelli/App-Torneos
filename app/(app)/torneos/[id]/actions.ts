@@ -9,7 +9,9 @@ import { normalizeScoringConfig } from "@/lib/domain/scoring";
 import { normalizeStandingsConfig } from "@/lib/domain/standings";
 import { dbErrorMessage } from "@/lib/supabase/errors";
 import {
+  adminInviteCodeSchema,
   changeStatusSchema,
+  removeTournamentAdminSchema,
   tournamentIdSchema,
   updateTournamentBannerSchema,
   updateTournamentSchema,
@@ -131,3 +133,52 @@ export const updateTournamentBanner = createAction(
     return actionOk(undefined, input.bannerUrl ? "Afiche actualizado correctamente." : "Afiche eliminado.");
   },
 );
+
+/** Rota el código de invitación de administradores: el enlace anterior deja de funcionar. */
+export const rotateAdminInviteCode = createAction(
+  tournamentIdSchema,
+  async ({ tournamentId }, { supabase }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.rpc as any)("rotate_tournament_admin_invite", {
+      p_tournament_id: tournamentId,
+    });
+    if (error) return actionError(dbErrorMessage(error));
+    revalidateTournament(tournamentId);
+    return actionOk({ code: data }, "Generamos un enlace nuevo de administrador. El anterior ya no funciona.");
+  },
+);
+
+/** Quita a un co-administrador del torneo. */
+export const removeTournamentAdmin = createAction(
+  removeTournamentAdminSchema,
+  async ({ tournamentId, adminUserId }, { supabase }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.rpc as any)("remove_tournament_admin", {
+      p_tournament_id: tournamentId,
+      p_user_id: adminUserId,
+    });
+    if (error) return actionError(dbErrorMessage(error));
+    revalidateTournament(tournamentId);
+    return actionOk(undefined, "Administrador eliminado del torneo.");
+  },
+);
+
+/** Une al usuario actual como co-administrador del torneo mediante el código del enlace. */
+export const joinTournamentAsAdmin = createAction(
+  adminInviteCodeSchema,
+  async ({ code }, { supabase }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.rpc as any)("join_tournament_as_admin", {
+      p_code: code,
+    });
+    if (error) return actionError(dbErrorMessage(error));
+    if (!data || data.length === 0) return actionError("No se pudo procesar la invitación.");
+    const tourney = data[0];
+    revalidateTournament(tourney.tournament_id);
+    return actionOk(
+      { tournamentId: tourney.tournament_id, slug: tourney.tournament_slug, name: tourney.tournament_name },
+      `¡Ahora sos administrador de ${tourney.tournament_name}!`,
+    );
+  },
+);
+

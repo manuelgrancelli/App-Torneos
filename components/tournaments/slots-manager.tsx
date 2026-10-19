@@ -85,7 +85,7 @@ function SlotGenerator({ tournamentId, days, courts }: Omit<SlotsManagerProps, "
       dates: days,
       from: "09:00",
       to: "22:00",
-      durationMinutes: 90,
+      durationMinutes: 60,
       breakMinutes: 0,
       courtId: null as string | null,
     },
@@ -264,7 +264,7 @@ function SingleSlotForm({ tournamentId, days, courts }: Omit<SlotsManagerProps, 
   const [isPending, startTransition] = useTransition();
   const form = useForm({
     resolver: zodResolver(createSlotSchema),
-    defaultValues: { tournamentId, date: days[0] ?? "", start: "18:00", end: "19:30", courtId: null as string | null },
+    defaultValues: { tournamentId, date: days[0] ?? "", start: "18:00", end: "19:00", courtId: null as string | null },
   });
 
   const onSubmit = form.handleSubmit((input) => {
@@ -399,6 +399,26 @@ function SlotList({ tournamentId, timezone, courts, slots }: Omit<SlotsManagerPr
     router.refresh();
   }
 
+  async function removeDaySlots(daySlots: SlotRow[]) {
+    const result = await deleteTimeSlots({ tournamentId, slotIds: daySlots.map((s) => s.id) });
+    if (!result.ok) {
+      toast.error(result.error);
+      return false;
+    }
+    toast.success(result.message ?? "Borramos las franjas del día.");
+    router.refresh();
+  }
+
+  async function removeAllSlots() {
+    const result = await deleteTimeSlots({ tournamentId, slotIds: slots.map((s) => s.id) });
+    if (!result.ok) {
+      toast.error(result.error);
+      return false;
+    }
+    toast.success(result.message ?? "Borramos todas las franjas.");
+    router.refresh();
+  }
+
   if (slots.length === 0) {
     return (
       <EmptyState
@@ -409,17 +429,101 @@ function SlotList({ tournamentId, timezone, courts, slots }: Omit<SlotsManagerPr
     );
   }
 
+  const totalAssignedMatches = slots.reduce((acc, s) => acc + s.assignedMatches, 0);
+  const totalGameHours = Math.round(
+    slots.reduce((acc, s) => acc + (Date.parse(s.endsAt) - Date.parse(s.startsAt)) / 3600000, 0),
+  );
+
   return (
     <div className="space-y-6">
-      {dayWindows.map(({ day, windows }) => (
-        <section key={day} aria-labelledby={`day-${day}`} className="space-y-3">
-          <h3 id={`day-${day}`} className="text-sm font-semibold first-letter:uppercase">
-            {formatDayHeading(day)}{" "}
-            <span className="font-normal text-muted-foreground">
-              · {windows.length} {windows.length === 1 ? "franja" : "franjas"}
+      {/* Resumen de capacidad horaria y acción masiva */}
+      <div className="rounded-xl border bg-muted/30 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-bold text-sm sm:text-base text-foreground">
+              {slots.length} {slots.length === 1 ? "turno disponible" : "turnos disponibles"}
             </span>
-          </h3>
-          <div className="space-y-2">
+            <span className="text-xs text-muted-foreground">·</span>
+            <span className="text-xs font-semibold text-muted-foreground">
+              ~{totalGameHours} hs de juego
+            </span>
+            {totalAssignedMatches > 0 ? (
+              <Badge variant="secondary" className="text-xs font-semibold">
+                {totalAssignedMatches} {totalAssignedMatches === 1 ? "partido asignado" : "partidos asignados"}
+              </Badge>
+            ) : null}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {dayWindows.length} {dayWindows.length === 1 ? "día con horarios" : "días con horarios"} · {courts.length} {courts.length === 1 ? "cancha" : "canchas"}
+          </p>
+        </div>
+
+        <ConfirmActionButton
+          variant="outline"
+          size="sm"
+          destructive
+          className="h-8 px-3 text-xs text-muted-foreground hover:text-destructive border-border/80 self-start sm:self-auto shrink-0"
+          aria-label="Borrar todas las franjas del torneo"
+          title="¿Borrar todas las franjas del torneo?"
+          description={
+            totalAssignedMatches > 0 ? (
+              <>
+                <p>Hay {totalAssignedMatches} partidos asignados que quedarán sin horario.</p>
+                <p>Las parejas inscriptas perderán toda su disponibilidad horaria.</p>
+              </>
+            ) : (
+              <p>Se eliminarán los {slots.length} turnos configurados en el torneo.</p>
+            )
+          }
+          confirmLabel="Borrar todas las franjas"
+          onConfirm={removeAllSlots}
+        >
+          <Trash2 className="mr-1.5 size-3.5" aria-hidden="true" />
+          <span>Borrar todas las franjas</span>
+        </ConfirmActionButton>
+      </div>
+
+      {dayWindows.map(({ day, windows }) => {
+        const dayAllSlots = windows.flatMap((w) => w.slots);
+        const dayAssignedMatches = dayAllSlots.reduce((acc, s) => acc + s.assignedMatches, 0);
+        const dayAvailableTeams = Math.max(...dayAllSlots.map((s) => s.availableTeams), 0);
+        const dayInUse = dayAssignedMatches > 0 || dayAvailableTeams > 0;
+
+        return (
+          <section key={day} aria-labelledby={`day-${day}`} className="space-y-3">
+            <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-1.5">
+              <h3 id={`day-${day}`} className="text-sm font-semibold first-letter:uppercase">
+                {formatDayHeading(day)}{" "}
+                <span className="font-normal text-muted-foreground">
+                  · {windows.length} {windows.length === 1 ? "franja" : "franjas"} ({dayAllSlots.length} turnos)
+                </span>
+              </h3>
+
+              <ConfirmActionButton
+                variant="ghost"
+                size="sm"
+                destructive
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive shrink-0"
+                aria-label={`Borrar franjas del ${formatDayHeading(day)}`}
+                title={`¿Borrar todas las franjas del ${formatDayHeading(day)}?`}
+                description={
+                  dayInUse ? (
+                    <>
+                      <p>Hay inscripciones o partidos asignados en este día.</p>
+                      <p>Los partidos quedarán sin horario y las parejas perderán esa disponibilidad.</p>
+                    </>
+                  ) : (
+                    <p>Se borrarán los {dayAllSlots.length} turnos de este día.</p>
+                  )
+                }
+                confirmLabel="Borrar franjas del día"
+                onConfirm={() => removeDaySlots(dayAllSlots)}
+              >
+                <Trash2 className="mr-1 size-3.5" aria-hidden="true" />
+                <span>Borrar día</span>
+              </ConfirmActionButton>
+            </div>
+            <div className="space-y-2">
             {windows.map((window, index) => {
               const time = formatTimeRange(window.startsAt, window.endsAt, timezone);
               const label = windows.length > 1 ? `Franja ${index + 1}` : "Franja completa";
@@ -577,7 +681,8 @@ function SlotList({ tournamentId, timezone, courts, slots }: Omit<SlotsManagerPr
             })}
           </div>
         </section>
-      ))}
+      );
+    })}
     </div>
   );
 }

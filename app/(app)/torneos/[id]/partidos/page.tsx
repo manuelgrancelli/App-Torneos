@@ -92,6 +92,8 @@ export default async function MatchesPage({ params }: PageProps<"/torneos/[id]/p
       </div>
       <MatchesBoard
         tournamentId={tournament.id}
+        tournamentName={tournament.name}
+        sportName={tournament.sport.name}
         timezone={tournament.timezone}
         scoring={tournament.scoringConfig}
         matches={board}

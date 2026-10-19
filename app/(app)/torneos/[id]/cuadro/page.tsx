@@ -1,4 +1,4 @@
-import { Network, Trophy } from "lucide-react";
+import { Network } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BracketView } from "@/components/bracket/bracket-view";
@@ -77,7 +77,6 @@ export default async function BracketPage({
     (m) => !activeCategory || m.categoryId === activeCategory.id
   );
   const playoffMatches = categoryMatches.filter((m) => m.stage === "playoff");
-
   const championId = activeCategory?.championTeamId ?? tournament.championTeamId;
   const champion = championId ? teamNames.get(championId) : null;
 
@@ -183,13 +182,6 @@ export default async function BracketPage({
             baseUrl={`/torneos/${tournament.id}/cuadro`}
           />
         </div>
-      ) : null}
-
-      {champion ? (
-        <p className="flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 font-medium text-amber-950">
-          <Trophy className="size-5 text-amber-600" aria-hidden="true" />
-          Campeón {activeCategory ? `(${activeCategory.name})` : ""}: {champion}
-        </p>
       ) : null}
 
       {!hasPlayoffMatches ? (

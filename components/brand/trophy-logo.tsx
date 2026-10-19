@@ -1,23 +1,33 @@
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 
 type TrophyLogoProps = {
-  /** Tamaño del logo: "sm" para header (30px), "md" para portada (36px), "lg" (44px). */
-  size?: "sm" | "md" | "lg";
+  /** Tamaño del logo: "sm" para header (32px), "md" para portada (38px), "lg" (44px), "xl" (48px). */
+  size?: "sm" | "md" | "lg" | "xl";
+  /** Si debe tener esquinas redondeadas estándar o totalmente circular ("full"). */
+  rounded?: "default" | "full";
   className?: string;
 };
 
 const SIZE_CONFIG = {
   sm: {
-    container: "size-8 rounded-lg",
+    container: "size-8",
+    defaultRadius: "rounded-lg",
     icon: "size-4.5",
   },
   md: {
-    container: "size-9.5 rounded-xl",
+    container: "size-9.5",
+    defaultRadius: "rounded-xl",
     icon: "size-5.5",
   },
   lg: {
-    container: "size-11 rounded-2xl",
+    container: "size-11",
+    defaultRadius: "rounded-2xl",
     icon: "size-6.5",
+  },
+  xl: {
+    container: "size-12",
+    defaultRadius: "rounded-full",
+    icon: "size-7",
   },
 } as const;
 
@@ -25,8 +35,9 @@ const SIZE_CONFIG = {
  * Insignia de la copa con fondo dorado metálico, silueta de copa en negro
  * y un destello blanco brillante que la cruza periódicamente.
  */
-export function TrophyLogo({ size = "sm", className }: TrophyLogoProps) {
+export function TrophyLogo({ size = "sm", rounded = "default", className }: TrophyLogoProps) {
   const cfg = SIZE_CONFIG[size];
+  const radiusClass = rounded === "full" ? "rounded-full" : cfg.defaultRadius;
 
   return (
     <span
@@ -35,6 +46,7 @@ export function TrophyLogo({ size = "sm", className }: TrophyLogoProps) {
         "bg-gradient-to-br from-[#FDE68A] via-[#F59E0B] to-[#D97706]",
         "shadow-sm shadow-amber-500/30 ring-1 ring-amber-300/70 dark:ring-amber-400/40",
         cfg.container,
+        radiusClass,
         className,
       )}
       aria-hidden="true"

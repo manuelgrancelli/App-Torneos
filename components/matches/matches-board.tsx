@@ -40,14 +40,16 @@ import { type BoardMatch, compareMatchesChronological, playoffRoundCount } from 
 import type { ScoringConfig } from "@/lib/domain/scoring";
 import { cn } from "@/lib/utils";
 import { AssignSlotDialog } from "./assign-slot-dialog";
+import { ExportMatchesImageModal } from "./export-matches-image-modal";
 import { ResultDialog } from "./result-dialog";
-
 
 type Filter = "all" | "unscheduled" | "pending" | "disputed";
 type ViewMode = "schedule" | "stage";
 
 type MatchesBoardProps = {
   tournamentId: string;
+  tournamentName?: string;
+  sportName?: string;
   timezone: string;
   scoring: ScoringConfig;
   matches: BoardMatch[];
@@ -423,14 +425,27 @@ export function MatchesBoard(props: MatchesBoardProps) {
             const headingId = `dia-${group.day ?? "sin-horario"}`;
             return (
               <section key={group.day ?? "sin-horario"} aria-labelledby={headingId} className="space-y-2">
-                <div className="flex items-center justify-between px-0.5">
-                  <h3 id={headingId} className="text-sm font-semibold first-letter:uppercase flex items-center gap-2">
-                    <Calendar className="size-4 text-muted-foreground" aria-hidden="true" />
-                    {group.day ? formatDayHeading(group.day) : "Sin horario asignado"}
+                <div className="flex items-center justify-between px-0.5 gap-2">
+                  <h3 id={headingId} className="text-sm font-semibold first-letter:uppercase flex items-center gap-2 min-w-0 truncate">
+                    <Calendar className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <span className="truncate">{group.day ? formatDayHeading(group.day) : "Sin horario asignado"}</span>
                   </h3>
-                  <Badge variant="secondary" className="text-xs font-normal">
-                    {group.items.length} {group.items.length === 1 ? "partido" : "partidos"}
-                  </Badge>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge variant="secondary" className="text-xs font-normal">
+                      {group.items.length} {group.items.length === 1 ? "partido" : "partidos"}
+                    </Badge>
+                    <ExportMatchesImageModal
+                      tournamentName={props.tournamentName ?? "Torneo"}
+                      sportName={props.sportName}
+                      timezone={props.timezone}
+                      matches={props.matches}
+                      initialDay={group.day ?? "unscheduled"}
+                      buttonText={group.day ? "Mandar día" : "Mandar"}
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs px-2.5 gap-1.5 font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-500/10 border-emerald-500/30"
+                    />
+                  </div>
                 </div>
                 <ul className="divide-y rounded-lg border bg-card">
                   {group.items.map((match) => (

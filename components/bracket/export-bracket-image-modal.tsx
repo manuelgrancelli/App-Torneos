@@ -8,7 +8,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -176,56 +175,27 @@ export function ExportBracketImageModal({
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col p-4 sm:p-6 overflow-hidden">
-        <DialogHeader className="shrink-0">
-          <DialogTitle className="flex items-center gap-2 text-lg">
-            <ImageIcon className="size-5 text-emerald-500" aria-hidden="true" />
-            Imagen del cuadro para WhatsApp
+      <DialogContent className="max-w-2xl max-h-[90dvh] flex flex-col p-4 sm:p-5 overflow-y-auto gap-3">
+        <DialogHeader className="shrink-0 space-y-1">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <ImageIcon className="size-5 text-emerald-500 shrink-0" aria-hidden="true" />
+            Compartir Cuadro por WhatsApp
           </DialogTitle>
-          <DialogDescription>
-            Visualizá y descargá los cruces de playoffs en alta definición para compartir con los jugadores.
+          <DialogDescription className="text-xs sm:text-sm">
+            Descargá o compartí la imagen de cruces de playoffs directamente con tus jugadores.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 my-2 overflow-auto rounded-xl border bg-muted/40 p-2 sm:p-4 flex items-center justify-center min-h-[320px]">
-          {isGenerating || !imageUrl ? (
-            <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground py-12">
-              <Spinner className="size-8" />
-              <span>Generando imagen de cruces en alta resolución…</span>
-            </div>
-          ) : (
-            <div className="relative w-full max-w-3xl shadow-xl rounded-lg overflow-hidden border border-white/10">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={imageUrl}
-                alt={`Cuadro de ${tournamentName}`}
-                className="w-full h-auto object-contain block"
-              />
-            </div>
-          )}
-        </div>
-
-        <DialogFooter className="shrink-0 flex-col sm:flex-row gap-2 pt-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleCopy}
-            disabled={!imageBlob || isGenerating}
-            className="w-full sm:w-auto"
-          >
-            {isCopied ? <Check className="size-4 text-emerald-500" /> : <Copy className="size-4" />}
-            {isCopied ? "Copiada" : "Copiar imagen"}
-          </Button>
-
+        {/* Acciones principales arriba de todo: compartir o descargar al instante */}
+        <div className="flex flex-wrap items-center gap-2 pt-1 pb-1">
           {canNativeShare ? (
             <Button
               type="button"
-              variant="outline"
               onClick={handleShare}
               disabled={!imageBlob || isGenerating}
-              className="w-full sm:w-auto"
+              className="flex-1 min-w-[120px] bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs sm:text-sm h-10 shadow-xs"
             >
-              <Share2 className="size-4 text-emerald-500" />
+              <Share2 className="size-4 mr-1.5 shrink-0" />
               Compartir directo
             </Button>
           ) : null}
@@ -234,12 +204,42 @@ export function ExportBracketImageModal({
             type="button"
             onClick={handleDownload}
             disabled={!imageBlob || isGenerating}
-            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white"
+            className={`${canNativeShare ? "flex-1 min-w-[120px]" : "w-full"} bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs sm:text-sm h-10 shadow-xs`}
           >
-            <Download className="size-4" />
+            <Download className="size-4 mr-1.5 shrink-0" />
             Descargar
           </Button>
-        </DialogFooter>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleCopy}
+            disabled={!imageBlob || isGenerating}
+            className="flex-1 min-w-[120px] text-xs sm:text-sm h-10"
+          >
+            {isCopied ? <Check className="size-4 text-emerald-500 mr-1.5 shrink-0" /> : <Copy className="size-4 mr-1.5 shrink-0" />}
+            {isCopied ? "¡Copiada!" : "Copiar imagen"}
+          </Button>
+        </div>
+
+        {/* Contenedor de visualización con altura dinámica responsive */}
+        <div className="flex items-center justify-center rounded-xl border bg-muted/40 p-2 sm:p-3 min-h-[140px]">
+          {isGenerating || !imageUrl ? (
+            <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground py-8">
+              <Spinner className="size-8" />
+              <span>Generando imagen de cruces en alta resolución…</span>
+            </div>
+          ) : (
+            <div className="relative shadow-xl rounded-lg overflow-hidden border border-white/10 max-h-[38dvh] w-auto">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imageUrl}
+                alt={`Cuadro de ${tournamentName}`}
+                className="max-h-[38dvh] w-auto h-auto object-contain block mx-auto"
+              />
+            </div>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

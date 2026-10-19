@@ -1527,4 +1527,136 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** brindar máxima agilidad al organizador para ajustar zonas balanceadas con compatibilidad horaria transparente y resolver contingencias habituales de jugadores lesionados antes o durante el torneo.
 - **Cómo aplicar:** implementado en `components/groups/group-builder.tsx`, `components/groups/swap-teams-modal.tsx`, `components/groups/slot-matches-modal.tsx`, `components/registration/replace-player-dialog.tsx`, `components/registration/registrations-list.tsx`, `app/(app)/torneos/[id]/inscripciones/actions.ts`, `lib/validation/registration.ts` y migración SQL `20261018220000_replace_team_player_for_injury.sql`.
 
+### D-105 — Optimización integral de asignación de horarios, métricas y gestión de franjas (2026-10-19)
+- **Decisión:**
+  - **Asignación manual de horarios con selección inteligente y análisis de descanso (`AssignSlotDialog`):**
+    - **Auto-selección de cancha libre:** al seleccionar una franja horaria general (sin cancha prefijada), si la cancha activa se encuentra ocupada por otro encuentro en ese horario, el diálogo conmuta automáticamente a la primera cancha libre disponible. Esto elimina de raíz los falsos conflictos de cancha ocupada cuando el organizador selecciona una franja verde (con canchas libres).
+    - **Filtros rápidos por disponibilidad:** se incorporaron botones de filtrado inmediato: *Todas*, *🟢 Solo disponibles* (franjas verdes donde ambas parejas pueden jugar y hay cancha libre) y *🟡 1 no puede* (franjas amarillas), permitiendo al organizador localizar al instante los horarios viables en torneos con decenas de turnos sin desplazamientos excesivos.
+    - **Análisis de descanso de las parejas (`teamRestInsights`):** al seleccionar una franja, el diálogo analiza automáticamente si alguna de las parejas disputa otro partido en la jornada y muestra un bloque informativo con el tiempo de descanso resultante (*✨ Descanso óptimo*, *⚠️ Menos de 15 min de descanso* o *⏱️ Tiempo de espera*), garantizando cronogramas equilibrados y sin sobrecargas físicas.
+  - **Detección de descansos cortos en el dominio (`checkManualAssignment` en `lib/domain/scheduler.ts`):**
+    - Si un partido no se superpone pero se encuentra contiguo a otro del mismo equipo con menos de 15 minutos de descanso, el validador emite una advertencia preventiva para notificar al organizador.
+  - **Gestión masiva y métricas de capacidad en Canchas y Franjas (`SlotsManager`):**
+    - **Borrado por día:** botón de acción rápida *"Borrar día"* en cada jornada con confirmación segura para eliminar en 1 clic todos los turnos de una fecha determinada.
+    - **Borrado total de franjas:** botón *"Borrar todas las franjas"* en la cabecera para resetear los turnos del torneo con confirmación explicativa (útil al cambiar la duración de partidos de 90 a 60 min o regenerar el fixture).
+    - **Resumen de capacidad horaria:** panel superior con métricas clave: total de turnos disponibles, partidos programados, días cubiertos y horas estimadas totales de juego en el club.
+- **Motivo:** responder a la solicitud del usuario de evaluar y optimizar a fondo el tema de horarios, agilizando la asignación manual sin errores de cancha, facilitando el filtrado por disponibilidad y permitiendo la administración masiva de franjas horarias.
+- **Cómo aplicar:** implementado en `components/matches/assign-slot-dialog.tsx`, `lib/domain/scheduler.ts`, `lib/domain/scheduler.test.ts`, `components/tournaments/slots-manager.tsx` y verificado con Vitest y typecheck.
+
+### D-106 — Duración predeterminada de 60 minutos por partido en franjas y horarios (2026-10-19)
+- **Decisión:**
+  - En la gestión de franjas horarias (`SlotsManager` en `components/tournaments/slots-manager.tsx`), la duración predeterminada por partido se cambió de 90 a **60 minutos**:
+    - En el generador en lote (`SlotGenerator`), el valor por defecto de `durationMinutes` ahora es `60` (en lugar de `90`).
+    - En el formulario individual de franja (`SingleSlotForm`), el intervalo inicial predeterminado se ajustó a 1 hora completa (`start: "18:00"`, `end: "19:00"`, en lugar de 18:00 a 19:30).
+- **Motivo:** atender el pedido directo del usuario para que la duración estándar predeterminada por turno de partido sea de 60 minutos en la configuración de franjas.
+- **Cómo aplicar:** implementado en `components/tournaments/slots-manager.tsx`.
+
+### D-107 — Personalización de fondo y formato Historia (9:16) para descarga de Zonas y Grupos (2026-10-19)
+- **Decisión:**
+  - **Soporte de fondos temáticos en Canvas 2D (`renderGroupsToCanvas` en `lib/graphics/groups-image.ts`):**
+    - Se incorporaron fondos fotográficos de alta resolución para pádel en `public/backgrounds/`: *Pádel Rojo* (cancha exterior con césped rojo y paredes de vidrio, idéntico a la referencia solicitada), *Pádel Azul* (cancha panorámica indoor con iluminación LED), *Pádel Verde* y el clásico *Oscuro*.
+    - **Carga de foto propia (`custom`):** el usuario u organizador puede subir cualquier fotografía de su club, canchas reales o sponsors desde su dispositivo con previsualización inmediata.
+    - **Ajuste de cobertura y viñeta inteligente (`drawImageCover`):** la imagen de fondo se ajusta automáticamente cubriendo el lienzo sin deformarse, aplicando un filtro de oscurecimiento y viñetas superior/inferior para garantizar legibilidad absoluta y contraste en los nombres de las parejas y encabezados.
+  - **Formato Historia 9:16 para WhatsApp / Instagram:**
+    - Se incorporó la opción de renderizar en resolución 1080x1920 (proporción 9:16) con diseño estilo póster deportivo: bloque superior blanco con el nombre del torneo en tipografía destacada, cinta roja con la categoría/zonas y tarjetas oscuras con esquinas redondeadas (`rgba(10, 12, 16, 0.88)`), divisores nítidos y parejas centradas.
+    - Se mantiene la opción de conmutar al formato *Estándar* (1200px horizontal adaptativo).
+  - **Selector dinámico en el modal (`ExportGroupsImageModal` en `components/groups/export-groups-image-modal.tsx`):**
+    - Barra de herramientas con selector de formato (📱 Historia 9:16 vs 🖼️ Estándar) y botones de fondo con indicador visual de color y opción para cambiar foto personalizada.
+    - Memoria caché de imágenes precargadas para que el cambio entre fondos y formatos sea instantáneo.
+- **Motivo:** responder a la solicitud del usuario para elegir fondos temáticos de cancha de pádel y formatos adaptados para estados y grupos de WhatsApp con alta calidad visual.
+- **Cómo aplicar:** implementado en `lib/graphics/groups-image.ts`, `components/groups/export-groups-image-modal.tsx`, `lib/graphics/groups-image.test.ts`, assets en `public/backgrounds/` y verificado con Vitest y typecheck.
+
+### D-108 — Co-administradores de torneo y enlaces de invitación por WhatsApp (2026-10-19)
+- **Decisión:**
+  - **Modelo de datos y RLS (`20261019160000_tournament_admins_and_collaborators.sql`):**
+    - Tabla `tournament_admins (tournament_id, user_id, role, created_at)`: registra los colaboradores asignados como administradores del torneo.
+    - Tabla `tournament_admin_invites (tournament_id, code, rotated_at, created_at)`: almacena el código único de 10 caracteres alfanuméricos para generar el enlace de invitación de administradores.
+    - Actualización del helper privado `private.is_tournament_organizer(p_tournament_id)`: retorna `true` si el usuario es el dueño del torneo o si figura en `tournament_admins`. Esto habilita automáticamente a los co-administradores en todas las tablas bajo RLS (canchas, franjas, categorías, partidos, resultados, etc.).
+    - Actualización de `public.require_match_organizer(p_match_id)` y RPCs operativas (`apply_groups`, `apply_schedule`, `apply_bracket`, `set_tournament_status`, `replace_team_player`, `create_organizer_team`): permiten que los administradores realicen todas las gestiones operativas del torneo.
+    - Restricción de facultades críticas: solo el organizador principal (`tournaments.organizer_id = auth.uid()`) puede eliminar el torneo, rotar el enlace de administradores o quitar otros administradores.
+    - Nuevas RPCs: `get_admin_invite_info(p_code)`, `join_tournament_as_admin(p_code)`, `rotate_tournament_admin_invite(p_tournament_id)` y `remove_tournament_admin(p_tournament_id, p_user_id)`.
+  - **Consultas y dashboard (`lib/data/tournaments.ts`):**
+    - `listOrganizedTournaments(userId)`: incluye tanto los torneos creados por el usuario como aquellos en los que participa como co-administrador, mostrándolos en la pestaña "Organizo" del dashboard.
+    - `getOrganizerTournament(tournamentId, userId)`: autoriza el acceso a co-administradores y retorna la bandera `isOwner`.
+    - `getTournamentAdmins(tournamentId)`: lista el dueño y los administradores colaboradores.
+  - **Interfaz de usuario:**
+    - Panel de gestión en `/torneos/[id]/configuracion` (`TournamentAdminsManager` en `components/tournaments/tournament-admins-manager.tsx`):
+      - Visualización del equipo organizador con badges distintivos.
+      - Enlace de invitación de administradores listo para copiar o compartir por WhatsApp con un solo clic.
+      - Botón de rotación de enlace para revocar accesos previos.
+      - Botón de eliminación de administradores exclusivo para el dueño.
+      - La "Zona de peligro" (eliminar torneo) se oculta para los co-administradores.
+    - Pantalla de aceptación en `/torneos/unirse-admin?code=...` (`app/(app)/torneos/unirse-admin/page.tsx` y `JoinAdminCard`):
+      - Muestra el nombre del torneo, deporte, organizador y alcance de los permisos.
+      - Botón "Aceptar y unirme como administrador" que procesa el alta en 1 clic y redirige al panel del torneo.
+- **Motivo:** responder a la solicitud del usuario para que el organizador pueda delegar la carga de resultados, gestión de horarios y administración de partidos en colaboradores designados.
+- **Cómo aplicar:** migración `supabase/migrations/20261019160000_tournament_admins_and_collaborators.sql`, `lib/data/tournaments.ts`, `components/tournaments/tournament-admins-manager.tsx`, `components/tournaments/join-admin-card.tsx`, `app/(app)/torneos/unirse-admin/page.tsx`, `app/(app)/torneos/[id]/actions.ts`, `app/(app)/torneos/[id]/configuracion/page.tsx`.
+
+### D-109 — Personalización de fondo y formato Historia (9:16) para descarga de Partidos y Horarios (2026-10-19)
+- **Decisión:**
+  - **Soporte de fondos temáticos en `renderMatchesToCanvas` (`lib/graphics/matches-image.ts`):**
+    - Se habilitó la selección de fondos de cancha de pádel de alta resolución (*Pádel Rojo*, *Pádel Azul*, *Pádel Verde* y *Oscuro clásico*) o foto personalizada propia del club/canchas para la generación de imágenes del cronograma y fixture de partidos.
+    - Se aplica ajuste `cover` automático con filtro de oscurecimiento y viñetas superior e inferior para garantizar contraste impecable en la lectura de horarios, sedes, parejas y marcadores.
+  - **Formato Historia 9:16 (1080x1920) para WhatsApp / Instagram:**
+    - Incorporación de diseño de poster vertical optimizado para estados con tarjeta superior blanca del torneo, banner rojo con la categoría/horarios y tarjetas de enfrentamiento oscuras y redondeadas (`rgba(10, 12, 16, 0.88)`).
+    - Se mantiene la opción de conmutar al formato *Estándar* (1200px horizontal adaptativo).
+  - **Selector integrado en el modal (`ExportMatchesImageModal` en `components/matches/export-matches-image-modal.tsx`):**
+    - Toolbar con selector de formato (📱 Historia 9:16 vs 🖼️ Estándar) y botones de fondo con indicador visual de color y selector de foto propia.
+    - Integración armónica con los filtros existentes por categoría, día y etapa del torneo, con renderizado fluido mediante caché de imágenes en memoria.
+- **Motivo:** responder al pedido directo del usuario para contar con las mismas opciones de fondo temático de cancha de pádel y formatos de redes en la exportación de imágenes de partidos y horarios.
+- **Cómo aplicar:** implementado en `lib/graphics/matches-image.ts`, `components/matches/export-matches-image-modal.tsx`, `lib/graphics/matches-image.test.ts` y verificado con Vitest y typecheck.
+
+### D-110 — Insignia de copa brillante en la tarjeta de la Final del cuadro (2026-10-19)
+- **Decisión:**
+  - En la tarjeta del partido de la **Final** del cuadro de playoffs (`MatchCard` en `components/bracket/bracket-view.tsx`):
+    - Se incorporó en el lateral derecho de la zona de equipos un medallón circular dorado con la silueta de la copa (`TrophyLogo` con `rounded="full"`, degradado metálico oro `#FDE68A` -> `#F59E0B` -> `#D97706`, resplandor cálido y destello blanco periódico animado mediante `.animate-trophy-shine`).
+    - La tarjeta de la Final se resalta con borde dorado y sutil anillo de brillo (`border-amber-500/50 ring-1 ring-amber-500/30 shadow-md shadow-amber-500/10`) y cabecera en tonos ámbar con `★ Final`.
+    - Cuando la Final se define, el equipo ganador se destaca en dorado con el trofeo y la etiqueta "Campeón".
+    - Se extendió el componente `TrophyLogo` (`components/brand/trophy-logo.tsx`) con soporte para tamaño `xl` y la propiedad `rounded="full"`.
+    - En la exportación gráfica del cuadro (`renderBracketToCanvas` en `lib/graphics/bracket-image.ts`), se adaptó el dibujo de la tarjeta final para incluir el medallón dorado de la copa, garantizando total coherencia entre la interfaz interactiva y la imagen descargable para redes.
+- **Motivo:** requerimiento y boceto provisto por el usuario para jerarquizar el partido decisivo del torneo con una copa brillante idéntica a la insignia del logo de Torneos.
+- **Cómo aplicar:** `components/brand/trophy-logo.tsx`, `components/bracket/bracket-view.tsx`, `lib/graphics/bracket-image.ts`.
+
+### D-111 — Corrección de renderizado y envío de partidos por día (2026-10-19)
+- **Decisión:**
+  - **Corrección de bucle infinito en modal de horarios (`components/matches/export-matches-image-modal.tsx`):**
+    - Se eliminó `imageUrl` de las dependencias de `generateImage` (su presencia provocaba que la creación de un nuevo ObjectURL recreara el callback y volviera a disparar el `useEffect` en un ciclo sin fin que dejaba el modal en estado de generación permanente).
+    - Se limitó `crossOrigin = "anonymous"` en `loadImage` exclusivamente a URLs remotas `http(s)://`, previniendo errores de CORS con rutas locales (`/backgrounds/...`) o URLs `blob:` de fotos personalizadas.
+    - Se aisló la carga de imágenes con manejo de errores preventivo y se dimensionó el canvas antes de la obtención de su contexto 2D en `lib/graphics/matches-image.ts`.
+  - **Restauración y potenciación del envío de partidos por día:**
+    - El selector de **Día** en el modal se muestra siempre que existan días programados o partidos sin horario (ya no se oculta arbitrariamente si sólo hay 1 día con partidos agendados).
+    - Se incorporó un botón directo `Mandar día` en la cabecera de cada fecha dentro del tablero de partidos (`MatchesBoard` en `components/matches/matches-board.tsx`), abriendo el modal prefiltrado para esa fecha específica.
+    - Se sumó la acción `Mandar texto WhatsApp` en el pie del modal, que formatea el cronograma completo o del día seleccionado en texto legible con formato deportivo y abre WhatsApp copiando además el texto al portapapeles.
+- **Motivo:** solucionar el bloqueo del modal reportado por el usuario y reponer la funcionalidad crítica de compartir los partidos por día.
+- **Cómo aplicar:** `components/matches/export-matches-image-modal.tsx`, `components/matches/matches-board.tsx`, `lib/graphics/matches-image.ts`, `app/(app)/torneos/[id]/partidos/page.tsx`.
+
+### D-112 — Eliminación del cartel global de campeón único (2026-10-19)
+- **Decisión:**
+  - Se eliminó el cartel/banner superior "Campeón: [pareja]" en la vista pública (`app/t/[slug]/page.tsx`) y en la vista organizador del cuadro (`app/(app)/torneos/[id]/cuadro/page.tsx`).
+  - En la tarjeta de torneo finalizado (`FinishedTournamentCard` en `components/tournaments/tournament-card.tsx`), se reemplazó el recuadro que destacaba a un único campeón por el estado neutro unificado `"Edición finalizada y resultados archivados"`.
+  - El reconocimiento del campeón se mantiene localizado y contextualmente exacto dentro de cada categoría, en la tarjeta de la Final del cuadro de playoffs (`BracketView` con la insignia de la copa brillante y etiqueta dorada de Campeón de D-110).
+- **Motivo:** al admitir torneos con múltiples categorías, el cartel global quedaba obsoleto y engañoso al mostrar únicamente el campeón de la primera categoría creada en lugar de representar los campeones correspondientes a cada categoría.
+- **Cómo aplicar:** `app/t/[slug]/page.tsx`, `app/(app)/torneos/[id]/cuadro/page.tsx`, `components/tournaments/tournament-card.tsx`, `tests/e2e/playoffs.spec.ts`.
+
+### D-113 — Formato 9:16 único, acciones arriba y diseño responsive en modales de descarga (2026-10-19)
+- **Decisión:**
+  - **Fijación de formato 9:16 (Historia / WhatsApp):**
+    - Se eliminó el selector de conmutación de formato (Historia 9:16 vs Estándar 1200px) en `ExportGroupsImageModal` (`components/groups/export-groups-image-modal.tsx`) y `ExportMatchesImageModal` (`components/matches/export-matches-image-modal.tsx`), fijando el formato por defecto y único a `story` (1080x1920, 9:16) ideal para estados y difusión en WhatsApp.
+  - **Diseño 100% responsive y acciones al tope (sin necesidad de scroll):**
+    - Para evitar que la opción de compartir quede "muy abajo" o requiera scroll incómodo, se ubicaron los botones de acción principales ("Compartir directo", "Descargar", "Copiar imagen" y "Texto WhatsApp") **arriba de todo**, inmediatamente debajo del encabezado del modal.
+    - Se configuró `DialogContent` con `overflow-y-auto` y `max-h-[90dvh]` en todos los modales de descarga (`ExportGroupsImageModal`, `ExportMatchesImageModal` y `ExportBracketImageModal`), eliminando cualquier bloqueo de scroll.
+    - La vista previa se adaptó a un escalado dinámico compacto (`max-h-[30dvh]` / `max-h-[38dvh]`), garantizando que la botonera de compartir y el selector de fondo estén siempre visibles en cualquier resolución.
+- **Motivo:** responder a la solicitud del usuario de prescindir del selector de formato y resolver de raíz que el botón de compartir quedaba muy abajo o cortado en pantallas de celular.
+- **Cómo aplicar:** `components/groups/export-groups-image-modal.tsx`, `components/matches/export-matches-image-modal.tsx`, `components/bracket/export-bracket-image-modal.tsx`.
+
+### D-114 — Foto realista de cancha roja sin personas y eliminación de opción Verde (2026-10-19)
+- **Decisión:**
+  - **Reemplazo de fondo rojo por fotografía arquitectónica realista (`public/backgrounds/padel-red.jpg`):**
+    - Se sustituyó la imagen anterior por una toma fotográfica nítida y fotorrealista de cancha de pádel vacía (sin jugadores), con césped sintético terracota/ladrillo auténtico, paredes de cristal templado panorámico, columnas de reja negra y líneas blancas reglamentarias.
+  - **Eliminación de la opción "Pádel Verde":**
+    - Se retiró la opción `padel-green` de la botonera de fondos en `ExportGroupsImageModal` (`components/groups/export-groups-image-modal.tsx`) y `ExportMatchesImageModal` (`components/matches/export-matches-image-modal.tsx`), dejando las opciones limpias: *Pádel Rojo* (foto real), *Pádel Azul*, *Oscuro* y *Mi foto*.
+- **Motivo:** requerimiento estético del usuario para contar con una foto roja que luzca real y profesional sin jugadores, y retirar la variante verde no deseada.
+- **Cómo aplicar:** `public/backgrounds/padel-red.jpg`, `components/groups/export-groups-image-modal.tsx`, `components/matches/export-matches-image-modal.tsx`.
+
+
+
 

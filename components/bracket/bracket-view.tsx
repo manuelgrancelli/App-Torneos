@@ -2,6 +2,7 @@
 
 import { ClipboardEdit, List, Medal, Network, Trophy } from "lucide-react";
 import { useMemo, useState } from "react";
+import { TrophyLogo } from "@/components/brand/trophy-logo";
 import { ResultDialog } from "@/components/matches/result-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -263,10 +264,23 @@ export function BracketView({ cards, timezone, scoring, tournamentId, canEdit = 
   );
 }
 
-function TeamLine({ team, placeholder }: { team: BracketCard["home"]; placeholder: string }) {
+function TeamLine({
+  team,
+  placeholder,
+  isFinal,
+}: {
+  team: BracketCard["home"];
+  placeholder: string;
+  isFinal?: boolean;
+}) {
   return (
     <div className={cn("flex items-center gap-2 px-3 py-2 text-sm", team?.winner && "font-semibold")}>
-      {team?.winner ? <Trophy className="size-3.5 shrink-0 text-amber-600" aria-label="Ganador" /> : null}
+      {team?.winner ? (
+        <Trophy
+          className={cn("size-3.5 shrink-0", isFinal ? "text-amber-500 fill-amber-500" : "text-amber-600")}
+          aria-label={isFinal ? "Campeón" : "Ganador"}
+        />
+      ) : null}
       {team?.seedBadge ? (
         <span className="shrink-0 rounded bg-muted/80 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
           {team.seedBadge}
@@ -277,11 +291,16 @@ function TeamLine({ team, placeholder }: { team: BracketCard["home"]; placeholde
           "truncate min-w-0 flex-1",
           !team && "text-muted-foreground italic",
           team?.isProvisional && "text-muted-foreground",
+          isFinal && team?.winner && "text-amber-600 dark:text-amber-400 font-bold",
         )}
       >
         {team?.name ?? placeholder}
       </span>
-      {team?.isProvisional ? (
+      {isFinal && team?.winner ? (
+        <span className="shrink-0 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider">
+          Campeón
+        </span>
+      ) : team?.isProvisional ? (
         <span className="ml-auto shrink-0 text-[10px] italic text-muted-foreground">prov.</span>
       ) : null}
     </div>
@@ -303,24 +322,58 @@ function MatchCard({
 }) {
   const hasResult = Boolean(card.resultText);
   const canScore = Boolean(canEdit && card.canScore && onScore && card.matchId);
+  const isFinalMatch = final && !card.isThirdPlace;
 
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-xl border bg-card transition-shadow shadow-xs",
-        final && "border-foreground/50 ring-1 ring-foreground/20",
+        "overflow-hidden rounded-xl border bg-card transition-all shadow-xs",
+        isFinalMatch
+          ? "border-amber-500/50 ring-1 ring-amber-500/30 shadow-md shadow-amber-500/10"
+          : final
+            ? "border-foreground/50 ring-1 ring-foreground/20"
+            : "",
       )}
     >
-      <div className="flex items-center justify-between px-3 py-1 bg-muted/20 border-b text-[10px] font-medium text-muted-foreground">
-        <span>{card.isThirdPlace ? "3er puesto" : `Cruce ${card.position + 1}`}</span>
-        {final && !card.isThirdPlace ? (
-          <span className="font-bold text-amber-600 dark:text-amber-400">★ Final</span>
+      <div
+        className={cn(
+          "flex items-center justify-between px-3 py-1 border-b text-[10px] font-medium",
+          isFinalMatch
+            ? "bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-300"
+            : "bg-muted/20 border-b text-muted-foreground",
+        )}
+      >
+        <span className={cn(isFinalMatch && "font-semibold text-foreground")}>
+          {card.isThirdPlace ? "3er puesto" : `Cruce ${card.position + 1}`}
+        </span>
+        {isFinalMatch ? (
+          <span className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400">
+            ★ Final
+          </span>
         ) : null}
       </div>
 
-      <TeamLine team={card.home} placeholder={card.isBye ? "Libre" : "A definir"} />
-      <div className="border-t" />
-      <TeamLine team={card.away} placeholder={card.isBye ? "Libre" : "A definir"} />
+      <div className="relative flex items-center">
+        <div className="min-w-0 flex-1">
+          <TeamLine team={card.home} placeholder={card.isBye ? "Libre" : "A definir"} isFinal={isFinalMatch} />
+          <div className="border-t" />
+          <TeamLine team={card.away} placeholder={card.isBye ? "Libre" : "A definir"} isFinal={isFinalMatch} />
+        </div>
+
+        {isFinalMatch ? (
+          <div
+            className="flex shrink-0 items-center justify-center pr-3 pl-1"
+            title="Trofeo de Campeón"
+            aria-label="Trofeo de Campeón"
+          >
+            <TrophyLogo
+              size="lg"
+              rounded="full"
+              className="size-11 shadow-md shadow-amber-500/35 ring-2 ring-amber-400/80 dark:ring-amber-300/70 hover:scale-110 transition-transform duration-300"
+            />
+          </div>
+        ) : null}
+      </div>
 
       <div className="flex min-h-8 items-center justify-between gap-2 border-t bg-muted/30 px-3 py-1.5 text-xs">
         {card.isBye ? (

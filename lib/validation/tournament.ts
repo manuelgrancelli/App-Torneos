@@ -94,6 +94,15 @@ export const updateTournamentBannerSchema = z.object({
 
 export type UpdateTournamentBannerInput = z.infer<typeof updateTournamentBannerSchema>;
 
+export const adminInviteCodeSchema = z.object({
+  code: z.string().trim().toUpperCase().min(1, { error: "Ingresá un código válido." }),
+});
+
+export const removeTournamentAdminSchema = z.object({
+  tournamentId: z.uuid(),
+  adminUserId: z.uuid(),
+});
+
 // -----------------------------------------------------------------------------
 // Canchas
 // -----------------------------------------------------------------------------

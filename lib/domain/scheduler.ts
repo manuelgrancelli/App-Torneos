@@ -434,7 +434,7 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
  * conflictos que la bloquean y las advertencias (disponibilidad no marcada).
  */
 export function checkManualAssignment(params: {
-  match: { id: string; homeTeamId: string | null; awayTeamId: string | null };
+  match: { id: string; homeTeamId: string | null; awayTeamId: string | null; homeName?: string; awayName?: string };
   slot: SchedulerSlot;
   courtId: string;
   others: readonly FixedAssignment[];
@@ -450,11 +450,27 @@ export function checkManualAssignment(params: {
   }
 
   for (const other of others) {
-    if (other.matchId === match.id || !overlaps(interval, other)) continue;
-    if (other.courtId === courtId) conflicts.push("La cancha ya tiene otro partido en ese horario.");
-    const teamsInOther = [other.homeTeamId, other.awayTeamId].filter(Boolean);
-    if ([match.homeTeamId, match.awayTeamId].some((team) => team && teamsInOther.includes(team))) {
-      conflicts.push("Un equipo ya juega otro partido en ese horario.");
+    if (other.matchId === match.id) continue;
+    const isOverlapping = overlaps(interval, other);
+    if (isOverlapping) {
+      if (other.courtId === courtId) conflicts.push("La cancha ya tiene otro partido en ese horario.");
+      const teamsInOther = [other.homeTeamId, other.awayTeamId].filter(Boolean);
+      if ([match.homeTeamId, match.awayTeamId].some((team) => team && teamsInOther.includes(team))) {
+        conflicts.push("Un equipo ya juega otro partido en ese horario.");
+      }
+    } else {
+      // Si no se superpone pero está contiguo (< 15 min de descanso), advertir fatiga
+      const teamsInOther = [other.homeTeamId, other.awayTeamId].filter(Boolean);
+      for (const team of [match.homeTeamId, match.awayTeamId]) {
+        if (team && teamsInOther.includes(team)) {
+          const gapBefore = interval.start - other.end;
+          const gapAfter = other.start - interval.end;
+          if ((gapBefore >= 0 && gapBefore < 15 * 60 * 1000) || (gapAfter >= 0 && gapAfter < 15 * 60 * 1000)) {
+            const teamLabel = team === match.homeTeamId ? (match.homeName ?? "Un equipo") : (match.awayName ?? "Un equipo");
+            warnings.push(`${teamLabel} tiene otro partido casi pegado (menos de 15 min de descanso).`);
+          }
+        }
+      }
     }
   }
 

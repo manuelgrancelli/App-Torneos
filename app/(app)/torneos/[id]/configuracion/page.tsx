@@ -4,10 +4,11 @@ import Link from "next/link";
 import { DeleteTournamentButton } from "@/components/tournaments/delete-tournament-button";
 import { type FormLocks, TournamentForm } from "@/components/tournaments/tournament-form";
 import { TournamentBannerManager } from "@/components/tournaments/tournament-banner-manager";
+import { TournamentAdminsManager } from "@/components/tournaments/tournament-admins-manager";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
-import { getTournamentCounts } from "@/lib/data/tournaments";
+import { getTournamentAdmins, getTournamentCounts } from "@/lib/data/tournaments";
 import type { ScoringConfig } from "@/lib/domain/scoring";
 import type { StandingsConfig } from "@/lib/domain/standings";
 import { canDeleteTournament } from "@/lib/domain/tournament-status";
@@ -18,7 +19,10 @@ export const metadata: Metadata = { title: "Configuración del torneo" };
 export default async function TournamentSettingsPage({ params }: PageProps<"/torneos/[id]/configuracion">) {
   const { id } = await params;
   const tournament = await requireOrganizerTournament(id);
-  const counts = await getTournamentCounts(tournament.id);
+  const [counts, admins] = await Promise.all([
+    getTournamentCounts(tournament.id),
+    getTournamentAdmins(tournament.id),
+  ]);
   const inSetup = tournament.status === "draft" || tournament.status === "registration_open";
   const afterGroups = tournament.status === "playoffs" || tournament.status === "finished";
 
@@ -31,6 +35,15 @@ export default async function TournamentSettingsPage({ params }: PageProps<"/tor
 
   return (
     <div className="max-w-2xl space-y-6">
+      {/* Administradores y colaboradores */}
+      <TournamentAdminsManager
+        tournamentId={tournament.id}
+        tournamentName={tournament.name}
+        isOwner={tournament.isOwner}
+        adminInviteCode={tournament.adminInviteCode}
+        admins={admins}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>
@@ -65,6 +78,7 @@ export default async function TournamentSettingsPage({ params }: PageProps<"/tor
           />
         </CardContent>
       </Card>
+
       <TournamentForm
         tournamentId={tournament.id}
         sport={{
@@ -89,7 +103,7 @@ export default async function TournamentSettingsPage({ params }: PageProps<"/tor
         locks={locks}
       />
 
-      {canDeleteTournament(tournament.status) ? (
+      {tournament.isOwner && canDeleteTournament(tournament.status) ? (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardHeader>
             <CardTitle className="text-base font-semibold text-destructive">

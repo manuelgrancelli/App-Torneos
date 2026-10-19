@@ -1,4 +1,4 @@
-import { CalendarDays, LayoutGrid, Trophy, Users } from "lucide-react";
+import { CalendarDays, LayoutGrid, Users } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BracketView } from "@/components/bracket/bracket-view";
@@ -77,7 +77,6 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
   const teamNames = new Map(competition.teams.map((t) => [t.id, t.name]));
   const courts = new Map(tournament.courts.map((c) => [c.id, c]));
   const courtNames = new Map(tournament.courts.map((c) => [c.id, c.name]));
-  const champion = tournament.championTeamId ? teamNames.get(tournament.championTeamId) : null;
 
   const filteredGroups = hasCategories && activeCategory
     ? competition.groups.filter((g) => g.categoryId === activeCategory.id)
@@ -134,13 +133,6 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
             priority
           />
         </section>
-      ) : null}
-
-      {champion ? (
-        <p className="flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 font-medium text-amber-950">
-          <Trophy className="size-5 text-amber-600" aria-hidden="true" />
-          Campeón: {champion}
-        </p>
       ) : null}
 
       {view === null ? (

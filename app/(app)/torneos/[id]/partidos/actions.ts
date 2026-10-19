@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { actionError, actionOk, createAction } from "@/lib/actions/safe-action";
 import { refreshPublicTournament } from "@/lib/public-cache";
 import { z } from "zod";
+import { canUserManageTournament } from "@/lib/data/tournaments";
 import {
   type MatchResult,
   type ScoringConfig,
@@ -309,11 +310,13 @@ export const confirmResult = createAction(matchActionSchema, async ({ tournament
 export const simulateTournamentResults = createAction(
   z.object({ tournamentId: z.uuid() }),
   async ({ tournamentId }, { supabase, userId }) => {
+    const canManage = await canUserManageTournament(supabase, tournamentId, userId);
+    if (!canManage) return actionError("No tenés permiso para gestionar este torneo.");
+
     const { data: tournament, error: tourError } = await supabase
       .from("tournaments")
       .select("id, status, is_test, scoring_config")
       .eq("id", tournamentId)
-      .eq("organizer_id", userId)
       .maybeSingle();
 
     if (tourError) return actionError(dbErrorMessage(tourError));

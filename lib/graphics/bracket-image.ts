@@ -374,13 +374,89 @@ function drawMatchCard(
 
   // Línea divisoria entre home y away
   ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
-  ctx.fillRect(x + 10, y + halfH, width - 20, 1);
+  ctx.fillRect(x + 10, y + halfH, width - (isFinal ? 54 : 20), 1);
 
   // Equipo 1 (Home)
-  drawTeamSlot(ctx, x, y, width, halfH, card.home, "Por definir", card.resultText, true);
+  drawTeamSlot(ctx, x, y, width, halfH, card.home, "Por definir", card.resultText, true, isFinal);
 
   // Equipo 2 (Away)
-  drawTeamSlot(ctx, x, y + halfH + 1, width, halfH, card.away, card.isBye ? "Libre" : "Por definir", card.resultText, false);
+  drawTeamSlot(
+    ctx,
+    x,
+    y + halfH + 1,
+    width,
+    halfH,
+    card.away,
+    card.isBye ? "Libre" : "Por definir",
+    card.resultText,
+    false,
+    isFinal,
+  );
+
+  // Si es la final, dibujar medallón de la copa dorada brillante a la derecha
+  if (isFinal) {
+    const trophySize = 38;
+    const trophyX = x + width - trophySize - 10;
+    const trophyY = y + (height - trophySize) / 2;
+    const centerX = trophyX + trophySize / 2;
+    const centerY = trophyY + trophySize / 2;
+    const radius = trophySize / 2;
+
+    ctx.save();
+    // Resplandor dorado sutil
+    ctx.shadowColor = "rgba(245, 158, 11, 0.4)";
+    ctx.shadowBlur = 10;
+
+    // Círculo dorado con degradado metálico
+    const grad = ctx.createLinearGradient(trophyX, trophyY, trophyX + trophySize, trophyY + trophySize);
+    grad.addColorStop(0, "#FDE68A");
+    grad.addColorStop(0.5, "#F59E0B");
+    grad.addColorStop(1, "#D97706");
+
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "rgba(254, 240, 138, 0.8)";
+    ctx.stroke();
+    ctx.restore();
+
+    // Silueta de copa en negro
+    ctx.save();
+    ctx.fillStyle = "#09090b";
+    const cupW = 18;
+    const cupH = 18;
+    const cupX = centerX - cupW / 2;
+    const cupY = centerY - cupH / 2;
+
+    // Copa / cáliz
+    ctx.beginPath();
+    ctx.moveTo(cupX + 3, cupY);
+    ctx.lineTo(cupX + cupW - 3, cupY);
+    ctx.lineTo(cupX + cupW - 4, cupY + 7);
+    ctx.quadraticCurveTo(cupX + cupW / 2, cupY + 12, cupX + 4, cupY + 7);
+    ctx.closePath();
+    ctx.fill();
+
+    // Asas
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "#09090b";
+    ctx.beginPath();
+    ctx.arc(cupX + 2, cupY + 4, 3, Math.PI * 0.5, Math.PI * 1.5, false);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cupX + cupW - 2, cupY + 4, 3, Math.PI * 1.5, Math.PI * 0.5, false);
+    ctx.stroke();
+
+    // Tallo y base
+    ctx.fillRect(centerX - 1.5, cupY + 10, 3, 4);
+    ctx.beginPath();
+    ctx.ellipse(centerX, cupY + 15, 5, 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
 function drawTeamSlot(
@@ -393,6 +469,7 @@ function drawTeamSlot(
   placeholder: string,
   resultText: string | null,
   isTop: boolean,
+  isFinal?: boolean,
 ) {
   const isWinner = team?.winner ?? false;
   const isProvisional = team?.isProvisional ?? false;
@@ -440,18 +517,20 @@ function drawTeamSlot(
   ctx.fillStyle = isWinner
     ? "#34d399"
     : isDefined
-      ? (isProvisional ? "#a1a1aa" : "#f1f5f9")
+      ? isProvisional
+        ? "#a1a1aa"
+        : "#f1f5f9"
       : "#52525b";
 
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
 
-  const maxNameWidth = width - (textX - x) - 40;
+  const maxNameWidth = width - (textX - x) - (isFinal ? 54 : 40);
   const safeName = truncateText(ctx, teamName, maxNameWidth);
   ctx.fillText(safeName, textX, textY);
 
-  // Si es ganador, pequeño check verde
-  if (isWinner) {
+  // Si es ganador, pequeño check verde (solo si no es final o no choca con el trofeo)
+  if (isWinner && !isFinal) {
     ctx.font = "bold 13px system-ui, -apple-system, sans-serif";
     ctx.fillStyle = "#10b981";
     ctx.textAlign = "right";

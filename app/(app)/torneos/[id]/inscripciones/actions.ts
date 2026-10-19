@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { actionError, actionOk, createAction } from "@/lib/actions/safe-action";
 import { refreshPublicTournament } from "@/lib/public-cache";
 import { dbErrorMessage } from "@/lib/supabase/errors";
+import { canUserManageTournament } from "@/lib/data/tournaments";
 import {
   assignTeamCategorySchema,
   assignTournamentTeamsCategorySchema,
@@ -154,7 +155,8 @@ export const bulkImportTeams = createAction(
       .maybeSingle();
 
     if (tourError || !tourney) return actionError("No encontramos el torneo.");
-    if (tourney.organizer_id !== userId) return actionError("No tenés permiso para inscribir equipos en este torneo.");
+    const canManage = await canUserManageTournament(supabase, tournamentId, userId);
+    if (!canManage) return actionError("No tenés permiso para inscribir equipos en este torneo.");
     if (tourney.status !== "registration_open") {
       return actionError("La inscripción de este torneo no está abierta. Abrí la inscripción antes de importar.");
     }

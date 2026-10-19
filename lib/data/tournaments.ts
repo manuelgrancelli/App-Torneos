@@ -47,16 +47,32 @@ export type TournamentListItem = {
   totalCapacity: number | null;
 };
 
-/** Torneos que organiza el usuario, del más reciente al más viejo. */
+/** Torneos que organiza o co-administra el usuario, del más reciente al más viejo. */
 export const listOrganizedTournaments = cache(async (userId: string): Promise<TournamentListItem[]> => {
   const supabase = await createClient();
-  const { data, error } = await supabase
+
+  // Obtener IDs de torneos donde el usuario es co-administrador
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: adminRows } = await (supabase as any)
+    .from("tournament_admins")
+    .select("tournament_id")
+    .eq("user_id", userId);
+
+  const coAdminTournamentIds: string[] = (adminRows ?? []).map((r: { tournament_id: string }) => r.tournament_id);
+
+  let query = supabase
     .from("tournaments")
     .select(
       "id, name, slug, status, is_test, starts_on, ends_on, max_teams, champion_team_id, sports(name, min_team_size), teams!teams_tournament_id_fkey(id, name, status, category_id)",
-    )
-    .eq("organizer_id", userId)
-    .order("starts_on", { ascending: false });
+    );
+
+  if (coAdminTournamentIds.length > 0) {
+    query = query.or(`organizer_id.eq.${userId},id.in.(${coAdminTournamentIds.join(",")})`);
+  } else {
+    query = query.eq("organizer_id", userId);
+  }
+
+  const { data, error } = await query.order("starts_on", { ascending: false });
   if (error) throw error;
 
   const tournamentIds = data.map((t) => t.id);
@@ -193,12 +209,14 @@ export type OrganizerTournament = {
   championTeamId: string | null;
   sport: Sport;
   inviteCode: string | null;
+  adminInviteCode?: string | null;
   isTest: boolean;
+  isOwner: boolean;
 };
 
 /**
- * Torneo visto por su organizador. Devuelve null si no existe o si quien
- * consulta no lo organiza (las pantallas responden 404).
+ * Torneo visto por su organizador o co-administrador. Devuelve null si no existe o si quien
+ * consulta no tiene permisos operativos (las pantallas responden 404).
  */
 export const getOrganizerTournament = cache(
   async (tournamentId: string, userId: string): Promise<OrganizerTournament | null> => {
@@ -209,7 +227,34 @@ export const getOrganizerTournament = cache(
       .eq("id", tournamentId)
       .maybeSingle();
     if (error) throw error;
-    if (!data || data.organizer_id !== userId || !data.sports) return null;
+    if (!data || !data.sports) return null;
+
+    const isOwner = data.organizer_id === userId;
+    let isAuthorized = isOwner;
+
+    if (!isAuthorized) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: adminRow } = await (supabase as any)
+        .from("tournament_admins")
+        .select("user_id")
+        .eq("tournament_id", tournamentId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (adminRow) isAuthorized = true;
+    }
+
+    if (!isAuthorized) return null;
+
+    let adminInviteCode: string | null = null;
+    if (isOwner) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: adminInvite } = await (supabase as any)
+        .from("tournament_admin_invites")
+        .select("code")
+        .eq("tournament_id", tournamentId)
+        .maybeSingle();
+      adminInviteCode = adminInvite?.code ?? null;
+    }
 
     return {
       id: data.id,
@@ -230,8 +275,68 @@ export const getOrganizerTournament = cache(
       championTeamId: data.champion_team_id,
       sport: data.sports,
       inviteCode: data.tournament_invites?.code ?? null,
+      adminInviteCode,
       isTest: data.is_test,
+      isOwner,
     };
+  },
+);
+
+export type TournamentAdminMember = {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  role: "owner" | "admin";
+  createdAt?: string;
+};
+
+/** Lista de administradores y dueño del torneo. */
+export const getTournamentAdmins = cache(
+  async (tournamentId: string): Promise<TournamentAdminMember[]> => {
+    const supabase = await createClient();
+
+    // 1. Dueño
+    const { data: tourney } = await supabase
+      .from("tournaments")
+      .select("organizer_id, profiles!tournaments_organizer_id_fkey(id, display_name, avatar_url)")
+      .eq("id", tournamentId)
+      .maybeSingle();
+
+    const members: TournamentAdminMember[] = [];
+    if (tourney && tourney.profiles) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const p = tourney.profiles as any;
+      members.push({
+        userId: p.id,
+        displayName: p.display_name,
+        avatarUrl: p.avatar_url ?? null,
+        role: "owner",
+      });
+    }
+
+    // 2. Co-administradores
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: admins } = await (supabase as any)
+      .from("tournament_admins")
+      .select("user_id, created_at, profiles!tournament_admins_user_id_fkey(id, display_name, avatar_url)")
+      .eq("tournament_id", tournamentId)
+      .order("created_at", { ascending: true });
+
+    if (admins) {
+      for (const a of admins) {
+        if (a.profiles) {
+          members.push({
+            userId: a.profiles.id,
+            displayName: a.profiles.display_name,
+            avatarUrl: a.profiles.avatar_url ?? null,
+            role: "admin",
+            createdAt: a.created_at,
+          });
+        }
+      }
+    }
+
+    return members;
   },
 );
 
@@ -337,3 +442,30 @@ export const getCourtsAndSlots = cache(
     };
   },
 );
+
+/** Verifica si un usuario es el dueño o un co-administrador del torneo. */
+export async function canUserManageTournament(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  tournamentId: string,
+  userId: string,
+): Promise<boolean> {
+  const { data: tourney } = await supabase
+    .from("tournaments")
+    .select("organizer_id")
+    .eq("id", tournamentId)
+    .maybeSingle();
+
+  if (!tourney) return false;
+  if (tourney.organizer_id === userId) return true;
+
+  const { data: admin } = await supabase
+    .from("tournament_admins")
+    .select("user_id")
+    .eq("tournament_id", tournamentId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  return !!admin;
+}
+

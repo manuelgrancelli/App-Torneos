@@ -1,4 +1,4 @@
-import { CalendarDays, CheckCircle2, ChevronRight, Layers, ShieldCheck, Trophy, Users } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronRight, Layers, ShieldCheck, Users } from "lucide-react";
 import Link from "next/link";
 import type { ParticipationItem, TournamentListItem } from "@/lib/data/tournaments";
 import { formatDateRange } from "@/lib/dates";
@@ -273,27 +273,11 @@ export function FinishedTournamentCard({ tournament }: { tournament: TournamentL
           </div>
         ) : null}
 
-        {/* Destacado del Campeón o estado final */}
-        {tournament.championName ? (
-          <div className="flex items-center gap-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 text-xs text-amber-950 dark:text-amber-200">
-            <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-300">
-              <Trophy className="size-4" aria-hidden="true" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-amber-700/80 dark:text-amber-400 block leading-tight">
-                Campeón
-              </span>
-              <span className="font-semibold text-sm truncate block">
-                {tournament.championName}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 rounded-xl bg-muted/30 border border-border/40 p-2.5 text-xs text-muted-foreground">
-            <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-            <span>Edición finalizada y resultados archivados</span>
-          </div>
-        )}
+        {/* Estado finalizado */}
+        <div className="flex items-center gap-2 rounded-xl bg-muted/30 border border-border/40 p-2.5 text-xs text-muted-foreground">
+          <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+          <span>Edición finalizada y resultados archivados</span>
+        </div>
 
         {/* Conteo de participantes */}
         <div className="flex items-center justify-between text-xs text-muted-foreground px-0.5">
