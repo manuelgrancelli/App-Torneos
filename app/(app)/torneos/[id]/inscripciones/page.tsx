@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { CategoryQuickManager } from "@/components/categories/category-quick-manager";
 import { CloseRegistrationButton } from "@/components/registration/close-registration-button";
 import { OrganizerRegistrationForm } from "@/components/registration/organizer-registration-form";
 import { RegistrationsList } from "@/components/registration/registrations-list";
@@ -45,6 +46,13 @@ export default async function RegistrationsPage({
   const filter: Filter = requested ?? (teams.some((t) => t.status === "pending") ? "pending" : "all");
 
   const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name, maxTeams: c.maxTeams }));
+
+  const teamCountsByCategory: Record<string, number> = {};
+  for (const t of teams) {
+    if (t.categoryId) {
+      teamCountsByCategory[t.categoryId] = (teamCountsByCategory[t.categoryId] ?? 0) + 1;
+    }
+  }
 
   const totalCupo =
     categories.length > 0 && categories.every((c) => typeof c.maxTeams === "number" && c.maxTeams > 0)
@@ -120,6 +128,14 @@ export default async function RegistrationsPage({
           </Button>
         </div>
       ) : null}
+      
+      {/* Barra de categorías con botón verde para agregar categorías */}
+      <CategoryQuickManager
+        tournamentId={tournament.id}
+        categories={categories}
+        teamCountsByCategory={teamCountsByCategory}
+        canEdit={tournament.status === "draft" || tournament.status === "registration_open"}
+      />
 
       {/* Link y código de inscripción si está abierto */}
       {tournament.inviteCode && tournament.status === "registration_open" ? (

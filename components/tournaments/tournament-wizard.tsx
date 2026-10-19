@@ -127,8 +127,8 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
           toast.error(result.error);
           return;
         }
-        toast.success(result.message ? `${result.message} Ahora configurá las categorías.` : "Torneo creado. Ahora configurá las categorías.");
-        router.push(`/torneos/${result.data.tournamentId}/categorias?asistente=1`);
+        toast.success(result.message ? `${result.message} Ahora configurá las canchas y franjas horarias.` : "Torneo creado. Ahora configurá las canchas y franjas horarias.");
+        router.push(`/torneos/${result.data.tournamentId}/canchas-franjas?asistente=1`);
       });
     },
     // Si algo de un paso anterior quedó inválido, se vuelve a ese paso.

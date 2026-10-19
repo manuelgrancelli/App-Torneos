@@ -2,7 +2,6 @@
 
 import {
   History,
-  Plus,
   Search,
   Trophy,
   Users,
@@ -212,14 +211,7 @@ export function TournamentDashboard({
                 {filteredActiveOrganized.length}
               </span>
             </div>
-            {organized.length > 0 ? (
-              <Button asChild variant="ghost" size="sm" className="h-8 text-xs text-primary font-medium hover:text-primary">
-                <Link href="/torneos/nuevo">
-                  <Plus className="size-3.5 mr-1" aria-hidden="true" />
-                  Nuevo torneo
-                </Link>
-              </Button>
-            ) : null}
+
           </div>
 
           {filteredActiveOrganized.length === 0 ? (
@@ -242,27 +234,13 @@ export function TournamentDashboard({
                     <History className="size-3.5 mr-1 text-muted-foreground" aria-hidden="true" />
                     Ver historial ({finishedOrganized.length})
                   </Button>
-                  <Button asChild size="sm" className="text-xs">
-                    <Link href="/torneos/nuevo">
-                      <Plus className="size-3.5 mr-1" aria-hidden="true" />
-                      Crear nuevo torneo
-                    </Link>
-                  </Button>
                 </div>
               </div>
             ) : (
               <EmptyState
                 icon={Trophy}
                 title="No organizás torneos"
-                description="Creá uno: configurás el deporte, las canchas y los horarios, y compartís el link de inscripción."
-                action={
-                  <Button asChild>
-                    <Link href="/torneos/nuevo">
-                      <Plus className="size-4 mr-1.5" aria-hidden="true" />
-                      Crear mi primer torneo
-                    </Link>
-                  </Button>
-                }
+                description="Todavía no tenés torneos creados. Cuando crees uno aparecerá acá."
               />
             )
           ) : (

@@ -81,7 +81,6 @@ test.describe("accesibilidad y CSP (F9)", () => {
     for (const path of [
       "/torneos/nuevo",
       base,
-      `${base}/categorias`,
       `${base}/configuracion`,
       `${base}/canchas-franjas`,
       `${base}/inscripciones`,

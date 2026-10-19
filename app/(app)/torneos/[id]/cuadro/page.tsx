@@ -90,10 +90,10 @@ export default async function BracketPage({
             <div className="flex items-center justify-between gap-4">
               <h2 className="text-sm font-medium text-muted-foreground">Categoría seleccionada:</h2>
               <Link
-                href={`/torneos/${tournament.id}/categorias`}
+                href={`/torneos/${tournament.id}/inscripciones`}
                 className="text-xs text-primary hover:underline font-medium"
               >
-                Gestionar categorías
+                Ver categorías en Inscripciones
               </Link>
             </div>
             <CategoryTabs
@@ -167,10 +167,10 @@ export default async function BracketPage({
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-sm font-medium text-muted-foreground">Categoría seleccionada:</h2>
             <Link
-              href={`/torneos/${tournament.id}/categorias`}
+              href={`/torneos/${tournament.id}/inscripciones`}
               className="text-xs text-primary hover:underline font-medium"
             >
-              Gestionar categorías
+              Ver categorías en Inscripciones
             </Link>
           </div>
           <CategoryTabs

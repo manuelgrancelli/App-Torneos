@@ -43,9 +43,9 @@ export default async function TournamentSettingsPage({ params }: PageProps<"/tor
             Cada una tendrá sus propios grupos y playoffs independientes, compartiendo las mismas canchas.
           </p>
           <Button asChild size="sm">
-            <Link href={`/torneos/${tournament.id}/categorias`}>
+            <Link href={`/torneos/${tournament.id}/inscripciones`}>
               <Layers className="mr-2 size-4" />
-              Administrar categorías
+              Administrar categorías en Inscripciones
             </Link>
           </Button>
         </CardContent>

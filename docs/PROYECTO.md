@@ -1486,3 +1486,20 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
     - **Hover (al posar el cursor):** exclusivamente cuando el usuario se para sobre una opción con el mouse, todo el botón se rellena ("pinta") con fondo ámbar dorado (`bg-amber-500/15 dark:bg-amber-500/20`), borde visible (`border-amber-500/30`) y texto contrastante (`text-amber-900 dark:text-amber-200`). Al retirar el cursor, el color se apaga de inmediato.
 - **Motivo:** corregir la fijación permanente del fondo dorado en "Torneos" que entorpecía la cabecera, asegurando que la acción de "pintar" el botón ocurra únicamente de manera dinámica al interactuar con el cursor.
 - **Cómo aplicar:** implementado en `components/layout/main-nav.tsx` y `components/layout/app-header.tsx`.
+
+### D-102 — Redirección a franjas al crear torneo e integración de categorías en Inscripciones (2026-10-18) *(modifica D-053, D-054 y D-069)*
+- **Decisión:**
+  - **Flujo de creación de torneo directo a Canchas y Franjas:**
+    - Al crear un torneo (`TournamentWizard` en `components/tournaments/tournament-wizard.tsx`), el asistente redirige inmediatamente al paso de Franjas horarias (`/torneos/[id]/canchas-franjas?asistente=1`) en lugar de categorías.
+    - La redirección raíz en borrador (`app/(app)/torneos/[id]/page.tsx`) dirige a `/torneos/[id]/canchas-franjas`.
+  - **Apartado independiente de Categorías obsoleto:**
+    - Se eliminó el paso "Categorías" del asistente de preparación (`TournamentSetupStepper` en `components/tournaments/tournament-setup-stepper.tsx`), reduciendo el flujo a 3 pasos claros: 1. Datos del torneo (`configuracion`) -> 2. Franjas horarias (`canchas-franjas`) -> 3. Inscripciones (`inscripciones`).
+    - Se quitó "Categorías" de las pestañas superiores de navegación del torneo (`TournamentNav` en `components/tournaments/tournament-nav.tsx`).
+    - La ruta anterior `/torneos/[id]/categorias` ahora redirige automáticamente a `/torneos/[id]/inscripciones`.
+  - **Gestor ágil de categorías en Inscripciones (`CategoryQuickManager`):**
+    - Se creó el componente `CategoryQuickManager` (`components/categories/category-quick-manager.tsx`) integrado en `app/(app)/torneos/[id]/inscripciones/page.tsx`.
+    - Presenta un botón verde accesible y destacado ("Agregar categoría": `bg-emerald-600 hover:bg-emerald-500 text-white font-semibold`) que abre el modal para definir el nombre y cupo de la categoría.
+    - Muestra la lista compacta de categorías existentes con sus cupos, cantidad de inscriptos y acciones rápidas de edición/eliminación, integrándose armónicamente con el formulario manual de inscripción y el listado de parejas.
+- **Motivo:** atender el pedido directo del usuario para simplificar el flujo inicial de preparación del torneo llevándolo directo a franjas tras la creación, declarando obsoleto el apartado separado de categorías y concentrando la creación y gestión de categorías directamente en la pantalla de Inscripciones.
+- **Cómo aplicar:** implementado en `components/tournaments/tournament-wizard.tsx`, `app/(app)/torneos/[id]/page.tsx`, `components/tournaments/tournament-setup-stepper.tsx`, `components/tournaments/tournament-nav.tsx`, `components/categories/category-quick-manager.tsx`, `app/(app)/torneos/[id]/inscripciones/page.tsx` y `app/(app)/torneos/[id]/categorias/page.tsx`.
+

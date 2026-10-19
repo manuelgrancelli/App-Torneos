@@ -34,7 +34,6 @@ const linkClass =
   "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
 
 const OPEN_NAV_ITEMS = [
-  { key: "categorias" as const, segment: "categorias", label: "Categorías" },
   { key: "canchas" as const, segment: "canchas-franjas", label: "Canchas y franjas" },
   { key: "inscripciones" as const, segment: "inscripciones", label: "Inscripciones" },
   { key: "configuracion" as const, segment: "configuracion", label: "Configuración" },
@@ -50,7 +49,6 @@ const MORE_ITEMS = [
   { key: "canchas" as const, segment: "canchas-franjas", label: "Canchas y franjas", icon: Clock },
   { key: "inscripciones" as const, segment: "inscripciones", label: "Inscripciones", icon: Users },
   { key: "configuracion" as const, segment: "configuracion", label: "Configuración", icon: Settings },
-  { key: "categorias" as const, segment: "categorias", label: "Categorías", icon: Layers },
 ];
 
 /**
@@ -182,17 +180,8 @@ export function TournamentNav({
               >
                 {item.label}
                 {badge > 0 ? (
-                  <span
-                    className={cn(
-                      "rounded-full px-1.5 text-xs font-semibold tabular-nums",
-                      item.key === "categorias"
-                        ? "border bg-muted text-muted-foreground"
-                        : "bg-primary text-primary-foreground",
-                    )}
-                  >
-                    <span className="sr-only">
-                      {item.key === "categorias" ? "Categorías creadas: " : "Pendientes: "}
-                    </span>
+                  <span className="rounded-full bg-primary px-1.5 text-xs font-semibold tabular-nums text-primary-foreground">
+                    <span className="sr-only">Pendientes: </span>
                     {badge}
                   </span>
                 ) : item.key === recommended && !active ? (

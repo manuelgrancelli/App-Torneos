@@ -13,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
-export type SetupStepKey = "torneo" | "categorias" | "franjas" | "inscripciones";
+export type SetupStepKey = "torneo" | "franjas" | "inscripciones";
 
 type SetupStepInfo = {
   key: SetupStepKey;
@@ -36,17 +36,8 @@ const STEPS: readonly SetupStepInfo[] = [
     description: "Información básica, deporte, fechas y cupo de participantes.",
   },
   {
-    key: "categorias",
-    number: 2,
-    label: "Categorías",
-    shortLabel: "Categorías",
-    icon: Layers,
-    path: "categorias",
-    description: "Niveles y divisiones del torneo (ej. 6ta Caballeros, 8va Damas).",
-  },
-  {
     key: "franjas",
-    number: 3,
+    number: 2,
     label: "Franjas horarias",
     shortLabel: "Franjas",
     icon: Clock,
@@ -55,7 +46,7 @@ const STEPS: readonly SetupStepInfo[] = [
   },
   {
     key: "inscripciones",
-    number: 4,
+    number: 3,
     label: "Inscripciones",
     shortLabel: "Inscripciones",
     icon: Users,
@@ -116,7 +107,7 @@ export function TournamentSetupStepper({
 
   // Determinamos el siguiente paso lógico
   const nextStep = currentIndex < STEPS.length - 1 ? STEPS[currentIndex + 1] : null;
-  const prevStep = currentIndex > 1 ? STEPS[currentIndex - 1] : null;
+  const prevStep = currentIndex > 0 ? STEPS[currentIndex - 1] : null;
 
   const nextHref = nextStep ? (nextStep.path ? `${base}/${nextStep.path}` : base) : base;
   const prevHref = prevStep ? (prevStep.path ? `${base}/${prevStep.path}` : base) : base;
@@ -142,7 +133,6 @@ export function TournamentSetupStepper({
                 // o si tiene métricas de haber sido completado
                 let isDone = index < currentIndex;
                 if (step.key === "torneo") isDone = true;
-                if (step.key === "categorias" && (counts.categories ?? 0) > 0) isDone = true;
                 if (step.key === "franjas" && (counts.slots ?? 0) > 0) isDone = true;
                 if (step.key === "inscripciones" && isRegistrationOpen) isDone = true;
 
@@ -219,11 +209,6 @@ export function TournamentSetupStepper({
           <div className="space-y-1">
             <h2 className="text-base font-bold tracking-tight text-foreground flex items-center gap-2">
               <span>{currentStepInfo.label}</span>
-              {currentStep === "categorias" && (counts.categories ?? 0) > 0 ? (
-                <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
-                  {counts.categories} agregada{counts.categories === 1 ? "" : "s"}
-                </span>
-              ) : null}
               {currentStep === "franjas" && (counts.slots ?? 0) > 0 ? (
                 <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
                   {counts.slots} franja{counts.slots === 1 ? "" : "s"} creada{counts.slots === 1 ? "" : "s"}
@@ -250,18 +235,16 @@ export function TournamentSetupStepper({
             ) : null}
 
             {nextStep ? (
-              currentStep !== "categorias" ? (
-                <Button
-                  asChild
-                  size="sm"
-                  className="h-9 font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs hover:shadow-md hover:shadow-emerald-600/20 active:scale-[0.98] transition-all duration-150"
-                >
-                  <Link href={nextHref}>
-                    <span>Siguiente: {nextStep.shortLabel}</span>
-                    <ArrowRight className="size-3.5 ml-1" aria-hidden="true" />
-                  </Link>
-                </Button>
-              ) : null
+              <Button
+                asChild
+                size="sm"
+                className="h-9 font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs hover:shadow-md hover:shadow-emerald-600/20 active:scale-[0.98] transition-all duration-150"
+              >
+                <Link href={nextHref}>
+                  <span>Siguiente: {nextStep.shortLabel}</span>
+                  <ArrowRight className="size-3.5 ml-1" aria-hidden="true" />
+                </Link>
+              </Button>
             ) : currentStep === "inscripciones" && !isRegistrationOpen ? (
               <ConfirmActionButton
                 title="¿Abrir la inscripción al público?"

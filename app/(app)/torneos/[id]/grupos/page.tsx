@@ -116,10 +116,10 @@ export default async function GroupsPage({
                 }))}
               />
               <Link
-                href={`/torneos/${tournament.id}/categorias`}
+                href={`/torneos/${tournament.id}/inscripciones`}
                 className="text-xs text-primary hover:underline font-medium"
               >
-                Gestionar categorías
+                Ver categorías en Inscripciones
               </Link>
             </div>
           </div>

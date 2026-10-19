@@ -14,7 +14,7 @@ export default async function TournamentRootPage({ params }: PageProps<"/torneos
   const tournament = await requireOrganizerTournament(id);
 
   if (tournament.status === "draft") {
-    redirect(`/torneos/${id}/categorias`);
+    redirect(`/torneos/${id}/canchas-franjas`);
   } else if (tournament.status === "registration_open") {
     redirect(`/torneos/${id}/inscripciones`);
   } else if (tournament.status === "group_stage") {
