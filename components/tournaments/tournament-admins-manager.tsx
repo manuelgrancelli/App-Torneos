@@ -12,7 +12,7 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { removeTournamentAdmin, rotateAdminInviteCode } from "@/app/(app)/torneos/[id]/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -40,6 +40,14 @@ export function TournamentAdminsManager({
   const [admins, setAdmins] = useState<TournamentAdminMember[]>(initialAdmins);
   const [isCopied, setIsCopied] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setAdmins(initialAdmins);
+  }, [initialAdmins]);
+
+  useEffect(() => {
+    setCode(initialCode ?? null);
+  }, [initialCode]);
 
   // URL absoluta de invitación
   const inviteUrl =

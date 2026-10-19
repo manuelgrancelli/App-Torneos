@@ -1674,3 +1674,17 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
     - Limpieza y decodificación previa de `code` y registro preventivo mediante `console.error` ante eventuales fallas de consulta.
 - **Motivo:** solucionar el error reportado por el usuario donde el enlace recién generado para invitar administradores mostraba la pantalla de "Invitación no encontrada".
 - **Cómo aplicar:** migraciones `supabase/migrations/20261019160000_tournament_admins_and_collaborators.sql` y `supabase/migrations/20261019183000_fix_tournament_admin_invite_profiles.sql`, `lib/data/tournaments.ts`, `app/(app)/torneos/unirse-admin/page.tsx`.
+
+### D-116 — RPC segura `get_tournament_admins` y visibilidad de colaboradores en configuración (2026-10-19)
+- **Decisión:**
+  - **RPC segura `get_tournament_admins(p_tournament_id uuid)`:**
+    - Se creó la función SQL RPC `public.get_tournament_admins` con `security definer` que verifica los permisos del solicitante con `private.is_tournament_organizer(p_tournament_id)` y retorna la lista completa del equipo de administración: el organizador principal (`role: 'owner'`) y todos los co-administradores (`role: 'admin'`) con sus nombres completos (`full_name`) y avatares.
+    - Esto elimina cualquier bloqueo o censura de perfiles generada por las políticas de RLS en `public.profiles` cuando el organizador o los co-administradores no compartían equipo deportivo previamente.
+  - **Soporte en `lib/data/tournaments.ts` (`getTournamentAdmins`):**
+    - Se prioriza la llamada a la RPC `get_tournament_admins`.
+    - En caso de fallback a consultas directas, se asegura que ningún usuario sea omitido aunque su perfil sea temporalmente inaccesible (asignando etiquetas de resguardo `"Organizador"` y `"Administrador"`).
+  - **Sincronización en `TournamentAdminsManager` (`components/tournaments/tournament-admins-manager.tsx`):**
+    - Se incorporaron `useEffect` para sincronizar inmediatamente la lista de administradores (`admins`) y el código de invitación (`code`) ante actualizaciones de las props del servidor.
+- **Motivo:** solucionar el comportamiento reportado donde el creador del torneo sólo se veía a sí mismo y el co-administrador recién incorporado sólo se veía a sí mismo en lugar de mostrar a todo el equipo de administración.
+- **Cómo aplicar:** `supabase/migrations/20261019183000_fix_tournament_admin_invite_profiles.sql`, `supabase/migrations/20261019160000_tournament_admins_and_collaborators.sql`, `lib/data/tournaments.ts`, `components/tournaments/tournament-admins-manager.tsx`.
+

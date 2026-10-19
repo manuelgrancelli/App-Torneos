@@ -695,7 +695,62 @@ grant select, delete on table public.tournament_admins to authenticated;
 revoke all on table public.tournament_admin_invites from public, anon;
 grant select on table public.tournament_admin_invites to authenticated;
 
+create or replace function public.get_tournament_admins(p_tournament_id uuid)
+returns table (
+  user_id uuid,
+  display_name text,
+  avatar_url text,
+  role text,
+  created_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_tourney public.tournaments%rowtype;
+begin
+  select * into v_tourney
+  from public.tournaments
+  where id = p_tournament_id;
+
+  if not found then
+    return;
+  end if;
+
+  if not private.is_tournament_organizer(p_tournament_id) then
+    raise exception using errcode = '42501', message = 'No tenés permiso para ver los administradores de este torneo.';
+  end if;
+
+  -- 1. Dueño / Organizador principal
+  return query
+  select
+    p.id as user_id,
+    coalesce(p.full_name, 'Organizador') as display_name,
+    p.avatar_url,
+    'owner'::text as role,
+    v_tourney.created_at
+  from public.profiles p
+  where p.id = v_tourney.organizer_id;
+
+  -- 2. Co-administradores
+  return query
+  select
+    p.id as user_id,
+    coalesce(p.full_name, 'Administrador') as display_name,
+    p.avatar_url,
+    ta.role,
+    ta.created_at
+  from public.tournament_admins ta
+  join public.profiles p on p.id = ta.user_id
+  where ta.tournament_id = p_tournament_id
+  order by ta.created_at asc;
+end;
+$$;
+
 grant execute on function public.get_admin_invite_info(text) to anon, authenticated;
 grant execute on function public.join_tournament_as_admin(text) to authenticated;
 grant execute on function public.rotate_tournament_admin_invite(uuid) to authenticated;
 grant execute on function public.remove_tournament_admin(uuid, uuid) to authenticated;
+grant execute on function public.get_tournament_admins(uuid) to authenticated;

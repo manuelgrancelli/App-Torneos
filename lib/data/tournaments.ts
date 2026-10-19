@@ -295,7 +295,25 @@ export const getTournamentAdmins = cache(
   async (tournamentId: string): Promise<TournamentAdminMember[]> => {
     const supabase = await createClient();
 
-    // 1. Dueño
+    // 1. Intentar primero con la RPC segura de administradores (evita bloqueos de RLS entre perfiles)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: rpcAdmins, error: rpcError } = await (supabase.rpc as any)(
+      "get_tournament_admins",
+      { p_tournament_id: tournamentId },
+    );
+
+    if (!rpcError && Array.isArray(rpcAdmins) && rpcAdmins.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return rpcAdmins.map((a: any) => ({
+        userId: a.user_id,
+        displayName: a.display_name || (a.role === "owner" ? "Organizador" : "Administrador"),
+        avatarUrl: a.avatar_url ?? null,
+        role: a.role as "owner" | "admin",
+        createdAt: a.created_at,
+      }));
+    }
+
+    // 2. Fallback: consulta directa a tablas
     const { data: tourney } = await supabase
       .from("tournaments")
       .select("organizer_id, profiles!tournaments_organizer_id_fkey(id, full_name, avatar_url)")
@@ -303,18 +321,18 @@ export const getTournamentAdmins = cache(
       .maybeSingle();
 
     const members: TournamentAdminMember[] = [];
-    if (tourney && tourney.profiles) {
+    if (tourney) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const p = tourney.profiles as any;
       members.push({
-        userId: p.id,
-        displayName: p.full_name,
-        avatarUrl: p.avatar_url ?? null,
+        userId: tourney.organizer_id,
+        displayName: p?.full_name ?? "Organizador",
+        avatarUrl: p?.avatar_url ?? null,
         role: "owner",
       });
     }
 
-    // 2. Co-administradores
+    // Co-administradores
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: admins } = await (supabase as any)
       .from("tournament_admins")
@@ -324,15 +342,13 @@ export const getTournamentAdmins = cache(
 
     if (admins) {
       for (const a of admins) {
-        if (a.profiles) {
-          members.push({
-            userId: a.profiles.id,
-            displayName: a.profiles.full_name,
-            avatarUrl: a.profiles.avatar_url ?? null,
-            role: "admin",
-            createdAt: a.created_at,
-          });
-        }
+        members.push({
+          userId: a.user_id,
+          displayName: a.profiles?.full_name ?? "Administrador",
+          avatarUrl: a.profiles?.avatar_url ?? null,
+          role: "admin",
+          createdAt: a.created_at,
+        });
       }
     }
 
