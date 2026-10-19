@@ -1657,6 +1657,20 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** requerimiento estético del usuario para contar con una foto roja que luzca real y profesional sin jugadores, y retirar la variante verde no deseada.
 - **Cómo aplicar:** `public/backgrounds/padel-red.jpg`, `components/groups/export-groups-image-modal.tsx`, `components/matches/export-matches-image-modal.tsx`.
 
-
-
-
+### D-115 — Corrección de enlace para unirse como administrador (`get_admin_invite_info`) (2026-10-19)
+- **Decisión:**
+  - **Corrección de referencia a columna en `public.profiles`:**
+    - La tabla `public.profiles` contiene la columna `full_name`, no `display_name` (ésta última corresponde a `public.team_members`).
+    - En la función SQL RPC `get_admin_invite_info`, la consulta utilizaba `p.display_name as organizer_name`, lo cual arrojaba el error PostgreSQL `42703 (column p.display_name does not exist)` al abrir el enlace `/torneos/unirse-admin?code=...`, provocando que la interfaz cayera en la pantalla de error `"Invitación no encontrada"`.
+    - Se corrigió para seleccionar `coalesce(p.full_name, 'Organizador') as organizer_name` con `left join public.profiles p on p.id = t.organizer_id`.
+  - **Normalización de códigos de invitación:**
+    - Se aplicó `upper(regexp_replace(coalesce(p_code, ''), '[^a-zA-Z0-9]', '', 'g'))` en `get_admin_invite_info` y `join_tournament_as_admin`, garantizando compatibilidad ante espacios, guiones o diferencias de mayúsculas/minúsculas.
+    - Se modificó `get_admin_invite_info` para que retorne vacío de forma limpia si el código no existe en vez de lanzar excepción abrupta.
+  - **Visibilidad RLS de perfiles entre colaboradores (`private.can_view_profile`):**
+    - Se actualizó la función de seguridad RLS `private.can_view_profile` para que el organizador y los co-administradores del torneo puedan ver sus respectivos perfiles mutuamente en el panel de administración.
+  - **Corrección en `getTournamentAdmins` (`lib/data/tournaments.ts`):**
+    - Se corrigió la consulta `.select("... profiles!(id, full_name, avatar_url)")` y el mapeo `displayName: p.full_name` para dueño y co-administradores.
+  - **Página de unión (`app/(app)/torneos/unirse-admin/page.tsx`):**
+    - Limpieza y decodificación previa de `code` y registro preventivo mediante `console.error` ante eventuales fallas de consulta.
+- **Motivo:** solucionar el error reportado por el usuario donde el enlace recién generado para invitar administradores mostraba la pantalla de "Invitación no encontrada".
+- **Cómo aplicar:** migraciones `supabase/migrations/20261019160000_tournament_admins_and_collaborators.sql` y `supabase/migrations/20261019183000_fix_tournament_admin_invite_profiles.sql`, `lib/data/tournaments.ts`, `app/(app)/torneos/unirse-admin/page.tsx`.

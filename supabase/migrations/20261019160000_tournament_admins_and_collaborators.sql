@@ -104,6 +104,45 @@ as $$
   );
 $$;
 
+-- 4b. Actualizar can_view_profile para que organizador y administradores puedan ver los perfiles mutuos
+create or replace function private.can_view_profile(p_profile_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p_profile_id = (select auth.uid())
+    or exists (
+      select 1
+      from public.team_members mine
+      join public.team_members other on other.team_id = mine.team_id
+      where mine.user_id = (select auth.uid()) and other.user_id = p_profile_id
+    )
+    or exists (
+      select 1
+      from public.team_members tm
+      join public.tournaments t on t.id = tm.tournament_id
+      where tm.user_id = p_profile_id and t.organizer_id = (select auth.uid())
+    )
+    or exists (
+      select 1
+      from public.tournaments t
+      where t.organizer_id = p_profile_id
+        and (
+          t.status <> 'draft'
+          or private.is_tournament_organizer(t.id)
+          or private.is_tournament_participant(t.id)
+        )
+    )
+    or exists (
+      select 1
+      from public.tournament_admins ta
+      where ta.user_id = p_profile_id
+        and private.is_tournament_organizer(ta.tournament_id)
+    );
+$$;
+
 -- -----------------------------------------------------------------------------
 -- 5. Actualizar require_match_organizer para autorizar co-administradores
 -- -----------------------------------------------------------------------------
@@ -493,7 +532,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_code text := upper(btrim(coalesce(p_code, '')));
+  v_code text := upper(regexp_replace(coalesce(p_code, ''), '[^a-zA-Z0-9]', '', 'g'));
   v_uid uuid := (select auth.uid());
   v_tourney_id uuid;
 begin
@@ -502,7 +541,7 @@ begin
   where code = v_code;
 
   if not found then
-    raise exception using errcode = 'P0001', message = 'El enlace de invitación no es válido o ha expirado.';
+    return;
   end if;
 
   return query
@@ -511,7 +550,7 @@ begin
     t.name as tournament_name,
     t.slug as tournament_slug,
     s.name as sport_name,
-    p.display_name as organizer_name,
+    coalesce(p.full_name, 'Organizador') as organizer_name,
     t.status,
     t.starts_on,
     t.ends_on,
@@ -523,7 +562,7 @@ begin
     end as is_already_admin
   from public.tournaments t
   join public.sports s on s.id = t.sport_id
-  join public.profiles p on p.id = t.organizer_id
+  left join public.profiles p on p.id = t.organizer_id
   where t.id = v_tourney_id;
 end;
 $$;
@@ -541,7 +580,7 @@ set search_path = ''
 as $$
 declare
   v_uid uuid := public.require_user();
-  v_code text := upper(btrim(coalesce(p_code, '')));
+  v_code text := upper(regexp_replace(coalesce(p_code, ''), '[^a-zA-Z0-9]', '', 'g'));
   v_tournament public.tournaments%rowtype;
 begin
   select t.* into v_tournament

@@ -298,7 +298,7 @@ export const getTournamentAdmins = cache(
     // 1. Dueño
     const { data: tourney } = await supabase
       .from("tournaments")
-      .select("organizer_id, profiles!tournaments_organizer_id_fkey(id, display_name, avatar_url)")
+      .select("organizer_id, profiles!tournaments_organizer_id_fkey(id, full_name, avatar_url)")
       .eq("id", tournamentId)
       .maybeSingle();
 
@@ -308,7 +308,7 @@ export const getTournamentAdmins = cache(
       const p = tourney.profiles as any;
       members.push({
         userId: p.id,
-        displayName: p.display_name,
+        displayName: p.full_name,
         avatarUrl: p.avatar_url ?? null,
         role: "owner",
       });
@@ -318,7 +318,7 @@ export const getTournamentAdmins = cache(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: admins } = await (supabase as any)
       .from("tournament_admins")
-      .select("user_id, created_at, profiles!tournament_admins_user_id_fkey(id, display_name, avatar_url)")
+      .select("user_id, created_at, profiles!tournament_admins_user_id_fkey(id, full_name, avatar_url)")
       .eq("tournament_id", tournamentId)
       .order("created_at", { ascending: true });
 
@@ -327,7 +327,7 @@ export const getTournamentAdmins = cache(
         if (a.profiles) {
           members.push({
             userId: a.profiles.id,
-            displayName: a.profiles.display_name,
+            displayName: a.profiles.full_name,
             avatarUrl: a.profiles.avatar_url ?? null,
             role: "admin",
             createdAt: a.created_at,

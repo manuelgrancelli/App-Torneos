@@ -15,7 +15,8 @@ export default async function JoinAdminPage({
 }: {
   searchParams: Promise<{ code?: string }>;
 }) {
-  const { code } = await searchParams;
+  const { code: rawCode } = await searchParams;
+  const code = rawCode ? decodeURIComponent(rawCode).trim().toUpperCase() : "";
 
   if (!code) {
     return (
@@ -47,6 +48,10 @@ export default async function JoinAdminPage({
   const { data, error } = await (supabase.rpc as any)("get_admin_invite_info", {
     p_code: code,
   });
+
+  if (error) {
+    console.error("[get_admin_invite_info] Error al consultar invitación de administrador:", error);
+  }
 
   if (error || !data || data.length === 0) {
     return (
