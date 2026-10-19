@@ -1,7 +1,7 @@
 "use client";
 
 import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
-import { GripVertical, Shuffle, TriangleAlert } from "lucide-react";
+import { ArrowLeftRight, CalendarClock, GripVertical, Shuffle, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -21,9 +21,23 @@ import {
 import { randomSeed } from "@/lib/domain/random";
 import { roundRobinMatchCount } from "@/lib/domain/round-robin";
 import { cn } from "@/lib/utils";
-import { ExportGroupsImageModal } from "./export-groups-image-modal";
+import { SlotMatchesModal } from "./slot-matches-modal";
+import { SwapTeamsModal } from "./swap-teams-modal";
 
 type Team = { id: string; name: string };
+
+type Slot = {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  courtId: string | null;
+};
+
+type Court = {
+  id: string;
+  name: string;
+  venue: string | null;
+};
 
 type GroupBuilderProps = {
   tournamentId: string;
@@ -36,6 +50,9 @@ type GroupBuilderProps = {
   initialGroups: string[][];
   /** Disponibilidad por equipo: teamId → slotIds */
   availability?: Record<string, string[]>;
+  slots?: Slot[];
+  courts?: Court[];
+  timezone?: string;
 };
 
 function TeamChip({
@@ -43,20 +60,26 @@ function TeamChip({
   groupIndex,
   groupCount,
   onMove,
+  onSwap,
+  onOpenDetails,
   hasConflict,
+  hasAvailability,
 }: {
   team: Team;
   groupIndex: number;
   groupCount: number;
   onMove: (teamId: string, toGroup: number) => void;
+  onSwap?: (teamId: string) => void;
+  onOpenDetails?: (teamId: string) => void;
   hasConflict?: boolean;
+  hasAvailability?: boolean;
 }) {
   const { ref, handleRef, isDragging } = useDraggable({ id: team.id, data: { groupIndex } });
   return (
     <li
       ref={ref}
       className={cn(
-        "flex items-center gap-2 rounded-lg border bg-background px-2 py-1.5 text-sm transition-colors",
+        "flex items-center gap-1.5 sm:gap-2 rounded-lg border bg-background px-2 py-1.5 text-sm transition-colors",
         isDragging && "opacity-60 shadow",
         hasConflict && "border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20",
       )}
@@ -70,22 +93,55 @@ function TeamChip({
       >
         <GripVertical className="size-4" aria-hidden="true" />
       </button>
-      <span className="min-w-0 flex-1 truncate">{team.name}</span>
+
+      <span className="min-w-0 flex-1 truncate font-medium">{team.name}</span>
+
+      {/* Badges de horarios / coincidencia */}
       {hasConflict ? (
-        <span
-          className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-900 dark:bg-amber-900/50 dark:text-amber-200"
-          title="No comparte horario disponible con alguna pareja de este grupo"
+        <button
+          type="button"
+          onClick={() => onOpenDetails?.(team.id)}
+          className="inline-flex items-center gap-1 rounded bg-amber-100 hover:bg-amber-200/80 px-1.5 py-0.5 text-[11px] font-medium text-amber-900 dark:bg-amber-900/50 dark:hover:bg-amber-900/70 dark:text-amber-200 transition-colors cursor-pointer shrink-0"
+          title="Ver detalle de conflicto horario con parejas de este grupo"
         >
           <TriangleAlert className="size-3 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
           <span className="hidden sm:inline">Sin coincidencia</span>
-        </span>
+          <span className="sm:hidden">Conflicto</span>
+        </button>
+      ) : hasAvailability ? (
+        <button
+          type="button"
+          onClick={() => onOpenDetails?.(team.id)}
+          className="inline-flex items-center gap-1 rounded border border-border/60 bg-muted/40 hover:bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
+          title="Ver franjas y coincidencia horaria con rivales de la zona"
+        >
+          <CalendarClock className="size-3 shrink-0 text-primary" aria-hidden="true" />
+          <span className="hidden sm:inline">Horarios</span>
+        </button>
       ) : null}
+
+      {/* Botón de Intercambio directo (Swap) */}
+      {groupCount > 1 && onSwap ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => onSwap(team.id)}
+          className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+          title={`Intercambiar ${team.name} con pareja de otro grupo`}
+          aria-label={`Intercambiar ${team.name} con pareja de otro grupo`}
+        >
+          <ArrowLeftRight className="size-3.5" />
+        </Button>
+      ) : null}
+
+      {/* Selector de mover a otro grupo */}
       <NativeSelect
         size="sm"
         aria-label={`Mover ${team.name} a…`}
         value={String(groupIndex)}
         onChange={(e) => onMove(team.id, Number(e.target.value))}
-        className="w-24 shrink-0"
+        className="w-20 sm:w-24 shrink-0 text-xs h-7"
       >
         {Array.from({ length: groupCount }, (_, i) => (
           <NativeSelectOption key={i} value={String(i)}>
@@ -102,13 +158,19 @@ function GroupColumn({
   teams,
   groupCount,
   onMove,
+  onSwap,
+  onOpenDetails,
   conflicts,
+  availability,
 }: {
   index: number;
   teams: Team[];
   groupCount: number;
   onMove: (teamId: string, toGroup: number) => void;
+  onSwap: (teamId: string) => void;
+  onOpenDetails: (teamId: string) => void;
   conflicts: Set<string>;
+  availability?: Record<string, string[]>;
 }) {
   const { ref, isDropTarget } = useDroppable({ id: `group-${index}` });
   return (
@@ -124,24 +186,30 @@ function GroupColumn({
         </span>
       </h3>
       <ul className="min-h-12 space-y-1.5">
-        {teams.map((team) => (
-          <TeamChip
-            key={team.id}
-            team={team}
-            groupIndex={index}
-            groupCount={groupCount}
-            onMove={onMove}
-            hasConflict={conflicts.has(team.id)}
-          />
-        ))}
+        {teams.map((team) => {
+          const hasAvail = Boolean(availability?.[team.id] && availability[team.id]!.length > 0);
+          return (
+            <TeamChip
+              key={team.id}
+              team={team}
+              groupIndex={index}
+              groupCount={groupCount}
+              onMove={onMove}
+              onSwap={onSwap}
+              onOpenDetails={onOpenDetails}
+              hasConflict={conflicts.has(team.id)}
+              hasAvailability={hasAvail}
+            />
+          );
+        })}
       </ul>
     </section>
   );
 }
 
 /**
- * Armado de grupos: sorteo con semilla y ajuste manual (drag and drop o el
- * selector "Mover a…", que funciona con teclado y en mobile).
+ * Armado de grupos: sorteo con semilla y ajuste manual (drag and drop, intercambio
+ * directo entre parejas o selector "Mover a…").
  */
 export function GroupBuilder({
   tournamentId,
@@ -152,6 +220,9 @@ export function GroupBuilder({
   teams,
   initialGroups,
   availability,
+  slots = [],
+  courts = [],
+  timezone,
 }: GroupBuilderProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -164,7 +235,11 @@ export function GroupBuilder({
   const initialValidCount = options.includes(initialGroups.length) ? initialGroups.length : suggested;
   const [groupCount, setGroupCount] = useState(initialValidCount);
   const [groups, setGroups] = useState<string[][]>(initialGroups);
-  const byId = new Map(teams.map((t) => [t.id, t]));
+  const byId = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
+
+  // Modales de swap y detalle de horarios
+  const [swapTeamId, setSwapTeamId] = useState<string | null>(null);
+  const [detailsTeamId, setDetailsTeamId] = useState<string | null>(null);
 
   const safeGroupCount = options.includes(groupCount) ? groupCount : suggested;
 
@@ -188,6 +263,36 @@ export function GroupBuilder({
     });
   }
 
+  function swap(teamAId: string, teamBId: string) {
+    setGroups((prev) => {
+      let gA = -1;
+      let iA = -1;
+      let gB = -1;
+      let iB = -1;
+      prev.forEach((grp, gIdx) => {
+        grp.forEach((tId, tIdx) => {
+          if (tId === teamAId) {
+            gA = gIdx;
+            iA = tIdx;
+          }
+          if (tId === teamBId) {
+            gB = gIdx;
+            iB = tIdx;
+          }
+        });
+      });
+      if (gA === -1 || gB === -1) return prev;
+      const next = prev.map((g) => [...g]);
+      next[gA]![iA] = teamBId;
+      next[gB]![iB] = teamAId;
+      return next;
+    });
+
+    const nameA = byId.get(teamAId)?.name ?? "Pareja";
+    const nameB = byId.get(teamBId)?.name ?? "Pareja";
+    toast.success(`Intercambiaste a "${nameA}" con "${nameB}".`);
+  }
+
   const validation = groups.length > 0 ? validateGroups(teams.map((t) => t.id), groups) : null;
 
   const conflicts = useMemo(
@@ -205,6 +310,22 @@ export function GroupBuilder({
     }
     return map;
   }, [conflicts]);
+
+  // Datos para modal de swap
+  const swapSourceTeam = swapTeamId ? byId.get(swapTeamId) ?? null : null;
+  const swapSourceGroupIndex = swapTeamId ? groups.findIndex((g) => g.includes(swapTeamId)) : -1;
+
+  // Datos para modal de horarios
+  const detailsTeam = detailsTeamId ? byId.get(detailsTeamId) ?? null : null;
+  const detailsGroupIndex = detailsTeamId ? groups.findIndex((g) => g.includes(detailsTeamId)) : -1;
+  const detailsRivals = useMemo(() => {
+    if (!detailsTeamId || detailsGroupIndex < 0) return [];
+    const group = groups[detailsGroupIndex] ?? [];
+    return group
+      .filter((id) => id !== detailsTeamId)
+      .map((id) => byId.get(id))
+      .filter((t): t is Team => Boolean(t));
+  }, [detailsTeamId, detailsGroupIndex, groups, byId]);
 
   function save() {
     startTransition(async () => {
@@ -228,7 +349,7 @@ export function GroupBuilder({
           {teams.length === 0 ? (
             "No hay parejas aprobadas en esta categoría para sortear."
           ) : (
-            `Sorteá las ${teams.length} parejas aprobadas respetando su disponibilidad horaria y, si querés, acomodalas a mano antes de confirmar. En grupos de 4 parejas, se juegan 4 partidos y clasifican los 3 mejores a playoffs (cruces entre ganadores y perdedores).`
+            `Sorteá las ${teams.length} parejas aprobadas respetando su disponibilidad horaria. Podés intercambiar parejas directamente entre zonas o moverlas a mano antes de confirmar. En grupos de 4 parejas, se juegan 4 partidos y clasifican los 3 mejores a playoffs.`
           )}
         </CardDescription>
       </CardHeader>
@@ -284,20 +405,6 @@ export function GroupBuilder({
               {groups.length > 0 ? "Volver a sortear" : "Sortear"}
             </Button>
           </div>
-
-          {groups.length > 0 ? (
-            <ExportGroupsImageModal
-              tournamentName={tournamentName ?? "Torneo"}
-              categoryName={categoryName}
-              sportName={sportName}
-              groups={groups.map((group, idx) => ({
-                name: groupName(idx),
-                teams: group.map((id) => byId.get(id)?.name).filter((n): n is string => Boolean(n)),
-              }))}
-              size="default"
-              variant="outline"
-            />
-          ) : null}
         </div>
 
         {groups.length > 0 ? (
@@ -316,8 +423,11 @@ export function GroupBuilder({
                   index={index}
                   groupCount={groups.length}
                   onMove={move}
+                  onSwap={(id) => setSwapTeamId(id)}
+                  onOpenDetails={(id) => setDetailsTeamId(id)}
                   teams={group.map((id) => byId.get(id)).filter((t): t is Team => Boolean(t))}
                   conflicts={groupConflicts.get(index) ?? new Set()}
+                  availability={availability}
                 />
               ))}
             </div>
@@ -341,11 +451,18 @@ export function GroupBuilder({
                   <li key={i}>
                     <strong>{groupName(c.groupIndex)}:</strong> {byId.get(c.teamA)?.name ?? c.teamA} y{" "}
                     {byId.get(c.teamB)?.name ?? c.teamB} no comparten ninguna franja disponible.
+                    <button
+                      type="button"
+                      onClick={() => setDetailsTeamId(c.teamA)}
+                      className="ml-1.5 underline font-medium hover:text-amber-950 dark:hover:text-amber-100"
+                    >
+                      Ver detalle
+                    </button>
                   </li>
                 ))}
               </ul>
               <p className="text-xs text-amber-800 dark:text-amber-300">
-                Podés volver a sortear o reacomodar las parejas para que puedan programarse todos los partidos.
+                Podés hacer clic en el botón de intercambio (<ArrowLeftRight className="inline size-3" />) en cualquiera de las parejas o volver a sortear.
               </p>
             </div>
           </div>
@@ -360,24 +477,40 @@ export function GroupBuilder({
         ) : null}
 
         {groups.length > 0 ? (
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+          <div className="pt-2">
             <Button type="submit" onClick={save} disabled={isPending || !validation?.ok} className="shadow-sm">
               {isPending ? <Spinner /> : null}
               Confirmar grupos y generar partidos
             </Button>
-            <ExportGroupsImageModal
-              tournamentName={tournamentName ?? "Torneo"}
-              categoryName={categoryName}
-              sportName={sportName}
-              groups={groups.map((group, idx) => ({
-                name: groupName(idx),
-                teams: group.map((id) => byId.get(id)?.name).filter((n): n is string => Boolean(n)),
-              }))}
-              variant="outline"
-            />
           </div>
         ) : null}
       </CardContent>
+
+      {/* Modal para intercambio directo de parejas (Swap) */}
+      <SwapTeamsModal
+        isOpen={Boolean(swapTeamId)}
+        onClose={() => setSwapTeamId(null)}
+        sourceTeam={swapSourceTeam}
+        sourceGroupIndex={swapSourceGroupIndex}
+        groups={groups}
+        byId={byId}
+        availability={availability}
+        onConfirmSwap={swap}
+      />
+
+      {/* Modal para ver detalle de horarios y coincidencias con rivales */}
+      <SlotMatchesModal
+        isOpen={Boolean(detailsTeamId)}
+        onClose={() => setDetailsTeamId(null)}
+        team={detailsTeam}
+        groupIndex={detailsGroupIndex}
+        rivals={detailsRivals}
+        availability={availability}
+        slots={slots}
+        courts={courts}
+        timezone={timezone}
+        onOpenSwap={(tId) => setSwapTeamId(tId)}
+      />
     </Card>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CalendarClock, Check, ChevronRight, Crown, UserRoundX, X, ClipboardList } from "lucide-react";
+import { AlertCircle, CalendarClock, Check, ChevronRight, Crown, UserPen, UserRoundX, X, ClipboardList } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
@@ -19,6 +19,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Spinner } from "@/components/ui/spinner";
 import type { OrganizerTeam, TeamStatus } from "@/lib/data/teams";
 import { cn } from "@/lib/utils";
+import { ReplacePlayerDialog } from "./replace-player-dialog";
 import { TeamAvailabilityDialog, type DialogSlot } from "./team-availability-dialog";
 
 type Filter = "all" | TeamStatus;
@@ -236,6 +237,7 @@ function TeamCard({
   categories,
   allTeams,
   onOpenAvailability,
+  onOpenReplacePlayer,
 }: {
   team: OrganizerTeam;
   tournamentId: string;
@@ -245,6 +247,7 @@ function TeamCard({
   categories?: { id: string; name: string; maxTeams?: number | null }[];
   allTeams: OrganizerTeam[];
   onOpenAvailability: (teamId: string) => void;
+  onOpenReplacePlayer: (team: OrganizerTeam, memberId?: string) => void;
 }) {
   const complete = team.members.length >= teamSize;
   const foundCat = team.categoryId && categories ? categories.find((c) => c.id === team.categoryId) : null;
@@ -305,39 +308,69 @@ function TeamCard({
       ) : (
         <ul className="space-y-1 text-sm">
           {team.members.map((member) => (
-            <li key={member.id} className="flex items-center gap-2">
-              {member.role === "captain" ? (
-                <Crown className="size-4 text-amber-700" aria-label="Capitán" />
-              ) : member.userId || team.organizerRegistered ? null : (
-                <UserRoundX className="size-4 text-muted-foreground" aria-label="Pendiente de aceptar la invitación" />
-              )}
-              <span className="truncate">
-                {member.fullName ??
-                  member.displayName ??
-                  (member.userId
-                    ? "Sin registrar"
-                    : team.organizerRegistered
-                      ? "Sin cuenta"
-                      : "Invitación pendiente")}
-              </span>
-              {member.email ? <span className="truncate text-muted-foreground">{member.email}</span> : null}
+            <li key={member.id} className="flex items-center justify-between gap-2 py-0.5">
+              <div className="flex items-center gap-2 min-w-0">
+                {member.role === "captain" ? (
+                  <Crown className="size-4 text-amber-700 shrink-0" aria-label="Capitán" />
+                ) : member.userId || team.organizerRegistered ? null : (
+                  <UserRoundX className="size-4 text-muted-foreground shrink-0" aria-label="Pendiente de aceptar la invitación" />
+                )}
+                <span className="truncate">
+                  {member.fullName ??
+                    member.displayName ??
+                    (member.userId
+                      ? "Sin registrar"
+                      : team.organizerRegistered
+                        ? "Sin cuenta"
+                        : "Invitación pendiente")}
+                </span>
+                {member.email ? <span className="truncate text-muted-foreground text-xs">{member.email}</span> : null}
+              </div>
+
+              {!team.testGenerated ? (
+                <button
+                  type="button"
+                  onClick={() => onOpenReplacePlayer(team, member.id)}
+                  className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+                  title={`Reemplazar a ${member.fullName ?? member.displayName ?? "jugador"} por lesión`}
+                  aria-label={`Reemplazar a ${member.fullName ?? member.displayName ?? "jugador"} por lesión`}
+                >
+                  <UserPen className="size-3.5" />
+                </button>
+              ) : null}
             </li>
           ))}
         </ul>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => onOpenAvailability(team.id)}
-          className="h-8 text-xs gap-1.5 border-border/80 hover:border-primary/50"
-        >
-          <CalendarClock className="size-3.5 text-primary" aria-hidden="true" />
-          <span>
-            {team.availabilityCount === 0 ? "Asignar franjas" : "Modificar franjas"}
-          </span>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onOpenAvailability(team.id)}
+            className="h-8 text-xs gap-1.5 border-border/80 hover:border-primary/50"
+          >
+            <CalendarClock className="size-3.5 text-primary" aria-hidden="true" />
+            <span>
+              {team.availabilityCount === 0 ? "Asignar franjas" : "Modificar franjas"}
+            </span>
+          </Button>
+
+          {!team.testGenerated ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenReplacePlayer(team)}
+              className="h-8 text-xs gap-1.5 border-border/80 hover:border-primary/50"
+              title="Reemplazar integrante por lesión"
+            >
+              <UserPen className="size-3.5 text-muted-foreground" aria-hidden="true" />
+              <span>Reemplazar</span>
+            </Button>
+          ) : null}
+        </div>
 
         {canReview && !team.testGenerated ? (
           <ReviewButtons tournamentId={tournamentId} team={team} approveDisabledReason={approveDisabledReason} />
@@ -364,6 +397,7 @@ export function RegistrationsList({
   const [isToolPending, startToolTransition] = useTransition();
   const [selectedCat, setSelectedCat] = useState<string>("all");
   const [availabilityTeamId, setAvailabilityTeamId] = useState<string | null>(null);
+  const [replaceTarget, setReplaceTarget] = useState<{ team: OrganizerTeam; memberId?: string | null } | null>(null);
 
   const availabilityTeam = useMemo(
     () => (availabilityTeamId ? teams.find((t) => t.id === availabilityTeamId) ?? null : null),
@@ -675,6 +709,7 @@ export function RegistrationsList({
                               categories={categories}
                               allTeams={teams}
                               onOpenAvailability={setAvailabilityTeamId}
+                              onOpenReplacePlayer={(t, mId) => setReplaceTarget({ team: t, memberId: mId })}
                             />
                           ))}
                         </ul>
@@ -699,6 +734,7 @@ export function RegistrationsList({
               categories={categories}
               allTeams={teams}
               onOpenAvailability={setAvailabilityTeamId}
+              onOpenReplacePlayer={(t, mId) => setReplaceTarget({ team: t, memberId: mId })}
             />
           ))}
         </ul>
@@ -714,6 +750,14 @@ export function RegistrationsList({
         onOpenChange={(open) => {
           if (!open) setAvailabilityTeamId(null);
         }}
+      />
+
+      <ReplacePlayerDialog
+        isOpen={Boolean(replaceTarget)}
+        onClose={() => setReplaceTarget(null)}
+        tournamentId={tournamentId}
+        team={replaceTarget?.team ?? null}
+        initialMemberId={replaceTarget?.memberId}
       />
     </div>
   );

@@ -9,6 +9,7 @@ import {
   assignTournamentTeamsCategorySchema,
   bulkImportTeamsSchema,
   organizerCreateTeamSchema,
+  replaceTeamPlayerSchema,
   reviewRegistrationSchema,
   setTeamAvailabilitySchema,
   tournamentRegistrationActionSchema,
@@ -286,6 +287,33 @@ export const bulkImportTeams = createAction(
       },
       message,
     );
+  },
+);
+
+/** Reemplaza o edita a un jugador de una pareja (por lesión o cambio de integrante). */
+export const replaceTeamPlayer = createAction(
+  replaceTeamPlayerSchema,
+  async ({ tournamentId, teamId, memberId, newPlayerName, newTeamName }, { supabase }) => {
+    const { error } = await (supabase.rpc as any)("replace_team_player", {
+      p_team_id: teamId,
+      p_member_id: memberId,
+      p_new_player_name: newPlayerName,
+      p_new_team_name: newTeamName ?? null,
+    });
+
+    if (error) {
+      console.error("[replaceTeamPlayer error]:", error);
+      return actionError(dbErrorMessage(error));
+    }
+
+    revalidatePath(`/torneos/${tournamentId}`, "layout");
+    revalidatePath(`/torneos/${tournamentId}/inscripciones`);
+    revalidatePath(`/torneos/${tournamentId}/grupos`);
+    revalidatePath(`/torneos/${tournamentId}/partidos`);
+    revalidatePath(`/torneos/${tournamentId}/cuadro`);
+    refreshPublicTournament(tournamentId);
+
+    return actionOk(undefined, "Jugador reemplazado con éxito.");
   },
 );
 

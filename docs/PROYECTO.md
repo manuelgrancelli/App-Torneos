@@ -1503,3 +1503,28 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** atender el pedido directo del usuario para simplificar el flujo inicial de preparación del torneo llevándolo directo a franjas tras la creación, declarando obsoleto el apartado separado de categorías y concentrando la creación y gestión de categorías directamente en la pantalla de Inscripciones.
 - **Cómo aplicar:** implementado en `components/tournaments/tournament-wizard.tsx`, `app/(app)/torneos/[id]/page.tsx`, `components/tournaments/tournament-setup-stepper.tsx`, `components/tournaments/tournament-nav.tsx`, `components/categories/category-quick-manager.tsx`, `app/(app)/torneos/[id]/inscripciones/page.tsx` y `app/(app)/torneos/[id]/categorias/page.tsx`.
 
+### D-103 — Remoción de pestaña Historial y simplificación del dashboard de torneos (2026-10-18)
+- **Decisión:**
+  - Se eliminó la pestaña "Historial" del dashboard de torneos (`tournaments-view.tsx`), dejando únicamente las vistas: **Todos**, **Organizo** y **Participo**.
+  - La ruta dedicada `/historial` continúa existiendo para consultas específicas.
+- **Motivo:** simplificar la interfaz principal de torneos según las prioridades del usuario.
+- **Cómo aplicar:** implementado en `components/tournaments/tournaments-view.tsx`.
+
+### D-104 — Intercambio directo (Swap) y detalle de horarios en Grupos, y reemplazo de jugadores por lesión (2026-10-18)
+- **Decisión:**
+  - **Intercambio directo de parejas (Swap) en el armado de grupos:**
+    - Se incorporó en cada tarjeta de pareja (`TeamChip` en `components/groups/group-builder.tsx`) un botón de intercambio (`ArrowLeftRight`) que abre `SwapTeamsModal`.
+    - Permite al organizador seleccionar con qué pareja de otra zona intercambiar de manera inmediata, manteniendo intacta la cantidad equilibrada de parejas por grupo sin necesidad de realizar múltiples movimientos o desbalancear zonas.
+    - El modal indica la compatibilidad horaria resultante en ambos grupos destino y origen.
+  - **Detalle de horarios y coincidencias en Grupos (`SlotMatchesModal`):**
+    - `GroupBuilder` recibe las franjas horarias (`slots`), canchas (`courts`) y zona horaria (`timezone`).
+    - En cada pareja de la zona se muestra un badge interactivo de horarios: si hay conflicto resalta en ámbar con advertencia, y si tienen disponibilidad muestra el botón de horarios.
+    - Al hacer clic abre `SlotMatchesModal` con el desglose exacto de compatibilidad cruce por cruce con cada rival de la zona (indicando día, hora y cancha), además del listado completo de franjas declaradas por la pareja.
+  - **Reemplazo / Edición rápida de jugadores por lesión (`ReplacePlayerDialog`):**
+    - Se agregó el botón "Reemplazar" (`UserPen`) tanto en cada integrante como en el pie de la tarjeta en `registrations-list.tsx`.
+    - Abre `ReplacePlayerDialog` para que el organizador pueda cambiar el nombre del integrante por lesión o sustitución, con actualización opcional y sugerida del nombre compuesto de la pareja (ej: "Jugador 1 / Jugador 2").
+    - Se creó la RPC `replace_team_player` (`20261018220000_replace_team_player_for_injury.sql`) y la Server Action `replaceTeamPlayer` (`lib/validation/registration.ts` y `app/(app)/torneos/[id]/inscripciones/actions.ts`), permitiendo actualizar al jugador sin romper partidos, grupos, cuadros ni resultados ya generados.
+- **Motivo:** brindar máxima agilidad al organizador para ajustar zonas balanceadas con compatibilidad horaria transparente y resolver contingencias habituales de jugadores lesionados antes o durante el torneo.
+- **Cómo aplicar:** implementado en `components/groups/group-builder.tsx`, `components/groups/swap-teams-modal.tsx`, `components/groups/slot-matches-modal.tsx`, `components/registration/replace-player-dialog.tsx`, `components/registration/registrations-list.tsx`, `app/(app)/torneos/[id]/inscripciones/actions.ts`, `lib/validation/registration.ts` y migración SQL `20261018220000_replace_team_player_for_injury.sql`.
+
+

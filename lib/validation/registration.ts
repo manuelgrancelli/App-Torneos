@@ -115,6 +115,14 @@ export const bulkImportTeamsSchema = z.object({
   blocks: z.array(bulkImportCategoryBlockSchema).min(1, "No se detectaron categorías con parejas para importar."),
 });
 
+export const replaceTeamPlayerSchema = z.object({
+  tournamentId: z.uuid(),
+  teamId: z.uuid(),
+  memberId: z.uuid(),
+  newPlayerName: z.string().trim().min(1, "El nombre del jugador es requerido.").max(80, "Máximo 80 caracteres."),
+  newTeamName: z.string().trim().min(2, "El nombre debe tener al menos 2 caracteres.").max(60, "Máximo 60 caracteres.").optional(),
+});
+
 export type RegisterTeamInput = z.input<typeof registerTeamSchema>;
 export type UpdateRosterInput = z.input<typeof updateRosterSchema>;
 export type OrganizerCreateTeamInput = z.input<typeof organizerCreateTeamSchema>;
@@ -122,6 +130,7 @@ export type AssignTeamCategoryInput = z.input<typeof assignTeamCategorySchema>;
 export type AssignTournamentTeamsCategoryInput = z.input<typeof assignTournamentTeamsCategorySchema>;
 export type SetTeamAvailabilityInput = z.input<typeof setTeamAvailabilitySchema>;
 export type BulkImportTeamsInput = z.input<typeof bulkImportTeamsSchema>;
+export type ReplaceTeamPlayerInput = z.input<typeof replaceTeamPlayerSchema>;
 
 /** "demq2-padel " → "DEMQ2PADEL" (igual que normalize_code en la base). */
 export function normalizeInviteCode(code: string): string {

@@ -181,6 +181,9 @@ export default async function GroupsPage({
           teams={approved.map((t) => ({ id: t.id, name: t.name }))}
           initialGroups={groups.map((g) => g.teamIds)}
           availability={scheduling?.availability}
+          slots={scheduling?.slots}
+          courts={scheduling?.courts}
+          timezone={tournament.timezone}
         />
       ) : null}
 

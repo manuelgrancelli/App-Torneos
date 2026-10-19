@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { organizerCreateTeamSchema } from "./registration";
+import { organizerCreateTeamSchema, replaceTeamPlayerSchema } from "./registration";
 
 describe("organizerCreateTeamSchema", () => {
   const baseData = {
@@ -51,3 +51,41 @@ describe("organizerCreateTeamSchema", () => {
     }
   });
 });
+
+describe("replaceTeamPlayerSchema", () => {
+  const validData = {
+    tournamentId: "11111111-1111-4111-8111-111111111111",
+    teamId: "22222222-2222-4222-8222-222222222222",
+    memberId: "33333333-3333-4333-8333-333333333333",
+    newPlayerName: "Martín Palermo",
+    newTeamName: "Riquelme / Palermo",
+  };
+
+  it("acepta reemplazo válido de jugador y nombre de equipo", () => {
+    const res = replaceTeamPlayerSchema.safeParse(validData);
+    expect(res.success).toBe(true);
+  });
+
+  it("acepta reemplazo sin especificar newTeamName", () => {
+    const { newTeamName, ...withoutTeamName } = validData;
+    const res = replaceTeamPlayerSchema.safeParse(withoutTeamName);
+    expect(res.success).toBe(true);
+  });
+
+  it("rechaza si newPlayerName está vacío", () => {
+    const res = replaceTeamPlayerSchema.safeParse({
+      ...validData,
+      newPlayerName: "   ",
+    });
+    expect(res.success).toBe(false);
+  });
+
+  it("rechaza si newTeamName es menor a 2 caracteres", () => {
+    const res = replaceTeamPlayerSchema.safeParse({
+      ...validData,
+      newTeamName: "A",
+    });
+    expect(res.success).toBe(false);
+  });
+});
+
