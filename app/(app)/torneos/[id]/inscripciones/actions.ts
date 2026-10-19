@@ -224,30 +224,37 @@ export const bulkImportTeams = createAction(
         }
       }
 
+      // Obtener nombres de equipos existentes en esta categoría para deduplicar
+      const { data: existingTeams } = await (supabase as any)
+        .from("teams")
+        .select("name")
+        .eq("tournament_id", tournamentId)
+        .eq("category_id", targetCategoryId);
+
+      const existingNameSet = new Set(
+        (existingTeams ?? []).map((t: { name: string }) => t.name.trim().toLowerCase()),
+      );
+
       // Inscribir cada pareja de este bloque
       for (const team of block.teams) {
-        let teamName = team.teamName.trim();
-        let { error: teamError } = await (supabase.rpc as any)("create_organizer_team", {
+        const teamName = team.teamName.trim();
+
+        // Saltar si ya existe un equipo con ese nombre en la categoría
+        if (existingNameSet.has(teamName.toLowerCase())) {
+          skippedTeams.push({
+            teamName,
+            reason: "Ya existe en esta categoría",
+          });
+          continue;
+        }
+
+        const { error: teamError } = await (supabase.rpc as any)("create_organizer_team", {
           p_tournament_id: tournamentId,
           p_team_name: teamName,
           p_player_names: team.playerNames,
           p_slot_ids: slotIdsToUse,
           p_category_id: targetCategoryId,
         });
-
-        // Si ya hay un equipo con ese nombre exacto, reintentar agregando el nombre de la categoría como diferenciador
-        if (teamError && teamError.message?.includes("Ya hay un equipo con ese nombre")) {
-          const alternateName = `${teamName} (${block.categoryName.trim()})`.slice(0, 60);
-          const retry = await (supabase.rpc as any)("create_organizer_team", {
-            p_tournament_id: tournamentId,
-            p_team_name: alternateName,
-            p_player_names: team.playerNames,
-            p_slot_ids: slotIdsToUse,
-            p_category_id: targetCategoryId,
-          });
-          teamError = retry.error;
-          if (!teamError) teamName = alternateName;
-        }
 
         if (teamError) {
           skippedTeams.push({
@@ -256,6 +263,8 @@ export const bulkImportTeams = createAction(
           });
         } else {
           importedTeamsCount++;
+          // Agregar al set para evitar duplicados dentro del mismo lote
+          existingNameSet.add(teamName.toLowerCase());
         }
       }
     }
