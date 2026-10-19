@@ -103,10 +103,10 @@ export function cleanPlayerName(raw: string): string {
 /**
  * Extrae los integrantes de una línea de pareja.
  * Soporta formatos tipo:
- * - "1- Reynoso Luciano / Gimenez Alejandro"
- * - "1. Reynoso Luciano / Gimenez Alejandro"
- * - "Reynoso Luciano - Gimenez Alejandro"
- * - "Reynoso Luciano y Gimenez Alejandro"
+ * - "1- López Martín / Díaz Franco"
+ * - "1. López Martín / Díaz Franco"
+ * - "López Martín - Díaz Franco"
+ * - "López Martín y Díaz Franco"
  */
 export function parsePairLine(line: string): { playerNames: string[]; teamName: string } | null {
   const trimmed = line.trim();

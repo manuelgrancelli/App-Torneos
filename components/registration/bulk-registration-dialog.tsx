@@ -30,14 +30,13 @@ type BulkRegistrationDialogProps = {
 
 const SAMPLE_PLACEHOLDER = `*➡️ Suma 10 Caballeros*
 
-1- Reynoso Luciano / Gimenez Alejandro
-2- Gallo Brian / Kemmerer Hernán
-3- Taulada Valentin / Taborda Fabricio
+1- López Martín / Díaz Franco
+2- Herrera Tomás / Ruiz Mateo
 
 *➡️ 6ta Caballeros*
 
-1- Ale Gonzalo / Grancelli Rodrigo
-2- Wainz Leonardo / Zapata Oscar`;
+1- Sosa Julián / Peralta Nicolás
+2- Castro Emiliano / Romero Agustín`;
 
 export function BulkRegistrationDialog({
   tournamentId,
