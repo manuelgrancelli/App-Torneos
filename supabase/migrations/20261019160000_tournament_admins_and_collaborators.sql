@@ -527,24 +527,11 @@ returns table (
   ends_on date,
   is_already_admin boolean
 )
-language plpgsql
+language sql
+stable
 security definer
 set search_path = ''
 as $$
-declare
-  v_code text := upper(regexp_replace(coalesce(p_code, ''), '[^a-zA-Z0-9]', '', 'g'));
-  v_uid uuid := (select auth.uid());
-  v_tourney_id uuid;
-begin
-  select tournament_id into v_tourney_id
-  from public.tournament_admin_invites
-  where code = v_code;
-
-  if not found then
-    return;
-  end if;
-
-  return query
   select
     t.id as tournament_id,
     t.name as tournament_name,
@@ -555,16 +542,16 @@ begin
     t.starts_on,
     t.ends_on,
     case
-      when v_uid is null then false
-      when t.organizer_id = v_uid then true
-      when exists (select 1 from public.tournament_admins ta where ta.tournament_id = t.id and ta.user_id = v_uid) then true
+      when (select auth.uid()) is null then false
+      when t.organizer_id = (select auth.uid()) then true
+      when exists (select 1 from public.tournament_admins ta where ta.tournament_id = t.id and ta.user_id = (select auth.uid())) then true
       else false
     end as is_already_admin
-  from public.tournaments t
+  from public.tournament_admin_invites ai
+  join public.tournaments t on t.id = ai.tournament_id
   join public.sports s on s.id = t.sport_id
   left join public.profiles p on p.id = t.organizer_id
-  where t.id = v_tourney_id;
-end;
+  where ai.code = upper(regexp_replace(coalesce(p_code, ''), '[^a-zA-Z0-9]', '', 'g'));
 $$;
 
 -- Unirse al torneo como co-administrador usando el código de invitación
@@ -578,12 +565,17 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_uid uuid := public.require_user();
   v_code text := upper(regexp_replace(coalesce(p_code, ''), '[^a-zA-Z0-9]', '', 'g'));
-  v_tournament public.tournaments%rowtype;
+  v_tourney_id uuid;
+  v_tourney_slug text;
+  v_tourney_name text;
+  v_organizer_id uuid;
 begin
-  select t.* into v_tournament
+  select t.id, t.slug, t.name, t.organizer_id
+  into v_tourney_id, v_tourney_slug, v_tourney_name, v_organizer_id
   from public.tournaments t
   join public.tournament_admin_invites ai on ai.tournament_id = t.id
   where ai.code = v_code;
@@ -593,17 +585,17 @@ begin
   end if;
 
   -- Si es el dueño del torneo
-  if v_tournament.organizer_id = v_uid then
-    return query select v_tournament.id, v_tournament.slug, v_tournament.name;
+  if v_organizer_id = v_uid then
+    return query select v_tourney_id, v_tourney_slug, v_tourney_name;
     return;
   end if;
 
   -- Insertar como co-administrador
   insert into public.tournament_admins (tournament_id, user_id, role)
-  values (v_tournament.id, v_uid, 'admin')
+  values (v_tourney_id, v_uid, 'admin')
   on conflict (tournament_id, user_id) do nothing;
 
-  return query select v_tournament.id, v_tournament.slug, v_tournament.name;
+  return query select v_tourney_id, v_tourney_slug, v_tourney_name;
 end;
 $$;
 
