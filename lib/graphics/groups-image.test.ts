@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { type GroupExportData, renderGroupsToCanvas } from "./groups-image";
 
 describe("groups-image Canvas generator", () => {
-  const createMockCanvas = (calls: string[]) => {
+  const createMockCanvas = (calls: string[], texts: string[] = []) => {
     const mockCanvas = {
       width: 0,
       height: 0,
@@ -13,7 +13,10 @@ describe("groups-image Canvas generator", () => {
       canvas: mockCanvas,
       measureText: (text: string) => ({ width: text.length * 8 }),
       fillRect: () => calls.push("fillRect"),
-      fillText: () => calls.push("fillText"),
+      fillText: (text: string) => {
+        calls.push("fillText");
+        texts.push(String(text));
+      },
       strokeRect: () => calls.push("strokeRect"),
       beginPath: () => calls.push("beginPath"),
       moveTo: () => calls.push("moveTo"),
@@ -48,7 +51,8 @@ describe("groups-image Canvas generator", () => {
 
   it("renderiza grupos en formato Story (9:16) con fondo oscuro predeterminado", () => {
     const calls: string[] = [];
-    const { mockCanvas } = createMockCanvas(calls);
+    const texts: string[] = [];
+    const { mockCanvas } = createMockCanvas(calls, texts);
 
     renderGroupsToCanvas(mockCanvas, {
       tournamentName: "Torneo Primavera 2026",
@@ -61,6 +65,7 @@ describe("groups-image Canvas generator", () => {
     expect(mockCanvas.width).toBe(1080);
     expect(mockCanvas.height).toBe(1920);
     expect(calls.filter((c) => c === "fillText").length).toBeGreaterThan(5);
+    expect(texts.some((t) => t.includes("LM Torneos"))).toBe(true);
   });
 
   it("renderiza grupos en formato Story con imagen de fondo personalizada (drawImage)", () => {
@@ -91,7 +96,8 @@ describe("groups-image Canvas generator", () => {
 
   it("renderiza grupos en formato Estándar (1200px) correctamente", () => {
     const calls: string[] = [];
-    const { mockCanvas } = createMockCanvas(calls);
+    const texts: string[] = [];
+    const { mockCanvas } = createMockCanvas(calls, texts);
 
     renderGroupsToCanvas(mockCanvas, {
       tournamentName: "Torneo Apertura",
@@ -104,5 +110,6 @@ describe("groups-image Canvas generator", () => {
     expect(mockCanvas.width).toBe(1200);
     expect(mockCanvas.height).toBeGreaterThanOrEqual(860);
     expect(calls.filter((c) => c === "fillText").length).toBeGreaterThan(5);
+    expect(texts.some((t) => t.includes("LM Torneos"))).toBe(true);
   });
 });

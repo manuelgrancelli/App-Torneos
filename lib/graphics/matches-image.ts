@@ -379,7 +379,7 @@ function renderStoryFormat(
     month: "long",
     year: "numeric",
   });
-  ctx.fillText(`⚡ App Torneos · ${dateStr}`, width / 2, footerY);
+  ctx.fillText(`⚡ Generado con LM Torneos · ${dateStr}`, width / 2, footerY);
 }
 
 /**
@@ -659,9 +659,19 @@ function renderStandardFormat(
 
   ctx.font = "600 11px system-ui, -apple-system, sans-serif";
   ctx.fillStyle = "#94a3b8";
-  ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("APP TORNEOS · CRONOGRAMA Y FIXTURE OFICIAL", width / 2, footerY);
+
+  ctx.textAlign = "left";
+  ctx.fillText("⚡ LM TORNEOS · CRONOGRAMA Y FIXTURE OFICIAL", marginX, footerY);
+
+  ctx.textAlign = "right";
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("es-AR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  ctx.fillText(dateStr, width - marginX, footerY);
 }
 
 /**

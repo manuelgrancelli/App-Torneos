@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { type MatchExportData, renderMatchesToCanvas } from "./matches-image";
 
 describe("matches-image Canvas generator", () => {
-  const createMockCanvas = (calls: string[]) => {
+  const createMockCanvas = (calls: string[], texts: string[] = []) => {
     const mockCanvas = {
       width: 0,
       height: 0,
@@ -13,7 +13,10 @@ describe("matches-image Canvas generator", () => {
       canvas: mockCanvas,
       measureText: (text: string) => ({ width: text.length * 7 }),
       fillRect: () => calls.push("fillRect"),
-      fillText: () => calls.push("fillText"),
+      fillText: (text: string) => {
+        calls.push("fillText");
+        texts.push(String(text));
+      },
       strokeRect: () => calls.push("strokeRect"),
       beginPath: () => calls.push("beginPath"),
       moveTo: () => calls.push("moveTo"),
@@ -73,7 +76,8 @@ describe("matches-image Canvas generator", () => {
 
   it("renderiza partidos con horarios en formato Estándar (1200px)", () => {
     const calls: string[] = [];
-    const { mockCanvas } = createMockCanvas(calls);
+    const texts: string[] = [];
+    const { mockCanvas } = createMockCanvas(calls, texts);
 
     renderMatchesToCanvas(mockCanvas, {
       tournamentName: "Torneo Apertura Pádel 2026",
@@ -87,11 +91,13 @@ describe("matches-image Canvas generator", () => {
     expect(mockCanvas.width).toBe(1200);
     expect(mockCanvas.height).toBeGreaterThanOrEqual(580);
     expect(calls.filter((c) => c === "fillText").length).toBeGreaterThan(10);
+    expect(texts.some((t) => t.toUpperCase().includes("LM TORNEOS"))).toBe(true);
   });
 
   it("renderiza partidos en formato Historia (9:16) con imagen de fondo", () => {
     const calls: string[] = [];
-    const { mockCanvas } = createMockCanvas(calls);
+    const texts: string[] = [];
+    const { mockCanvas } = createMockCanvas(calls, texts);
 
     const mockImage = {
       naturalWidth: 1080,
@@ -115,6 +121,7 @@ describe("matches-image Canvas generator", () => {
     expect(mockCanvas.height).toBe(1920);
     expect(calls).toContain("drawImage");
     expect(calls.filter((c) => c === "fillText").length).toBeGreaterThan(10);
+    expect(texts.some((t) => t.includes("LM Torneos"))).toBe(true);
   });
 
   it("no falla si la lista de partidos está vacía", () => {

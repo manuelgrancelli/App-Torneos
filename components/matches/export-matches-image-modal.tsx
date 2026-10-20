@@ -120,7 +120,7 @@ function buildMatchesWhatsAppText({
   }
 
   lines.push(`----------------------------------------`);
-  lines.push(`⚡ _Organizado con App Torneos_`);
+  lines.push(`⚡ _Organizado con LM Torneos_`);
 
   return lines.join("\n");
 }

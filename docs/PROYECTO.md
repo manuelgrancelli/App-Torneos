@@ -1688,3 +1688,13 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** solucionar el comportamiento reportado donde el creador del torneo sólo se veía a sí mismo y el co-administrador recién incorporado sólo se veía a sí mismo en lugar de mostrar a todo el equipo de administración.
 - **Cómo aplicar:** `supabase/migrations/20261019183000_fix_tournament_admin_invite_profiles.sql`, `supabase/migrations/20261019160000_tournament_admins_and_collaborators.sql`, `lib/data/tournaments.ts`, `components/tournaments/tournament-admins-manager.tsx`.
 
+### D-117 — Marca y pie de agua "LM Torneos" con fecha en imágenes descargables (2026-10-20)
+- **Decisión:**
+  - **Actualización del nombre de marca a "LM Torneos" en todas las imágenes exportables/descargables:**
+    - **Cuadro de playoffs (`lib/graphics/bracket-image.ts`):** el pie de página ahora renderiza `⚡ Generado con LM Torneos` en el margen izquierdo junto a la fecha en español en el margen derecho.
+    - **Zonas y grupos (`lib/graphics/groups-image.ts`):** el pie de página en formato Story (9:16) renderiza `⚡ Generado con LM Torneos · [fecha]`, y en formato Estándar (1200px) renderiza `⚡ Generado con LM Torneos` junto a la fecha.
+    - **Partidos y horarios (`lib/graphics/matches-image.ts`):** el pie de página en formato Story (9:16) renderiza `⚡ Generado con LM Torneos · [fecha]`, y en formato Estándar (1200px) renderiza `⚡ LM TORNEOS · CRONOGRAMA Y FIXTURE OFICIAL` junto a la fecha en el margen derecho.
+    - **Exportación de texto para WhatsApp (`components/matches/export-matches-image-modal.tsx`):** el mensaje generado al compartir los partidos por texto concluye con `⚡ _Organizado con LM Torneos_`.
+- **Motivo:** atender el pedido directo del usuario para que en todas las imágenes que se descargan de la app (grupos, partidos, cuadro, etc.) figure la fecha y el nombre de la app sea "LM Torneos".
+- **Cómo aplicar:** `lib/graphics/bracket-image.ts`, `lib/graphics/groups-image.ts`, `lib/graphics/matches-image.ts`, `components/matches/export-matches-image-modal.tsx`, `lib/graphics/bracket-image.test.ts`, `lib/graphics/groups-image.test.ts`, `lib/graphics/matches-image.test.ts`.
+

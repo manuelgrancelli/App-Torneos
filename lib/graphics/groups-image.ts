@@ -284,7 +284,7 @@ function renderStoryFormat(
     month: "long",
     year: "numeric",
   });
-  ctx.fillText(`⚡ Generado con App Torneos · ${dateStr}`, width / 2, footerY);
+  ctx.fillText(`⚡ Generado con LM Torneos · ${dateStr}`, width / 2, footerY);
 }
 
 /**
@@ -522,7 +522,7 @@ function renderStandardFormat(
   ctx.font = "500 13px system-ui, -apple-system, sans-serif";
   ctx.fillStyle = "#94a3b8";
   ctx.textAlign = "left";
-  ctx.fillText("⚡ Generado con App Torneos", 60, footerY);
+  ctx.fillText("⚡ Generado con LM Torneos", 60, footerY);
 
   ctx.textAlign = "right";
   const now = new Date();

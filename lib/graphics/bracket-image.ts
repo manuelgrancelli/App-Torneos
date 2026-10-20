@@ -341,7 +341,7 @@ export function renderBracketToCanvas(
   ctx.font = "500 13px system-ui, -apple-system, sans-serif";
   ctx.fillStyle = "#52525b";
   ctx.textAlign = "left";
-  ctx.fillText("⚡ Generado con App Torneos", marginX, footerY);
+  ctx.fillText("⚡ Generado con LM Torneos", marginX, footerY);
 
   ctx.textAlign = "right";
   const now = new Date();
