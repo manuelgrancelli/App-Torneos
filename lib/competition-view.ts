@@ -325,6 +325,8 @@ export type BracketCard = {
   courtName: string | null;
   homeTeamId?: string | null;
   awayTeamId?: string | null;
+  slotId?: string | null;
+  courtId?: string | null;
   result?: MatchResult | null;
   isWalkover?: boolean;
   canScore?: boolean;
@@ -518,6 +520,8 @@ export function cardsFromMatches(
         courtName: m.courtId ? (courtNames.get(m.courtId) ?? null) : null,
         homeTeamId: m.homeTeamId,
         awayTeamId: m.awayTeamId,
+        slotId: m.slotId,
+        courtId: m.courtId,
         result: m.result,
         isWalkover: m.isWalkover,
         canScore: Boolean(m.homeTeamId && m.awayTeamId && !m.isBye),

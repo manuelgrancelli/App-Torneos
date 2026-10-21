@@ -1,14 +1,16 @@
 "use client";
 
-import { ClipboardEdit, List, Medal, Network, Trophy } from "lucide-react";
+import { CalendarClock, ClipboardEdit, List, Medal, Network, Trophy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { TrophyLogo } from "@/components/brand/trophy-logo";
+import { AssignSlotDialog } from "@/components/matches/assign-slot-dialog";
 import { ResultDialog } from "@/components/matches/result-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { BracketCard } from "@/lib/competition-view";
 import { formatInTimeZone } from "@/lib/dates";
 import { roundName } from "@/lib/domain/bracket";
+import type { FixedAssignment } from "@/lib/domain/scheduler";
 import type { ScoringConfig } from "@/lib/domain/scoring";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +20,10 @@ export type BracketViewProps = {
   scoring?: ScoringConfig;
   tournamentId?: string;
   canEdit?: boolean;
+  slots?: { id: string; startsAt: string; endsAt: string; courtId: string | null }[];
+  courts?: { id: string; name: string }[];
+  scheduled?: FixedAssignment[];
+  availability?: Record<string, string[]>;
 };
 
 /**
@@ -27,10 +33,24 @@ export type BracketViewProps = {
  * - Vista árbol: diagrama horizontal clásico para quien prefiera visualizar el árbol completo.
  * Permite cargar y editar resultados directamente desde cada cruce del cuadro.
  */
-export function BracketView({ cards, timezone, scoring, tournamentId, canEdit = false }: BracketViewProps) {
+export function BracketView({
+  cards,
+  timezone,
+  scoring,
+  tournamentId,
+  canEdit = false,
+  slots,
+  courts,
+  scheduled,
+  availability,
+}: BracketViewProps) {
   const [scoringMatch, setScoringMatch] = useState<BracketCard | null>(null);
+  const [schedulingMatch, setSchedulingMatch] = useState<BracketCard | null>(null);
   const [viewMode, setViewMode] = useState<"vertical" | "diagram">("vertical");
   const [selectedRound, setSelectedRound] = useState<"all" | number>("all");
+
+  const canScheduleGeneral = Boolean(canEdit && tournamentId && slots && courts && slots.length > 0);
+  const handleSchedule = canScheduleGeneral ? (c: BracketCard) => setSchedulingMatch(c) : undefined;
 
   const main = useMemo(() => cards.filter((c) => !c.isThirdPlace), [cards]);
   const third = useMemo(() => cards.find((c) => c.isThirdPlace), [cards]);
@@ -163,6 +183,7 @@ export function BracketView({ cards, timezone, scoring, tournamentId, canEdit = 
                       final={isFinalRound}
                       canEdit={canEdit}
                       onScore={(c) => setScoringMatch(c)}
+                      onSchedule={handleSchedule}
                     />
                   ))}
                 </div>
@@ -182,6 +203,7 @@ export function BracketView({ cards, timezone, scoring, tournamentId, canEdit = 
                         final={false}
                         canEdit={canEdit}
                         onScore={(c) => setScoringMatch(c)}
+                        onSchedule={handleSchedule}
                       />
                     </div>
                   </div>
@@ -211,6 +233,7 @@ export function BracketView({ cards, timezone, scoring, tournamentId, canEdit = 
                           final={round === rounds}
                           canEdit={canEdit}
                           onScore={(c) => setScoringMatch(c)}
+                          onSchedule={handleSchedule}
                         />
                         {/* Conector hacia el partido siguiente. */}
                         {round < rounds ? (
@@ -231,6 +254,7 @@ export function BracketView({ cards, timezone, scoring, tournamentId, canEdit = 
                         final={false}
                         canEdit={canEdit}
                         onScore={(c) => setScoringMatch(c)}
+                        onSchedule={handleSchedule}
                       />
                     </div>
                   ) : null}
@@ -258,6 +282,35 @@ export function BracketView({ cards, timezone, scoring, tournamentId, canEdit = 
           awayName={scoringMatch.away?.name ?? "Visitante"}
           current={scoringMatch.result ?? null}
           currentWalkover={Boolean(scoringMatch.isWalkover)}
+        />
+      ) : null}
+
+      {schedulingMatch && schedulingMatch.matchId && tournamentId && slots && courts ? (
+        <AssignSlotDialog
+          open={Boolean(schedulingMatch)}
+          onOpenChange={(open) => {
+            if (!open) setSchedulingMatch(null);
+          }}
+          tournamentId={tournamentId}
+          timezone={timezone}
+          match={{
+            id: schedulingMatch.matchId,
+            homeTeamId: schedulingMatch.homeTeamId ?? null,
+            awayTeamId: schedulingMatch.awayTeamId ?? null,
+            slotId: schedulingMatch.slotId ?? null,
+            courtId: schedulingMatch.courtId ?? null,
+            homeName: schedulingMatch.home?.name ?? "Pareja 1",
+            awayName: schedulingMatch.away?.name ?? "Pareja 2",
+          }}
+          title={
+            schedulingMatch.home?.name && schedulingMatch.away?.name
+              ? `${schedulingMatch.home.name} vs ${schedulingMatch.away.name}`
+              : `Cruce ${schedulingMatch.position + 1} (${roundName(schedulingMatch.round, rounds)})`
+          }
+          slots={slots}
+          courts={courts}
+          scheduled={scheduled ?? []}
+          availability={availability ?? {}}
         />
       ) : null}
     </div>
@@ -313,15 +366,18 @@ function MatchCard({
   final,
   canEdit,
   onScore,
+  onSchedule,
 }: {
   card: BracketCard;
   timezone: string;
   final: boolean;
   canEdit?: boolean;
   onScore?: (card: BracketCard) => void;
+  onSchedule?: (card: BracketCard) => void;
 }) {
   const hasResult = Boolean(card.resultText);
   const canScore = Boolean(canEdit && card.canScore && onScore && card.matchId);
+  const canSchedule = Boolean(canEdit && onSchedule && card.matchId && !card.isBye && !hasResult);
   const isFinalMatch = final && !card.isThirdPlace;
 
   return (
@@ -393,27 +449,43 @@ function MatchCard({
               )}
             </div>
 
-            {canScore ? (
-              <Button
-                type="button"
-                variant={hasResult ? "ghost" : "default"}
-                size="sm"
-                onClick={() => onScore?.(card)}
-                className={cn(
-                  "h-7 shrink-0 px-2.5 text-xs font-semibold",
-                  hasResult && "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-              >
-                {hasResult ? (
-                  <>
-                    <ClipboardEdit className="mr-1 size-3.5" aria-hidden="true" />
-                    Editar
-                  </>
-                ) : (
-                  "Cargar resultado"
-                )}
-              </Button>
-            ) : null}
+            <div className="flex shrink-0 items-center gap-1.5">
+              {canScore ? (
+                <Button
+                  type="button"
+                  variant={hasResult ? "ghost" : "default"}
+                  size="sm"
+                  onClick={() => onScore?.(card)}
+                  className={cn(
+                    "h-7 shrink-0 px-2.5 text-xs font-semibold",
+                    hasResult && "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  {hasResult ? (
+                    <>
+                      <ClipboardEdit className="mr-1 size-3.5" aria-hidden="true" />
+                      Editar
+                    </>
+                  ) : (
+                    "Cargar resultado"
+                  )}
+                </Button>
+              ) : null}
+
+              {canSchedule ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onSchedule?.(card)}
+                  title={card.startsAt || card.slotId ? "Cambiar horario" : "Asignar horario"}
+                  className="h-7 shrink-0 px-2 text-xs font-semibold text-muted-foreground border-border hover:bg-muted hover:text-foreground gap-1"
+                >
+                  <CalendarClock className="size-3.5" aria-hidden="true" />
+                  <span>{card.startsAt || card.slotId ? "Cambiar" : "Asignar"}</span>
+                </Button>
+              ) : null}
+            </div>
           </>
         )}
       </div>

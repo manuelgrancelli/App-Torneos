@@ -1718,3 +1718,16 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
   - La pantalla pasa directamente a mostrar la sección de cruces proyectados y el cuadro interactivo con las acciones de exportación y gestión, logrando una interfaz más limpia, ágil y sin carteles informativos innecesarios.
 - **Motivo:** pedido directo del usuario para retirar el cartel informativo de la pantalla de cuadro.
 - **Cómo aplicar:** `app/(app)/torneos/[id]/cuadro/page.tsx`.
+
+### D-120 — Eliminación del menú de tres puntos por botón directo "Asignar" y asignación de horarios en cuadros (2026-10-21)
+- **Decisión:**
+  - **Reemplazo del menú de 3 puntos por botón directo en filas de partidos (`components/matches/matches-board.tsx`):**
+    - Se eliminó el botón de 3 puntos (`DropdownMenu` con icono `MoreVertical`) en cada partido. Su menú desplegable duplicaba la acción "Cargar resultado", ya presente como botón directo principal.
+    - En su lugar, al lado del botón "Cargar", se ubicó el botón directo "Asignar" (o "Cambiar" si ya tiene franja asignada: `match.slotId ? "Cambiar" : "Asignar"`), abriendo inmediatamente el modal `AssignSlotDialog`.
+    - Cuando el partido cuenta con resultado registrado, se mantiene el marcador cliqueable para editarlo, junto a los botones de acción directos para confirmar resultado (si está provisional), cambiar horario y borrar resultado con confirmación (`AlertDialog`).
+  - **Asignación y cambio de horario directo dentro del cuadro de playoffs (`BracketView` en `components/bracket/bracket-view.tsx`):**
+    - En la tarjeta de cada cruce de playoffs (`MatchCard`), se incorporó el botón directo "Asignar" (o "Cambiar") junto al botón "Cargar resultado", permitiendo programar cancha y horario directamente desde el cuadro eliminatorio sin tener que acudir a paneles inferiores ni salir de la vista.
+    - Se agregaron las propiedades `slotId` y `courtId` a `BracketCard` y a `cardsFromMatches` (`lib/competition-view.ts`), enlazando el estado de programación con `AssignSlotDialog` dentro de `BracketView`.
+    - Se conectó la información de `scheduling` (`slots`, `courts`, `scheduled`, `availability`) desde `app/(app)/torneos/[id]/cuadro/page.tsx` a `BracketView`.
+- **Motivo:** pedido directo del usuario para simplificar la interacción en el listado de partidos eliminando la duplicación en el menú de 3 puntos, y posibilitar la asignación y cambio de horarios de los cruces de playoffs directamente sobre las tarjetas del cuadro.
+- **Cómo aplicar:** `components/matches/matches-board.tsx`, `components/bracket/bracket-view.tsx`, `lib/competition-view.ts`, `app/(app)/torneos/[id]/cuadro/page.tsx`.

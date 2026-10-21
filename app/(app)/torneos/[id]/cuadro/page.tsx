@@ -18,6 +18,7 @@ import { getCompetition, getSchedulingData } from "@/lib/data/competition";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
 import { createClient } from "@/lib/supabase/server";
 import { normalizePlayoffConfig } from "@/lib/domain/bracket";
+import type { FixedAssignment } from "@/lib/domain/scheduler";
 import { normalizeScoringConfig } from "@/lib/domain/scoring";
 import { normalizeStandingsConfig } from "@/lib/domain/standings";
 import { ensurePlayoffBracket } from "./actions";
@@ -158,6 +159,17 @@ export default async function BracketPage({
     ? buildBoardMatches(playoffMatches, groups, teamNames, courtNames, competition.confirmations)
     : [];
 
+  const scheduled: FixedAssignment[] = competition.matches
+    .filter((m) => m.startsAt && m.endsAt)
+    .map((m) => ({
+      matchId: m.id,
+      homeTeamId: m.homeTeamId,
+      awayTeamId: m.awayTeamId,
+      courtId: m.courtId,
+      start: Date.parse(m.startsAt as string),
+      end: Date.parse(m.endsAt as string),
+    }));
+
   return (
     <div className="space-y-6">
       {hasCategories ? (
@@ -226,6 +238,10 @@ export default async function BracketPage({
           scoring={categoryScoring}
           tournamentId={tournament.id}
           canEdit={canEditPlayoffs}
+          slots={scheduling.slots}
+          courts={scheduling.courts}
+          scheduled={scheduled}
+          availability={scheduling.availability}
         />
       </section>
 

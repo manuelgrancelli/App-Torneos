@@ -8,7 +8,6 @@ import {
   Eraser,
   LayoutGrid,
   Lock,
-  MoreVertical,
   TriangleAlert,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -18,12 +17,6 @@ import { clearResult, confirmResult } from "@/app/(app)/torneos/[id]/partidos/ac
 import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -152,88 +145,89 @@ function MatchRow({
           <p key={i} className="rounded bg-red-50 p-2 text-xs text-red-900 dark:bg-red-950/40 dark:text-red-200">&quot;{comment}&quot;</p>
         ))}
       </div>
-      <div className="flex shrink-0 items-center gap-1 sm:gap-1.5 self-center">
+      <div className="flex shrink-0 items-center gap-1.5 self-center">
         {match.resultText ? (
-          <button
-            type="button"
-            onClick={canEdit && ready ? onResult : undefined}
-            disabled={!canEdit || !ready}
-            title={canEdit && ready ? "Editar resultado" : undefined}
-            className={cn(
-              "rounded-md px-2 py-1 text-right tabular-nums text-xs sm:text-sm font-bold transition-colors",
-              canEdit && ready
-                ? "hover:bg-muted text-foreground cursor-pointer"
-                : "text-foreground",
-            )}
-          >
-            {match.resultText}
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={canEdit && ready ? onResult : undefined}
+              disabled={!canEdit || !ready}
+              title={canEdit && ready ? "Editar resultado" : undefined}
+              className={cn(
+                "rounded-md px-2 py-1 text-right tabular-nums text-xs sm:text-sm font-bold transition-colors",
+                canEdit && ready
+                  ? "hover:bg-muted text-foreground cursor-pointer"
+                  : "text-foreground",
+              )}
+            >
+              {match.resultText}
+            </button>
+            {canEdit && ready && match.resultStatus !== "confirmed" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={confirm}
+                title="Confirmar resultado"
+                aria-label="Confirmar resultado"
+                className="size-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 shrink-0"
+              >
+                <CheckCheck className="size-3.5" aria-hidden="true" />
+              </Button>
+            ) : null}
+            {canEdit && ready ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={onSchedule}
+                title={match.slotId ? "Cambiar horario" : "Asignar horario"}
+                aria-label={match.slotId ? "Cambiar horario" : "Asignar horario"}
+                className="size-7 text-muted-foreground hover:text-foreground shrink-0"
+              >
+                <CalendarClock className="size-3.5" aria-hidden="true" />
+              </Button>
+            ) : null}
+            {canEdit && ready ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={onClear}
+                title="Borrar resultado"
+                aria-label="Borrar resultado"
+                className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+              >
+                <Eraser className="size-3.5" aria-hidden="true" />
+              </Button>
+            ) : null}
+          </div>
         ) : canEdit && ready ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onResult}
-            className="h-8 px-2.5 text-xs font-semibold text-primary border-primary/40 hover:bg-primary/10 hover:text-primary shrink-0 gap-1"
-          >
-            <ClipboardEdit className="size-3.5" aria-hidden="true" />
-            <span>Cargar</span>
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onResult}
+              className="h-8 px-2.5 text-xs font-semibold text-primary border-primary/40 hover:bg-primary/10 hover:text-primary shrink-0 gap-1"
+            >
+              <ClipboardEdit className="size-3.5" aria-hidden="true" />
+              <span>Cargar</span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onSchedule}
+              className="h-8 px-2.5 text-xs font-semibold text-muted-foreground border-border hover:bg-muted hover:text-foreground shrink-0 gap-1"
+            >
+              <CalendarClock className="size-3.5" aria-hidden="true" />
+              <span>{match.slotId ? "Cambiar" : "Asignar"}</span>
+            </Button>
+          </div>
         ) : (
           <span className="text-sm text-muted-foreground tabular-nums px-2">—</span>
         )}
-
-        {canEdit && ready ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-10 md:size-8 shrink-0 text-muted-foreground hover:text-foreground touch-manipulation"
-                aria-label={`Acciones: ${match.homeName} vs ${match.awayName}`}
-              >
-                <MoreVertical className="size-4" aria-hidden="true" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" sideOffset={6} collisionPadding={16} className="w-56 p-1.5 shadow-xl border border-border/80">
-              <DropdownMenuItem
-                onSelect={onResult}
-                className="min-h-[44px] py-2.5 px-3 text-sm font-medium gap-3 rounded-lg flex items-center cursor-pointer"
-              >
-                <ClipboardEdit className="size-4 shrink-0 text-primary" aria-hidden="true" />
-                {match.result ? "Editar resultado" : "Cargar resultado"}
-              </DropdownMenuItem>
-              {!match.result ? (
-                <DropdownMenuItem
-                  onSelect={onSchedule}
-                  className="min-h-[44px] py-2.5 px-3 text-sm font-medium gap-3 rounded-lg flex items-center cursor-pointer"
-                >
-                  <CalendarClock className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  {match.slotId ? "Cambiar horario" : "Asignar horario"}
-                </DropdownMenuItem>
-              ) : null}
-              {match.result && match.resultStatus !== "confirmed" ? (
-                <DropdownMenuItem
-                  onSelect={confirm}
-                  className="min-h-[44px] py-2.5 px-3 text-sm font-medium gap-3 rounded-lg flex items-center cursor-pointer"
-                >
-                  <CheckCheck className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-                  Confirmar resultado
-                </DropdownMenuItem>
-              ) : null}
-              {match.result ? (
-                <DropdownMenuItem
-                  variant="destructive"
-                  onSelect={onClear}
-                  className="min-h-[44px] py-2.5 px-3 text-sm font-medium gap-3 rounded-lg flex items-center cursor-pointer text-destructive focus:text-destructive"
-                >
-                  <Eraser className="size-4 shrink-0 text-destructive" aria-hidden="true" />
-                  Borrar resultado
-                </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : null}
       </div>
     </li>
   );
