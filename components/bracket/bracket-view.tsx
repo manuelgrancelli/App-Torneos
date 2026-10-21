@@ -80,51 +80,53 @@ export function BracketView({
       {/* Controles superiores: filtro de rondas y selector de vista */}
       {rounds > 0 ? (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          {/* Pestañas de rondas (envolvemos con flex-wrap para evitar scroll horizontal) */}
-          <div
-            role="tablist"
-            aria-label="Rondas del cuadro"
-            className="flex flex-wrap items-center gap-1.5"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={selectedRound === "all"}
-              onClick={() => setSelectedRound("all")}
-              className={cn(
-                "inline-flex h-8 items-center rounded-full border px-3 text-xs font-medium transition-colors",
-                selectedRound === "all"
-                  ? "border-primary bg-primary text-primary-foreground font-semibold shadow-xs"
-                  : "border-border/80 bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
+          {/* Pestañas de rondas (solo aplican a la vista vertical) */}
+          {viewMode === "vertical" ? (
+            <div
+              role="tablist"
+              aria-label="Rondas del cuadro"
+              className="flex flex-wrap items-center gap-1.5"
             >
-              Todas las rondas ({main.length})
-            </button>
-            {columns.map((col, index) => {
-              const r = index + 1;
-              const isSelected = selectedRound === r;
-              return (
-                <button
-                  key={r}
-                  type="button"
-                  role="tab"
-                  aria-selected={isSelected}
-                  onClick={() => setSelectedRound(r)}
-                  className={cn(
-                    "inline-flex h-8 items-center rounded-full border px-3 text-xs font-medium transition-colors",
-                    isSelected
-                      ? "border-primary bg-primary text-primary-foreground font-semibold shadow-xs"
-                      : "border-border/80 bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )}
-                >
-                  {roundName(r, rounds)} ({col.length})
-                </button>
-              );
-            })}
-          </div>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={selectedRound === "all"}
+                onClick={() => setSelectedRound("all")}
+                className={cn(
+                  "inline-flex h-8 items-center rounded-full border px-3 text-xs font-medium transition-colors",
+                  selectedRound === "all"
+                    ? "border-primary bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "border-border/80 bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                Todas las rondas ({main.length})
+              </button>
+              {columns.map((col, index) => {
+                const r = index + 1;
+                const isSelected = selectedRound === r;
+                return (
+                  <button
+                    key={r}
+                    type="button"
+                    role="tab"
+                    aria-selected={isSelected}
+                    onClick={() => setSelectedRound(r)}
+                    className={cn(
+                      "inline-flex h-8 items-center rounded-full border px-3 text-xs font-medium transition-colors",
+                      isSelected
+                        ? "border-primary bg-primary text-primary-foreground font-semibold shadow-xs"
+                        : "border-border/80 bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    {roundName(r, rounds)} ({col.length})
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
 
           {/* Selector de modo: Vertical (sin scroll horizontal) vs Árbol */}
-          <div className="flex items-center gap-1 rounded-lg border bg-muted/40 p-1 text-xs shrink-0 self-start sm:self-auto">
+          <div className="flex items-center gap-1 rounded-lg border bg-muted/40 p-1 text-xs shrink-0 self-start sm:self-auto sm:ml-auto">
             <button
               type="button"
               onClick={() => setViewMode("vertical")}

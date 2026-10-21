@@ -1731,3 +1731,10 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
     - Se conectó la información de `scheduling` (`slots`, `courts`, `scheduled`, `availability`) desde `app/(app)/torneos/[id]/cuadro/page.tsx` a `BracketView`.
 - **Motivo:** pedido directo del usuario para simplificar la interacción en el listado de partidos eliminando la duplicación en el menú de 3 puntos, y posibilitar la asignación y cambio de horarios de los cruces de playoffs directamente sobre las tarjetas del cuadro.
 - **Cómo aplicar:** `components/matches/matches-board.tsx`, `components/bracket/bracket-view.tsx`, `lib/competition-view.ts`, `app/(app)/torneos/[id]/cuadro/page.tsx`.
+
+### D-121 — Ocultamiento de selector de rondas en vista árbol del cuadro (2026-10-21)
+- **Decisión:**
+  - En `BracketView` (`components/bracket/bracket-view.tsx`), el selector de rondas ("Todas las rondas", "Octavos de final", "Cuartos de final", etc.) se condicionó para mostrarse exclusivamente cuando `viewMode === "vertical"`.
+  - Al seleccionar la vista de "Árbol" (`viewMode === "diagram"`), las pestañas de rondas se ocultan automáticamente y el conmutador de modo se alinea a la derecha (`sm:ml-auto`), ya que el diagrama en árbol despliega siempre la totalidad de las columnas y cruces de forma integral con conectores horizontales.
+- **Motivo:** pedido directo del usuario para evitar opciones redundantes o inaplicables en la vista de árbol.
+- **Cómo aplicar:** `components/bracket/bracket-view.tsx`.
