@@ -1698,3 +1698,18 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** atender el pedido directo del usuario para que en todas las imágenes que se descargan de la app (grupos, partidos, cuadro, etc.) figure la fecha y el nombre de la app sea "LM Torneos".
 - **Cómo aplicar:** `lib/graphics/bracket-image.ts`, `lib/graphics/groups-image.ts`, `lib/graphics/matches-image.ts`, `components/matches/export-matches-image-modal.tsx`, `lib/graphics/bracket-image.test.ts`, `lib/graphics/groups-image.test.ts`, `lib/graphics/matches-image.test.ts`.
 
+### D-118 — Fix de programación en zonas de 4 y eliminación de restricción de 15 min de descanso (2026-10-21)
+- **Decisión:**
+  - **Soporte de programación paralela de Fecha 2 en zonas de 4 parejas (`lib/scheduling.ts`):**
+    - En `runAutoSchedule`, los objetos `schedulerMatches` y `fixed` no estaban pasando las propiedades `groupId` y `round` requeridas por `SchedulerMatch` y `FixedAssignment`.
+    - Al omitirse, la excepción de colisión de `Occupancy.isFree` en `lib/domain/scheduler.ts` (diseñada para permitir que los 2 partidos de Fecha 2 de una misma zona de 4 jueguen simultáneamente en canchas distintas) no se activaba, provocando que ambos partidos bloquearan mutuamente sus horarios y quedaran sin programar ("Ganador vs Ganador" y "Perdedor vs Perdedor").
+    - Se enlazaron `groupId: m.group_id ?? undefined` y `round: m.round` tanto en `schedulerMatches` como en `fixed`, y en `candidatePenalty` se omiten intervalos hermanos de la misma fecha y grupo.
+  - **Eliminación de la penalización y advertencia de descanso menor a 15 minutos (partidos seguidos):**
+    - En el pádel amateur es completamente habitual disputar partidos seguidos (back-to-back, ej. de 15:00 a 16:00 y luego de 16:00 a 17:00).
+    - En `computeGapPenalty` (`lib/domain/scheduler.ts`), se eliminó la penalización de 5 puntos para descansos `< 15 min`. Cualquier intervalo entre 0 minutos y 2.5 horas (150 min) es considerado descanso ideal óptimo con 0 penalización.
+    - En `checkManualAssignment` (`lib/domain/scheduler.ts`), se retiró la advertencia de fatiga preventoria `"...tiene otro partido casi pegado (menos de 15 min de descanso)"`.
+    - En `AssignSlotDialog` (`components/matches/assign-slot-dialog.tsx`), se eliminó el estado `"tight"` (`⚠️ descanso corto`) y se simplificó a `"ideal"` con etiqueta `"✨ Partidos seguidos"` (0 min) o `"✨ X de descanso"` (≤ 2.5h), manteniendo `"long"` para tiempos de espera excesivos.
+- **Motivo:** atender el reporte del usuario donde un torneo de 43 parejas dejó los 2 partidos de Fecha 2 de una zona de 4 sin horario, y permitir que las parejas puedan jugar partidos contiguos/seguidos sin penalizaciones ni advertencias molestas.
+- **Cómo aplicar:** `lib/scheduling.ts`, `lib/domain/scheduler.ts`, `components/matches/assign-slot-dialog.tsx`, `lib/domain/scheduler.test.ts`.
+
+

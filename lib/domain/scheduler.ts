@@ -115,8 +115,7 @@ function overlaps(a: Interval, b: Interval): boolean {
 
 /**
  * Penalización por distancia/descanso entre dos partidos consecutivos de un equipo o grupo.
- * - < 15 min (back-to-back): pequeña penalización por fatiga inmediata (5 pts).
- * - 15 min a 2.5 horas: descanso ideal (0 pts).
+ * - 0 a 2.5 horas: descanso ideal y partidos seguidos sin penalización (0 pts).
  * - 2.5 a 4.5 horas: espera aceptable en el club (10 pts por hora extra).
  * - 4.5 a 8 horas: espera larga/incómoda (20 + 25 pts por hora extra).
  * - > 8 horas (noche o días distintos): penalización severa (120 + 60 pts por hora extra).
@@ -124,9 +123,6 @@ function overlaps(a: Interval, b: Interval): boolean {
 export function computeGapPenalty(gapMs: number): number {
   if (gapMs < 0) return 100_000;
   const gapMinutes = gapMs / (60 * 1000);
-  if (gapMinutes < 15) {
-    return 5;
-  }
   if (gapMinutes <= 150) {
     return 0;
   }
@@ -200,6 +196,17 @@ function candidatePenalty(
     let nextStart: number | null = null;
 
     for (const iv of intervals) {
+      // Ignorar partido hermano de la misma fecha en la misma zona de 4
+      if (
+        iv.groupId &&
+        match.groupId &&
+        iv.groupId === match.groupId &&
+        iv.round !== undefined &&
+        match.round !== undefined &&
+        iv.round === match.round
+      ) {
+        continue;
+      }
       if (iv.end <= candidate.start) {
         if (prevEnd === null || iv.end > prevEnd) prevEnd = iv.end;
       }
@@ -457,19 +464,6 @@ export function checkManualAssignment(params: {
       const teamsInOther = [other.homeTeamId, other.awayTeamId].filter(Boolean);
       if ([match.homeTeamId, match.awayTeamId].some((team) => team && teamsInOther.includes(team))) {
         conflicts.push("Un equipo ya juega otro partido en ese horario.");
-      }
-    } else {
-      // Si no se superpone pero está contiguo (< 15 min de descanso), advertir fatiga
-      const teamsInOther = [other.homeTeamId, other.awayTeamId].filter(Boolean);
-      for (const team of [match.homeTeamId, match.awayTeamId]) {
-        if (team && teamsInOther.includes(team)) {
-          const gapBefore = interval.start - other.end;
-          const gapAfter = other.start - interval.end;
-          if ((gapBefore >= 0 && gapBefore < 15 * 60 * 1000) || (gapAfter >= 0 && gapAfter < 15 * 60 * 1000)) {
-            const teamLabel = team === match.homeTeamId ? (match.homeName ?? "Un equipo") : (match.awayName ?? "Un equipo");
-            warnings.push(`${teamLabel} tiene otro partido casi pegado (menos de 15 min de descanso).`);
-          }
-        }
       }
     }
   }

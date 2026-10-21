@@ -72,6 +72,8 @@ export async function runAutoSchedule(
       start: Date.parse(m.starts_at as string),
       end: Date.parse(m.ends_at as string),
       groupTeamIds: m.group_id ? groupTeamsMap.get(m.group_id) : undefined,
+      groupId: m.group_id ?? undefined,
+      round: m.round,
     }));
 
   const feederIdsMap = new Map<string, string[]>();
@@ -138,6 +140,8 @@ export async function runAutoSchedule(
       order: (m.stage === "group" ? 0 : 100) + m.round,
       feederMatchIds: feederIdsMap.get(m.id),
       groupTeamIds: (!m.home_team_id || !m.away_team_id) && gTeams && gTeams.length === 4 ? gTeams : undefined,
+      groupId: m.group_id ?? undefined,
+      round: m.round,
     };
   });
 

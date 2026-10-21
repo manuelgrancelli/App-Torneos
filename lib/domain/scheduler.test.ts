@@ -225,24 +225,24 @@ describe("checkManualAssignment", () => {
     expect(result.warnings).toEqual(["Uno de los equipos no marcó disponibilidad en esa franja."]);
   });
 
-  it("advierte si un equipo tiene otro partido casi pegado (menos de 15 min de descanso)", () => {
+  it("permite partidos seguidos sin advertencia de fatiga", () => {
     // other termina en T0 + 1.5*H (10:30)
-    // slot empieza en T0 + 1.6*H (6 minutos de descanso)
-    const tightSlot: SchedulerSlot = {
-      id: "s_tight",
-      start: T0 + 1.5 * H + 6 * 60 * 1000,
+    // slot empieza en T0 + 1.5*H (partidos seguidos, 0 minutos de descanso)
+    const contiguousSlot: SchedulerSlot = {
+      id: "s_contiguous",
+      start: T0 + 1.5 * H,
       end: T0 + 3 * H,
       courtId: null,
     };
     const result = checkManualAssignment({
       match: { id: "m2", homeTeamId: "A", awayTeamId: "B", homeName: "Pareja A" },
-      slot: tightSlot,
+      slot: contiguousSlot,
       courtId: "c1",
       others,
-      availability: { A: ["s_tight"], B: ["s_tight"] },
+      availability: { A: ["s_contiguous"], B: ["s_contiguous"] },
     });
     expect(result.conflicts).toEqual([]);
-    expect(result.warnings).toEqual(["Pareja A tiene otro partido casi pegado (menos de 15 min de descanso)."]);
+    expect(result.warnings).toEqual([]);
   });
 });
 
@@ -352,11 +352,9 @@ describe("asignación inteligente de horarios y proximidad", () => {
   });
 
   it("calcula las penalizaciones de descanso ideal y esperas excesivas", () => {
-    // 0 min (back to back): fatiga
-    expect(computeGapPenalty(0)).toBe(5);
-    expect(computeGapPenalty(10 * 60 * 1000)).toBe(5);
-
-    // 15 min a 150 min (ideal): 0 penalización
+    // 0 a 150 min (ideal / partidos seguidos): 0 penalización
+    expect(computeGapPenalty(0)).toBe(0);
+    expect(computeGapPenalty(10 * 60 * 1000)).toBe(0);
     expect(computeGapPenalty(15 * 60 * 1000)).toBe(0);
     expect(computeGapPenalty(60 * 60 * 1000)).toBe(0);
     expect(computeGapPenalty(90 * 60 * 1000)).toBe(0);

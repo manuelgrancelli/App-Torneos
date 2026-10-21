@@ -167,7 +167,7 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
       gapMinutes: number;
       otherTime: string;
       isBefore: boolean;
-      status: "ideal" | "tight" | "long";
+      status: "ideal" | "long";
     }[] = [];
 
     const teamsToCheck = [
@@ -191,7 +191,7 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
               gapMinutes,
               otherTime: formatTimeRange(new Date(other.start).toISOString(), new Date(other.end).toISOString(), timezone),
               isBefore: true,
-              status: gapMinutes < 15 ? "tight" : gapMinutes <= 150 ? "ideal" : "long",
+              status: gapMinutes <= 150 ? "ideal" : "long",
             });
           }
         } else if (other.start >= slotEnd) {
@@ -204,7 +204,7 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
               gapMinutes,
               otherTime: formatTimeRange(new Date(other.start).toISOString(), new Date(other.end).toISOString(), timezone),
               isBefore: false,
-              status: gapMinutes < 15 ? "tight" : gapMinutes <= 150 ? "ideal" : "long",
+              status: gapMinutes <= 150 ? "ideal" : "long",
             });
           }
         }
@@ -555,8 +555,6 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
                       key={idx}
                       className={cn(
                         "flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border",
-                        insight.status === "tight" &&
-                          "border-amber-400 bg-amber-500/15 text-amber-950 dark:text-amber-100",
                         insight.status === "ideal" &&
                           "border-emerald-500/40 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100",
                         insight.status === "long" &&
@@ -574,16 +572,15 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
                         variant="outline"
                         className={cn(
                           "shrink-0 text-[10px] font-semibold border-current/40 w-fit",
-                          insight.status === "tight" && "bg-amber-500/20 text-amber-900 dark:text-amber-200",
                           insight.status === "ideal" && "bg-emerald-500/20 text-emerald-900 dark:text-emerald-200",
                           insight.status === "long" && "bg-muted text-muted-foreground",
                         )}
                       >
-                        {insight.status === "tight"
-                          ? `⚠️ ${timeFormatted} (descanso corto)`
-                          : insight.status === "ideal"
-                            ? `✨ ${timeFormatted} (descanso óptimo)`
-                            : `⏱️ ${timeFormatted} de espera`}
+                        {insight.status === "ideal"
+                          ? insight.gapMinutes === 0
+                            ? "✨ Partidos seguidos"
+                            : `✨ ${timeFormatted} de descanso`
+                          : `⏱️ ${timeFormatted} de espera`}
                       </Badge>
                     </div>
                   );
