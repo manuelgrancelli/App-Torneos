@@ -1712,4 +1712,9 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** atender el reporte del usuario donde un torneo de 43 parejas dejó los 2 partidos de Fecha 2 de una zona de 4 sin horario, y permitir que las parejas puedan jugar partidos contiguos/seguidos sin penalizaciones ni advertencias molestas.
 - **Cómo aplicar:** `lib/scheduling.ts`, `lib/domain/scheduler.ts`, `components/matches/assign-slot-dialog.tsx`, `lib/domain/scheduler.test.ts`.
 
-
+### D-119 — Eliminación de cuadro informativo en cuadro proyectado (2026-10-21)
+- **Decisión:**
+  - Se eliminó el cuadro de aviso explicativo superior (`!hasPlayoffMatches`) de la vista del cuadro eliminatorio (`app/(app)/torneos/[id]/cuadro/page.tsx`), el cual mostraba el título *"Cuadro de playoffs proyectado — [categoría]"*, el badge *"Fase de grupos"* y el texto descriptivo sobre la definición de cruces.
+  - La pantalla pasa directamente a mostrar la sección de cruces proyectados y el cuadro interactivo con las acciones de exportación y gestión, logrando una interfaz más limpia, ágil y sin carteles informativos innecesarios.
+- **Motivo:** pedido directo del usuario para retirar el cartel informativo de la pantalla de cuadro.
+- **Cómo aplicar:** `app/(app)/torneos/[id]/cuadro/page.tsx`.

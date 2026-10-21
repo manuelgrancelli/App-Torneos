@@ -8,7 +8,6 @@ import { MatchesBoard } from "@/components/matches/matches-board";
 import { SimulateResultsButton } from "@/components/matches/simulate-results-button";
 import { CollapsibleSection } from "@/components/shared/collapsible-section";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Badge } from "@/components/ui/badge";
 import {
   buildBoardMatches,
   buildProjectedBracket,
@@ -184,21 +183,6 @@ export default async function BracketPage({
         </div>
       ) : null}
 
-      {!hasPlayoffMatches ? (
-        <div className="space-y-1.5 rounded-xl border bg-muted/40 p-4">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-base font-semibold">
-              Cuadro de playoffs proyectado {activeCategory ? `— ${activeCategory.name}` : ""}
-            </h2>
-            <Badge variant="secondary" className="text-xs">
-              Fase de grupos
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Los cruces quedan definidos por las posiciones de grupo (ej. 1°A vs 2°B). Las parejas se actualizan automáticamente en tiempo real a medida que se cargan los resultados de la fase de grupos. Una vez terminados todos los partidos de zona, se armará el cuadro final y se habilitará la carga de resultados.
-          </p>
-        </div>
-      ) : null}
 
       {tournament.isTest && isPlayoffs && !champion ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-primary/40 bg-muted/30 p-3.5">
