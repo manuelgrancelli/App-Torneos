@@ -1,5 +1,8 @@
 import "server-only";
 import { cache } from "react";
+import { type PlayoffConfig, normalizePlayoffConfig } from "@/lib/domain/bracket";
+import { type ScoringConfig, normalizeScoringConfig } from "@/lib/domain/scoring";
+import { type StandingsConfig, normalizeStandingsConfig } from "@/lib/domain/standings";
 import type { TournamentStatus } from "@/lib/domain/tournament-status";
 import { createClient } from "@/lib/supabase/server";
 import type { Tables } from "@/lib/supabase/database.types";
@@ -39,6 +42,10 @@ export type MemberTeam = {
     maxTeamSize: number;
     resultsRequireConfirmation: boolean;
     bannerUrl: string | null;
+    scoringConfig: ScoringConfig;
+    standingsConfig: StandingsConfig;
+    playoffConfig: PlayoffConfig;
+    championTeamId: string | null;
   };
   slots: SlotView[];
   courts: { id: string; name: string }[];
@@ -71,7 +78,7 @@ export const getTeamForMember = cache(async (teamId: string, userId: string): Pr
   const { data: team, error } = await supabase
     .from("teams")
     .select(
-      "id, name, status, captain_id, tournament_id, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(slot_id), tournaments!teams_tournament_id_fkey(id, name, slug, status, timezone, starts_on, ends_on, results_require_confirmation, banner_url, sports(name, min_team_size, max_team_size))",
+      "id, name, status, captain_id, tournament_id, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(slot_id), tournaments!teams_tournament_id_fkey(id, name, slug, status, timezone, starts_on, ends_on, results_require_confirmation, banner_url, scoring_config, standings_config, playoff_config, champion_team_id, sports(name, min_team_size, max_team_size))",
     )
     .eq("id", teamId)
     .maybeSingle();
@@ -118,6 +125,10 @@ export const getTeamForMember = cache(async (teamId: string, userId: string): Pr
       maxTeamSize: t.sports?.max_team_size ?? 2,
       resultsRequireConfirmation: t.results_require_confirmation,
       bannerUrl: t.banner_url ?? null,
+      scoringConfig: normalizeScoringConfig(t.scoring_config),
+      standingsConfig: normalizeStandingsConfig(t.standings_config),
+      playoffConfig: normalizePlayoffConfig(t.playoff_config),
+      championTeamId: t.champion_team_id,
     },
     slots: slots.data.map((s) => ({ id: s.id, startsAt: s.starts_at, endsAt: s.ends_at, courtId: s.court_id })),
     courts: courts.data,

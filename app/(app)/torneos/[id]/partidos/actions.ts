@@ -45,13 +45,75 @@ export const autoSchedule = createAction(autoScheduleSchema, async ({ tournament
 });
 
 /** Asignación manual de franja y cancha (queda fijada). Con slotId null, desasigna. */
-export const assignSlot = createAction(assignSlotSchema, async (input, { supabase }) => {
+export const assignSlot = createAction(assignSlotSchema, async (input, { supabase, userId }) => {
+  const { data: match } = await (supabase as any)
+    .from("matches")
+    .select("id, tournament_id, result_status")
+    .eq("id", input.matchId)
+    .maybeSingle();
+
+  if (!match) {
+    return actionError("El partido no se encontró en la base de datos (pudo haber cambiado tras regenerar el cuadro). Recargá la página.");
+  }
+
+  if (match.result_status !== null) {
+    return actionError("El partido ya tiene resultado registrado. Para cambiarle el horario o cancha, primero borrá el resultado.");
+  }
+
+  // 1. Intentamos por la RPC assign_match_slot
   const { error } = await supabase.rpc("assign_match_slot", {
     p_match_id: input.matchId,
     p_slot_id: input.slotId as string,
     p_court_id: input.courtId as string,
   });
-  if (error) return actionError(dbErrorMessage(error, NOT_FOUND));
+
+  if (!error) {
+    revalidate(input.tournamentId);
+    return actionOk(undefined, input.slotId ? "Guardamos el horario." : "Quitamos el horario.");
+  }
+
+  // Si la RPC devolvió un error de validación de negocio (P0001), devolverlo directamente
+  if (error.code === "P0001") {
+    return actionError(error.message);
+  }
+
+  // Si falló por permisos (42501) u otro motivo, verificar acceso de organizador/co-admin como fallback
+  const canManage = await canUserManageTournament(supabase, input.tournamentId, userId);
+  if (!canManage) {
+    return actionError(NOT_FOUND);
+  }
+
+  // Actualización directa si el organizador/admin está validado
+  if (input.slotId === null) {
+    const { error: updErr } = await (supabase as any)
+      .from("matches")
+      .update({ slot_id: null, schedule_locked: false })
+      .eq("id", input.matchId);
+    if (updErr) return actionError(dbErrorMessage(updErr));
+  } else {
+    const { data: slot } = await (supabase as any)
+      .from("time_slots")
+      .select("court_id")
+      .eq("id", input.slotId)
+      .eq("tournament_id", input.tournamentId)
+      .maybeSingle();
+
+    const effectiveCourtId = slot?.court_id ?? input.courtId;
+    if (!effectiveCourtId) {
+      return actionError("Elegí en qué cancha se juega.");
+    }
+
+    const { error: updErr } = await (supabase as any)
+      .from("matches")
+      .update({
+        slot_id: input.slotId,
+        court_id: effectiveCourtId,
+        schedule_locked: true,
+      })
+      .eq("id", input.matchId);
+    if (updErr) return actionError(dbErrorMessage(updErr));
+  }
+
   revalidate(input.tournamentId);
   return actionOk(undefined, input.slotId ? "Guardamos el horario." : "Quitamos el horario.");
 });
@@ -234,6 +296,28 @@ export const recordResult = createAction(recordResultSchema, async (input, { sup
     }
   }
 
+  // Si era la final de playoffs (partido de playoff sin partido siguiente y no es 3er puesto),
+  // registrar automáticamente al ganador como campeón en la categoría y en el torneo
+  if (match.stage === "playoff" && !match.is_third_place && !match.next_match_id && winnerTeamId) {
+    if (categoryId) {
+      await (supabase as any)
+        .from("tournament_categories")
+        .update({ champion_team_id: winnerTeamId })
+        .eq("id", categoryId);
+    }
+    const { count: totalCategories } = await (supabase as any)
+      .from("tournament_categories")
+      .select("*", { count: "exact", head: true })
+      .eq("tournament_id", input.tournamentId);
+
+    if (!totalCategories || totalCategories <= 1) {
+      await (supabase as any)
+        .from("tournaments")
+        .update({ champion_team_id: winnerTeamId })
+        .eq("id", input.tournamentId);
+    }
+  }
+
   revalidate(input.tournamentId);
   return actionOk(
     { scheduledNext },
@@ -247,7 +331,7 @@ export const recordResult = createAction(recordResultSchema, async (input, { sup
 export const clearResult = createAction(matchActionSchema, async ({ tournamentId, matchId }, { supabase }) => {
   const { data: match } = await (supabase as any)
     .from("matches")
-    .select("id, stage, round, position, group_id")
+    .select("id, stage, round, position, group_id, category_id, is_third_place, next_match_id")
     .eq("id", matchId)
     .maybeSingle();
 
@@ -273,6 +357,27 @@ export const clearResult = createAction(matchActionSchema, async ({ tournamentId
 
   const { error } = await supabase.rpc("clear_match_result", { p_match_id: matchId });
   if (error) return actionError(dbErrorMessage(error, NOT_FOUND));
+
+  // Si era la final de playoffs, limpiar champion_team_id
+  if (match?.stage === "playoff" && !match?.is_third_place && !match?.next_match_id) {
+    if (match.category_id) {
+      await (supabase as any)
+        .from("tournament_categories")
+        .update({ champion_team_id: null })
+        .eq("id", match.category_id);
+    }
+    const { count: totalCategories } = await (supabase as any)
+      .from("tournament_categories")
+      .select("*", { count: "exact", head: true })
+      .eq("tournament_id", tournamentId);
+
+    if (!totalCategories || totalCategories <= 1) {
+      await (supabase as any)
+        .from("tournaments")
+        .update({ champion_team_id: null })
+        .eq("id", tournamentId);
+    }
+  }
 
   // Si fue un partido de fecha 1 de grupo de 4 parejas, quitar los equipos que habían avanzado a fecha 2
   if (match?.stage === "group" && match?.round === 1 && match?.group_id) {
@@ -447,6 +552,34 @@ export const simulateTournamentResults = createAction(
           });
           if (error) return actionError(dbErrorMessage(error));
           simulatedCount++;
+        }
+      }
+
+      // Identificar campeones de cada categoría a partir de los ganadores de las finales
+      for (const [catKey, maxRound] of categoryRoundsMap.entries()) {
+        const { data: finalMatches } = await (supabase as any)
+          .from("matches")
+          .select("winner_team_id")
+          .eq("tournament_id", tournamentId)
+          .eq("stage", "playoff")
+          .eq("round", maxRound)
+          .eq("is_third_place", false)
+          .not("winner_team_id", "is", null)
+          .limit(1);
+
+        const champId = finalMatches?.[0]?.winner_team_id;
+        if (champId) {
+          if (catKey) {
+            await (supabase as any)
+              .from("tournament_categories")
+              .update({ champion_team_id: champId })
+              .eq("id", catKey);
+          } else {
+            await (supabase as any)
+              .from("tournaments")
+              .update({ champion_team_id: champId })
+              .eq("id", tournamentId);
+          }
         }
       }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar, ChevronRight, Plus, Trash2, Trophy, Unlink } from "lucide-react";
+import { Calendar, ChevronRight, Plus, Trash2, Unlink } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -26,14 +26,15 @@ import { formatDateRange } from "@/lib/dates";
 
 type CircuitDatesListProps = {
   circuitId: string;
-  dates: CircuitDateItem[];
+  dates?: CircuitDateItem[];
   onOpenLinkDialog: () => void;
 };
 
-export function CircuitDatesList({ circuitId, dates, onOpenLinkDialog }: CircuitDatesListProps) {
+export function CircuitDatesList({ circuitId, dates = [], onOpenLinkDialog }: CircuitDatesListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [unlinkTournamentId, setUnlinkTournamentId] = useState<string | null>(null);
+  const safeDates = Array.isArray(dates) ? dates : [];
 
   function handleUnlink() {
     if (!unlinkTournamentId) return;
@@ -75,7 +76,7 @@ export function CircuitDatesList({ circuitId, dates, onOpenLinkDialog }: Circuit
         </div>
       </div>
 
-      {dates.length === 0 ? (
+      {safeDates.length === 0 ? (
         <EmptyState
           icon={Calendar}
           title="No hay fechas cargadas"
@@ -88,7 +89,7 @@ export function CircuitDatesList({ circuitId, dates, onOpenLinkDialog }: Circuit
         />
       ) : (
         <div className="grid gap-3">
-          {dates.map((date) => (
+          {safeDates.map((date) => (
             <Card key={date.id} className="transition-all hover:border-foreground/30">
               <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="space-y-1">
@@ -112,12 +113,6 @@ export function CircuitDatesList({ circuitId, dates, onOpenLinkDialog }: Circuit
                     <span>
                       {date.approvedTeams} parejas inscriptas
                     </span>
-                    {date.championTeamName ? (
-                      <span className="flex items-center gap-1 font-medium text-amber-600">
-                        <Trophy className="size-3.5" aria-hidden="true" />
-                        Campeón: {date.championTeamName}
-                      </span>
-                    ) : null}
                   </div>
                 </div>
 

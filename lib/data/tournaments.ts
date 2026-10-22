@@ -371,6 +371,7 @@ export type TournamentCounts = {
   pendingPlayoffMatches: number;
   finalDecided: boolean;
   categories: number;
+  allCategoriesFinished: boolean;
 };
 
 /** Números del panel del organizador y contexto para validar transiciones de estado. */
@@ -382,19 +383,65 @@ export const getTournamentCounts = cache(async (tournamentId: string): Promise<T
     supabase.from("teams").select("status").eq("tournament_id", tournamentId),
     supabase
       .from("matches")
-      .select("stage, result_status, is_third_place, next_match_id, winner_team_id, slot_id")
+      .select("category_id, stage, result_status, is_third_place, next_match_id, winner_team_id, slot_id")
       .eq("tournament_id", tournamentId),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any).from("tournament_categories").select("id", { count: "exact", head: true }).eq("tournament_id", tournamentId),
+    (supabase as any).from("tournament_categories").select("id, status, champion_team_id").eq("tournament_id", tournamentId),
   ]);
   for (const result of [courts, slots, teams, matches, categories]) {
     if (result.error) throw result.error;
   }
 
   const teamRows = teams.data ?? [];
-  const matchRows = matches.data ?? [];
+  const matchRows = (matches.data ?? []) as Array<{
+    category_id?: string | null;
+    stage: "group" | "playoff";
+    result_status: string | null;
+    is_third_place: boolean;
+    next_match_id: string | null;
+    winner_team_id: string | null;
+    slot_id: string | null;
+  }>;
+  const catRows = (categories.data ?? []) as Array<{
+    id: string;
+    status: TournamentStatus;
+    champion_team_id: string | null;
+  }>;
+
   const groupMatches = matchRows.filter((m) => m.stage === "group");
   const playoffMatches = matchRows.filter((m) => m.stage === "playoff");
+  const pendingPlayoffMatches = playoffMatches.filter((m) => m.result_status === null).length;
+  const playoffFinals = playoffMatches.filter((m) => !m.is_third_place && m.next_match_id === null);
+  const finalDecided =
+    playoffFinals.length > 0 && playoffFinals.every((m) => m.winner_team_id !== null);
+
+  let allCategoriesFinished = false;
+  if (catRows.length > 0) {
+    const catsAllDone = catRows.every((cat) => {
+      if (cat.status === "finished") return true;
+      const catPlayoffs = playoffMatches.filter((m) => m.category_id === cat.id);
+      if (catPlayoffs.length > 0) {
+        const catPending = catPlayoffs.filter((m) => m.result_status === null).length;
+        const catFinal = catPlayoffs.find((m) => !m.is_third_place && m.next_match_id === null);
+        return catPending === 0 && Boolean(catFinal?.winner_team_id);
+      }
+      const catGroups = groupMatches.filter((m) => m.category_id === cat.id);
+      if (catGroups.length > 0) {
+        return catGroups.every((m) => m.result_status !== null);
+      }
+      return false;
+    });
+    // O si todos los cruces eliminatorios del torneo están 100% jugados y con ganador
+    allCategoriesFinished =
+      catsAllDone ||
+      (playoffMatches.length > 0 && pendingPlayoffMatches === 0 && finalDecided);
+  } else {
+    if (playoffMatches.length > 0) {
+      allCategoriesFinished = pendingPlayoffMatches === 0 && finalDecided;
+    } else if (groupMatches.length > 0) {
+      allCategoriesFinished = groupMatches.every((m) => m.result_status !== null);
+    }
+  }
 
   return {
     courts: courts.count ?? 0,
@@ -407,11 +454,12 @@ export const getTournamentCounts = cache(async (tournamentId: string): Promise<T
     pendingGroupMatches: groupMatches.filter((m) => m.result_status === null).length,
     unscheduledGroupMatches: groupMatches.filter((m) => m.slot_id === null).length,
     playoffMatches: playoffMatches.length,
-    pendingPlayoffMatches: playoffMatches.filter((m) => m.result_status === null).length,
+    pendingPlayoffMatches,
     finalDecided: matchRows.some(
       (m) => m.stage === "playoff" && !m.is_third_place && m.next_match_id === null && m.winner_team_id !== null,
     ),
-    categories: categories.count ?? 0,
+    categories: catRows.length,
+    allCategoriesFinished,
   };
 });
 

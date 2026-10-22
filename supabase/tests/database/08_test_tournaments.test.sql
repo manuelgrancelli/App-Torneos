@@ -8,6 +8,8 @@ delete from public.tournaments;
 insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data, aud, role) values
   ('bbbbbbbb-0000-4000-8000-000000000001', 'org@test-tournament.local', now(), '{"full_name": "Olga Org"}', 'authenticated', 'authenticated'),
   ('bbbbbbbb-0000-4000-8000-000000000003', 'ana@test-tournament.local', now(), '{"full_name": "Ana"}', 'authenticated', 'authenticated');
+-- Los usuarios de prueba pueden crear torneos (rol de cuenta, D-122).
+update public.profiles set account_role = 'organizer';
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub": "bbbbbbbb-0000-4000-8000-000000000001", "role": "authenticated"}';

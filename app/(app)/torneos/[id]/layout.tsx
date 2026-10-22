@@ -51,7 +51,13 @@ export default async function TournamentPanelLayout({ children, params }: Layout
             <PublicPageLink slug={tournament.slug} status={tournament.status} />
           </p>
         </div>
-        <TournamentProgress status={tournament.status} detail={guide.progress.short || undefined} />
+        <TournamentProgress
+          tournamentId={tournament.id}
+          tournamentName={tournament.name}
+          status={tournament.status}
+          detail={guide.progress.short || undefined}
+          canFinish={tournament.status !== "finished" && counts.allCategoriesFinished}
+        />
         <TournamentNav
           tournamentId={tournament.id}
           status={tournament.status}

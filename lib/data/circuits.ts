@@ -1,9 +1,12 @@
 import "server-only";
 import { cache } from "react";
 import {
+  computeCircuitCategoryLeaderboards,
   computeCircuitLeaderboard,
   DEFAULT_CIRCUIT_POINTS,
+  type CircuitCategoryLeaderboard,
   type CircuitMatch,
+  type CircuitMultiCategoryTournamentData,
   type CircuitPointsConfig,
   type CircuitTournamentData,
   type LeaderboardPlayer,
@@ -191,11 +194,11 @@ export const getAvailableTournamentsForCircuit = cache(
 );
 
 /**
- * Carga todos los torneos, partidos y equipos del circuito y calcula
- * la tabla de posiciones / ranking individual acumulado.
+ * Carga todos los torneos, categorías, partidos y equipos del circuito y calcula
+ * las tablas de posiciones / rankings individuales acumulados por categoría.
  */
 export const getCircuitLeaderboardData = cache(
-  async (circuitId: string, pointsConfig: CircuitPointsConfig): Promise<LeaderboardPlayer[]> => {
+  async (circuitId: string, pointsConfig: CircuitPointsConfig): Promise<CircuitCategoryLeaderboard[]> => {
     const supabase = await createClient();
 
     // 1. Obtener los torneos asociados al circuito
@@ -213,66 +216,85 @@ export const getCircuitLeaderboardData = cache(
 
     const tournamentIds = tournaments.map((t) => t.id);
 
-    // 2. Obtener partidos de los torneos
-    const { data: matches, error: matchError } = await supabase
+    // 2. Obtener categorías de los torneos
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: categories, error: catError } = await (supabase as any)
+      .from("tournament_categories")
+      .select("id, tournament_id, name, position, champion_team_id")
+      .in("tournament_id", tournamentIds)
+      .order("position");
+
+    if (catError && !isSchemaPendingError(catError)) {
+      console.error("[getCircuitLeaderboardData] error fetching categories:", catError);
+    }
+
+    // 3. Obtener partidos de los torneos
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: matches, error: matchError } = await (supabase as any)
       .from("matches")
-      .select("tournament_id, stage, round, home_team_id, away_team_id, winner_team_id, is_bye, is_third_place")
+      .select("id, tournament_id, category_id, stage, round, home_team_id, away_team_id, winner_team_id, is_bye, is_third_place")
       .in("tournament_id", tournamentIds);
 
     if (matchError) throw matchError;
 
-    // 3. Obtener equipos y sus miembros
-    const { data: teams, error: teamError } = await supabase
+    // 4. Obtener equipos y sus miembros
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: teams, error: teamError } = await (supabase as any)
       .from("teams")
-      .select("id, tournament_id, name, team_members(user_id, display_name, profiles(full_name))")
+      .select("id, tournament_id, category_id, name, team_members(user_id, display_name, profiles(full_name))")
       .in("tournament_id", tournamentIds)
       .neq("status", "rejected");
 
     if (teamError) throw teamError;
 
-    // 4. Mapear la estructura para el motor de dominio
-    const tournamentDataList: CircuitTournamentData[] = tournaments.map((t, idx) => {
-      const tourMatches: CircuitMatch[] = (matches ?? [])
-        .filter((m) => m.tournament_id === t.id)
-        .map((m) => ({
-          stage: m.stage as "group" | "playoff",
+    // 5. Mapear para el motor de dominio multideporte / multicategoría
+    const multiCatTournaments: CircuitMultiCategoryTournamentData[] = tournaments.map((t, idx) => ({
+      id: t.id,
+      name: t.name,
+      circuitOrder: t.circuit_order ?? idx + 1,
+      status: t.status,
+      championTeamId: t.champion_team_id,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      categories: (categories ?? [])
+        .filter((c: any) => c.tournament_id === t.id)
+        .map((c: any) => ({
+          id: c.id,
+          tournamentId: c.tournament_id,
+          name: c.name,
+          position: c.position,
+          championTeamId: c.champion_team_id,
+        })),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      matches: (matches ?? [])
+        .filter((m: any) => m.tournament_id === t.id)
+        .map((m: any) => ({
+          id: m.id,
+          tournamentId: m.tournament_id,
+          categoryId: m.category_id,
+          stage: m.stage,
           round: m.round,
           homeTeamId: m.home_team_id,
           awayTeamId: m.away_team_id,
           winnerTeamId: m.winner_team_id,
           isBye: m.is_bye,
           isThirdPlace: m.is_third_place,
-        }));
-
-      const playoffRounds = tourMatches
-        .filter((m) => m.stage === "playoff" && !m.isThirdPlace)
-        .map((m) => m.round);
-      const totalPlayoffRounds = playoffRounds.length > 0 ? Math.max(...playoffRounds) : 0;
-
-      const tourTeams = (teams ?? [])
-        .filter((tm) => tm.tournament_id === t.id)
-        .map((tm) => ({
+        })),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      teams: (teams ?? [])
+        .filter((tm: any) => tm.tournament_id === t.id)
+        .map((tm: any) => ({
           id: tm.id,
+          tournamentId: tm.tournament_id,
+          categoryId: tm.category_id,
           name: tm.name,
-          members: tm.team_members.map((mem) => ({
+          members: (tm.team_members ?? []).map((mem: any) => ({
             userId: mem.user_id,
             displayName: mem.display_name,
             fullName: mem.profiles?.full_name ?? null,
           })),
-        }));
+        })),
+    }));
 
-      return {
-        id: t.id,
-        name: t.name,
-        circuitOrder: t.circuit_order ?? idx + 1,
-        status: t.status,
-        championTeamId: t.champion_team_id,
-        totalPlayoffRounds,
-        matches: tourMatches,
-        teams: tourTeams,
-      };
-    });
-
-    return computeCircuitLeaderboard(pointsConfig, tournamentDataList);
+    return computeCircuitCategoryLeaderboards(pointsConfig, multiCatTournaments);
   },
 );

@@ -12,6 +12,8 @@ insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data, aud, 
   ('aaaaaaaa-0000-4000-8000-000000000001', 'org@test.local', now(), '{"full_name": "Olga Org"}', 'authenticated', 'authenticated'),
   ('aaaaaaaa-0000-4000-8000-000000000003', 'ana@test.local', now(), '{"full_name": "Ana"}', 'authenticated', 'authenticated'),
   ('aaaaaaaa-0000-4000-8000-000000000005', 'carla@test.local', now(), '{"full_name": "Carla"}', 'authenticated', 'authenticated');
+-- Los usuarios de prueba pueden crear torneos (rol de cuenta, D-122).
+update public.profiles set account_role = 'organizer';
 
 insert into public.tournaments (id, organizer_id, sport_id, name, slug, starts_on, ends_on, max_teams, scoring_config, standings_config, status)
 select 'bbbbbbbb-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000001', 'padel', 'Torneo', 'torneo',

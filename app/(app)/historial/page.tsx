@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { FinishedTournamentsView } from "@/components/tournaments/finished-tournaments-view";
 import { Button } from "@/components/ui/button";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isAccountOrganizer } from "@/lib/auth";
 import { type MyMatchRow, getMyMatches } from "@/lib/data/history";
 import { listOrganizedTournaments } from "@/lib/data/tournaments";
 import { formatInTimeZone } from "@/lib/dates";
@@ -152,6 +152,7 @@ export default async function HistoryPage({ searchParams }: PageProps<"/historia
     <FinishedTournamentsView
       tournaments={finishedOrganized}
       activeCount={activeOrganized.length}
+      canCreate={await isAccountOrganizer()}
     />
   );
 

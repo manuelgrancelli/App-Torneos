@@ -20,14 +20,18 @@ interface TournamentDashboardProps {
   organized: TournamentListItem[];
   participations: ParticipationItem[];
   defaultTab?: TabKey;
+  /** Cuenta de jugador sin torneos que co-administre: solo muestra "Participo" (D-122). */
+  hideOrganized?: boolean;
 }
 
 export function TournamentDashboard({
   organized,
   participations,
   defaultTab = "all",
+  hideOrganized = false,
 }: TournamentDashboardProps) {
-  const [activeTab, setActiveTab] = useState<TabKey>(defaultTab);
+  const [selectedTab, setActiveTab] = useState<TabKey>(defaultTab);
+  const activeTab: TabKey = hideOrganized ? "participating" : selectedTab;
   const [searchQuery, setSearchQuery] = useState("");
 
   // Torneos activos (no finalizados)
@@ -70,6 +74,11 @@ export function TournamentDashboard({
       {/* Barra de Herramientas: Segmented Control + Buscador Instantáneo */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {/* Segmented Control / Tabs */}
+        {hideOrganized ? (
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            Todos mis torneos
+          </h2>
+        ) : (
         <div className="inline-flex rounded-xl bg-muted/60 p-1 border border-border/50 text-xs font-medium overflow-x-auto max-w-full">
           <button
             type="button"
@@ -119,6 +128,8 @@ export function TournamentDashboard({
             </span>
           </button>
         </div>
+
+        )}
 
         {/* Buscador reactivo */}
         <div className="relative w-full sm:w-64">
@@ -200,7 +211,7 @@ export function TournamentDashboard({
       {/* 2. Sección: Torneos donde participo */}
       {showParticipations && (!searchQuery || filteredParticipations.length > 0) ? (
         <section aria-labelledby="participo" className="space-y-4 pt-2">
-          <div className="flex items-center justify-between">
+          <div className={cn("flex items-center justify-between", hideOrganized && "sr-only")}>
             <div className="flex items-center gap-2">
               <h2 id="participo" className="text-lg font-semibold tracking-tight text-foreground">
                 Participo

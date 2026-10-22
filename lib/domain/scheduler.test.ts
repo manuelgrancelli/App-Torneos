@@ -167,6 +167,23 @@ describe("scheduleMatches", () => {
     expect(result.unscheduled).toEqual([]);
     assertValid(data, result.assignments);
   });
+
+  it("nunca asigna dos partidos del mismo grupo en round 2 a la misma cancha al mismo tiempo", () => {
+    const data = input({
+      matches: [
+        { id: "m1", homeTeamId: null, awayTeamId: null, groupTeamIds: ["A", "B", "C", "D"], groupId: "g1", round: 2 },
+        { id: "m2", homeTeamId: null, awayTeamId: null, groupTeamIds: ["A", "B", "C", "D"], groupId: "g1", round: 2 },
+      ],
+      slots: [slot("s1", 0)],
+      courtIds: ["c1"],
+      availability: { A: ["s1"], B: ["s1"], C: ["s1"], D: ["s1"] },
+    });
+    const result = scheduleMatches(data);
+    // Solo hay 1 cancha y 1 franja: no pueden jugar en simultáneo en la misma cancha
+    expect(result.assignments).toHaveLength(1);
+    expect(result.unscheduled).toHaveLength(1);
+    expect(result.unscheduled[0]?.reason).toBe("no_capacity");
+  });
 });
 
 describe("escenario realista", () => {
@@ -329,6 +346,86 @@ describe("asignación inteligente de horarios y proximidad", () => {
     expect(["s2_c1", "s2_c2"]).toContain(slotMap.get("r2_lose"));
     // Ninguno en s_distant
     expect(Array.from(slotMap.values())).not.toContain("s_distant");
+  });
+
+  it("programa fecha 2 en zona de 4 incluso si ninguna franja de la tarde tiene a las 4 parejas simultáneamente disponibles", () => {
+    // Escenario real:
+    // Fecha 1: T1 vs T2 (m1) y T3 vs T4 (m2) en la mañana (s1).
+    // En la tarde:
+    // En s2 (1.5h): T1 y T3 están disponibles (T2 y T4 no).
+    // En s3 (3h): T2 y T4 están disponibles (T1 y T3 no).
+    // Ninguna franja de la tarde tiene a las 4 parejas a la vez.
+    const teams = ["T1", "T2", "T3", "T4"];
+    const slots = [
+      slot("s1_c1", 0, "c1"),
+      slot("s1_c2", 0, "c2"),
+      slot("s2_c1", 1.5, "c1"),
+      slot("s3_c1", 3.0, "c1"),
+    ];
+    const availability = {
+      T1: ["s1_c1", "s1_c2", "s2_c1"],
+      T2: ["s1_c1", "s1_c2", "s3_c1"],
+      T3: ["s1_c1", "s1_c2", "s2_c1"],
+      T4: ["s1_c1", "s1_c2", "s3_c1"],
+    };
+
+    const data = input({
+      matches: [
+        { id: "r1_m1", homeTeamId: "T1", awayTeamId: "T2", order: 1, groupId: "g1", round: 1 },
+        { id: "r1_m2", homeTeamId: "T3", awayTeamId: "T4", order: 1, groupId: "g1", round: 1 },
+        { id: "r2_win", homeTeamId: null, awayTeamId: null, groupTeamIds: teams, feederMatchIds: ["r1_m1", "r1_m2"], order: 2, groupId: "g1", round: 2 },
+        { id: "r2_lose", homeTeamId: null, awayTeamId: null, groupTeamIds: teams, feederMatchIds: ["r1_m1", "r1_m2"], order: 2, groupId: "g1", round: 2 },
+      ],
+      slots,
+      courtIds: ["c1", "c2"],
+      availability,
+    });
+
+    const result = scheduleMatches(data);
+    expect(result.unscheduled).toEqual([]);
+    expect(result.assignments).toHaveLength(4);
+
+    const slotMap = new Map(result.assignments.map((a) => [a.matchId, a.slotId]));
+    expect(["s2_c1", "s3_c1"]).toContain(slotMap.get("r2_win"));
+    expect(["s2_c1", "s3_c1"]).toContain(slotMap.get("r2_lose"));
+    expect(slotMap.get("r2_win")).not.toBe(slotMap.get("r2_lose"));
+  });
+
+  it("prioriza franjas donde los 4 integrantes de la zona de 4 pueden jugar sobre franjas con disponibilidad parcial", () => {
+    const teams = ["T1", "T2", "T3", "T4"];
+    const slots = [
+      slot("s1_c1", 0, "c1"),
+      slot("s1_c2", 0, "c2"),
+      slot("s_partial", 1.5, "c1"), // Solo T1 y T3
+      slot("s_full", 3.0, "c1"),    // Los 4 equipos
+      slot("s_another", 4.5, "c1"), // Los 4 equipos
+    ];
+    const availability = {
+      T1: ["s1_c1", "s1_c2", "s_partial", "s_full", "s_another"],
+      T2: ["s1_c1", "s1_c2", "s_full", "s_another"],
+      T3: ["s1_c1", "s1_c2", "s_partial", "s_full", "s_another"],
+      T4: ["s1_c1", "s1_c2", "s_full", "s_another"],
+    };
+
+    const data = input({
+      matches: [
+        { id: "r1_m1", homeTeamId: "T1", awayTeamId: "T2", order: 1, groupId: "g1", round: 1 },
+        { id: "r1_m2", homeTeamId: "T3", awayTeamId: "T4", order: 1, groupId: "g1", round: 1 },
+        { id: "r2_win", homeTeamId: null, awayTeamId: null, groupTeamIds: teams, feederMatchIds: ["r1_m1", "r1_m2"], order: 2, groupId: "g1", round: 2 },
+        { id: "r2_lose", homeTeamId: null, awayTeamId: null, groupTeamIds: teams, feederMatchIds: ["r1_m1", "r1_m2"], order: 2, groupId: "g1", round: 2 },
+      ],
+      slots,
+      courtIds: ["c1", "c2"],
+      availability,
+    });
+
+    const result = scheduleMatches(data);
+    expect(result.unscheduled).toEqual([]);
+    const slotMap = new Map(result.assignments.map((a) => [a.matchId, a.slotId]));
+    // Como s_full y s_another tienen a los 4 equipos disponibles (missingCount = 0),
+    // se prefieren antes que s_partial (que tiene penalización por falta de T2 y T4).
+    expect(["s_full", "s_another"]).toContain(slotMap.get("r2_win"));
+    expect(["s_full", "s_another"]).toContain(slotMap.get("r2_lose"));
   });
 
   it("no asigna el segundo partido antes del primero aunque exista una franja previa disponible", () => {

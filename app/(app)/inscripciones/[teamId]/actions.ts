@@ -3,7 +3,7 @@
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { actionError, actionOk, createAction } from "@/lib/actions/safe-action";
-import { createAndSendTeamInvitation } from "@/lib/email/send-team-invitation";
+import { createAndSendTeamInvitation, prepareTeamInvitation } from "@/lib/email/send-team-invitation";
 import { refreshPublicTournament } from "@/lib/public-cache";
 import { dbErrorMessage } from "@/lib/supabase/errors";
 import type { SupabaseServerClient } from "@/lib/supabase/server";
@@ -40,6 +40,22 @@ export const sendTeamInvitation = createAction(sendInvitationSchema, async ({ te
   if (!result.ok) return actionError(result.error);
 
   return actionOk(undefined, `Enviamos la invitación a ${result.email}.`);
+});
+
+/**
+ * Genera un link de invitación para que el capitán lo comparta por WhatsApp o
+ * copiándolo (D-122). Sirve aunque no esté configurado el email. Renovarlo
+ * invalida el link anterior; la aceptación sigue exigiendo una cuenta
+ * verificada con el email del integrante, así que compartirlo no lo expone.
+ */
+export const createTeamInvitationLink = createAction(sendInvitationSchema, async ({ teamId, memberId }, { supabase }) => {
+  const result = await prepareTeamInvitation({ supabase, teamId, memberId, origin: await getRequestOrigin() });
+  if (!result.ok) return actionError(result.error);
+  return actionOk({
+    url: result.acceptUrl,
+    teamName: result.teamName,
+    tournamentName: result.tournamentName,
+  });
 });
 
 /** El invitado acepta solo con una cuenta verificada que coincida con el email destinatario. */

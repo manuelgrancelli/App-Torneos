@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionError, actionOk, createAction } from "@/lib/actions/safe-action";
+import { isAccountOrganizer } from "@/lib/auth";
 import { isSchemaPendingError } from "@/lib/data/circuits";
 import { circuitPointsConfigSchema, circuitSchema } from "@/lib/domain/circuits";
 import { dbErrorMessage } from "@/lib/supabase/errors";
@@ -10,6 +11,7 @@ import { slugWithSuffix } from "@/lib/utils/slug";
 
 /** Crea un circuito nuevo con su configuración de puntos. */
 export const createCircuit = createAction(circuitSchema, async (input, { supabase, userId }) => {
+  if (!(await isAccountOrganizer())) return actionError("Tu cuenta es de jugador: no podés crear circuitos.");
   const { data: sport, error: sportError } = await supabase
     .from("sports")
     .select("id")

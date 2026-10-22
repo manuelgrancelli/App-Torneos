@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { BOTTOM_NAV_ITEMS, isNavItemActive } from "./nav-items";
+import type { AccountRole } from "@/lib/auth";
+import { bottomNavItems, isNavItemActive } from "./nav-items";
 
 /**
  * Barra de navegación inferior para mobile. Respeta el área segura de iOS
  * (safe-area-inset-bottom) y usa objetivos táctiles de 56px de alto.
  */
-export function BottomNav() {
+export function BottomNav({ role }: { role: AccountRole }) {
   const pathname = usePathname();
 
   return (
@@ -18,7 +19,7 @@ export function BottomNav() {
       className="fixed inset-x-0 bottom-0 z-40 border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
     >
       <ul className="grid grid-cols-4">
-        {BOTTOM_NAV_ITEMS.map((item) => {
+        {bottomNavItems(role).map((item) => {
           const active = isNavItemActive(pathname, item.href);
           const Icon = item.icon;
           return (

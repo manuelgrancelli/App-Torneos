@@ -22,9 +22,11 @@ import { FinishedTournamentCard } from "./tournament-card";
 interface FinishedTournamentsViewProps {
   tournaments: TournamentListItem[];
   activeCount?: number;
+  /** Las cuentas de jugador no ven "Crear torneo" (D-122). */
+  canCreate?: boolean;
 }
 
-export function FinishedTournamentsView({ tournaments, activeCount }: FinishedTournamentsViewProps) {
+export function FinishedTournamentsView({ tournaments, activeCount, canCreate = true }: FinishedTournamentsViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSport, setSelectedSport] = useState<string>("all");
 
@@ -87,12 +89,14 @@ export function FinishedTournamentsView({ tournaments, activeCount }: FinishedTo
           <Button asChild variant="outline">
             <Link href="/torneos">Volver a mis torneos</Link>
           </Button>
-          <Button asChild>
-            <Link href="/torneos/nuevo">
-              <Plus className="size-4 mr-1.5" aria-hidden="true" />
-              Crear torneo
-            </Link>
-          </Button>
+          {canCreate ? (
+            <Button asChild>
+              <Link href="/torneos/nuevo">
+                <Plus className="size-4 mr-1.5" aria-hidden="true" />
+                Crear torneo
+              </Link>
+            </Button>
+          ) : null}
         </div>
       </div>
     );

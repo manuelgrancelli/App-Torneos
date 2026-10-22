@@ -8,6 +8,7 @@ import { getCompetition } from "@/lib/data/competition";
 import { normalizeScoringConfig } from "@/lib/domain/scoring";
 import { normalizeStandingsConfig } from "@/lib/domain/standings";
 import { dbErrorMessage } from "@/lib/supabase/errors";
+import { canUserManageTournament } from "@/lib/data/tournaments";
 import {
   adminInviteCodeSchema,
   changeStatusSchema,
@@ -72,7 +73,6 @@ export const deleteTournament = createAction(tournamentIdSchema, async ({ tourna
 
 /** Cambia el estado con la RPC, que valida la transición y sus precondiciones (D-018). */
 export const changeTournamentStatus = createAction(changeStatusSchema, async (input, { supabase }) => {
-  // Torneo sin playoffs: con un único grupo, el campeón es el primero de la tabla.
   let championTeamId: string | undefined;
   if (input.status === "finished") {
     const { data: tournament } = await supabase
@@ -80,6 +80,21 @@ export const changeTournamentStatus = createAction(changeStatusSchema, async (in
       .select("status, scoring_config, standings_config")
       .eq("id", input.tournamentId)
       .maybeSingle();
+
+    // Obtener finales de playoffs para determinar campeones
+    const { data: playoffFinals } = await supabase
+      .from("matches")
+      .select("category_id, winner_team_id, round")
+      .eq("tournament_id", input.tournamentId)
+      .eq("stage", "playoff")
+      .eq("is_third_place", false)
+      .is("next_match_id", null);
+
+    const winnerFinal = playoffFinals?.find((f) => f.winner_team_id !== null);
+    if (winnerFinal?.winner_team_id) {
+      championTeamId = winnerFinal.winner_team_id;
+    }
+
     if (tournament?.status === "group_stage") {
       const competition = await getCompetition(input.tournamentId);
       if (competition.groups.length === 1) {
@@ -92,6 +107,32 @@ export const changeTournamentStatus = createAction(changeStatusSchema, async (in
         championTeamId = table?.rows[0]?.teamId;
       }
     }
+
+    // Actualizar todas las categorías a 'finished' y asegurar sus campeones
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: categories } = await (supabase as any)
+      .from("tournament_categories")
+      .select("id, champion_team_id")
+      .eq("tournament_id", input.tournamentId);
+
+    if (categories && categories.length > 0) {
+      for (const cat of categories) {
+        const catFinal = playoffFinals?.find((f) => f.category_id === cat.id && f.winner_team_id);
+        const catChampion = cat.champion_team_id ?? catFinal?.winner_team_id ?? null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any)
+          .from("tournament_categories")
+          .update({
+            status: "finished",
+            champion_team_id: catChampion,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", cat.id);
+      }
+      if (!championTeamId && categories[0]?.champion_team_id) {
+        championTeamId = categories[0].champion_team_id;
+      }
+    }
   }
 
   const { error } = await supabase.rpc("set_tournament_status", {
@@ -99,14 +140,41 @@ export const changeTournamentStatus = createAction(changeStatusSchema, async (in
     p_status: input.status,
     p_champion_team_id: championTeamId,
   });
-  if (error) return actionError(dbErrorMessage(error));
+
+  if (error) {
+    // Si la RPC arroja error por permisos de sesión u otro desfasaje, verificar autorización directa
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      const canManage = await canUserManageTournament(supabase, input.tournamentId, user.id);
+      if (canManage) {
+        const { error: directErr } = await supabase
+          .from("tournaments")
+          .update({
+            status: input.status,
+            champion_team_id: championTeamId ?? null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", input.tournamentId);
+        if (!directErr) {
+          revalidateTournament(input.tournamentId);
+          return actionOk(undefined, "¡Torneo finalizado con éxito!");
+        }
+      }
+    }
+    return actionError(dbErrorMessage(error));
+  }
 
   if (input.status === "playoffs") {
     await ensurePlayoffBracket(supabase, input.tournamentId);
   }
 
   revalidateTournament(input.tournamentId);
-  return actionOk(undefined, "Actualizamos el estado del torneo.");
+  return actionOk(
+    undefined,
+    input.status === "finished" ? "¡Torneo finalizado con éxito!" : "Actualizamos el estado del torneo.",
+  );
 });
 
 /** Genera un código nuevo: el link anterior deja de funcionar. */

@@ -124,7 +124,22 @@ export function computeTeamRoundReached(
   const maxRoundPlayed = Math.max(...teamPlayoffMatches.map((m) => m.round));
   const distanceToFinal = totalPlayoffRounds - maxRoundPlayed;
 
-  if (distanceToFinal === 0) return "runner_up";
+  if (distanceToFinal === 0) {
+    // Si jugó la final:
+    // 1. Si hay campeón explícito definido:
+    if (championTeamId) {
+      return championTeamId === teamId ? "champion" : "runner_up";
+    }
+    // 2. Si no hay campeón explícito en la base, buscar el ganador registrado de la final:
+    const finalMatch = matches.find(
+      (m) => m.stage === "playoff" && !m.isThirdPlace && m.round === totalPlayoffRounds,
+    );
+    if (finalMatch?.winnerTeamId) {
+      return finalMatch.winnerTeamId === teamId ? "champion" : "runner_up";
+    }
+    return "runner_up";
+  }
+
   if (distanceToFinal === 1) return "semis";
   if (distanceToFinal === 2) return "quarters";
   if (distanceToFinal === 3) return "round_of_16";
@@ -262,4 +277,159 @@ export function computeCircuitLeaderboard(
     currentRank = idx + 1;
     return { ...item, rank: currentRank };
   });
+}
+
+export type CircuitCategoryInfo = {
+  id: string;
+  tournamentId: string;
+  name: string;
+  position: number;
+  championTeamId: string | null;
+};
+
+export type CircuitMatchWithCategory = CircuitMatch & {
+  id?: string;
+  tournamentId: string;
+  categoryId?: string | null;
+};
+
+export type CircuitTeamWithCategory = CircuitTournamentTeam & {
+  tournamentId: string;
+  categoryId?: string | null;
+};
+
+export type CircuitMultiCategoryTournamentData = {
+  id: string;
+  name: string;
+  circuitOrder: number | null;
+  status: string;
+  championTeamId: string | null;
+  categories: CircuitCategoryInfo[];
+  matches: CircuitMatchWithCategory[];
+  teams: CircuitTeamWithCategory[];
+};
+
+export type CircuitCategoryLeaderboard = {
+  categoryName: string;
+  leaderboard: LeaderboardPlayer[];
+};
+
+/**
+ * Calcula las tablas de posiciones (rankings acumulados) del circuito,
+ * desagregadas por cada categoría deportiva disputada en sus fechas.
+ */
+export function computeCircuitCategoryLeaderboards(
+  pointsConfig: CircuitPointsConfig,
+  tournaments: readonly CircuitMultiCategoryTournamentData[],
+): CircuitCategoryLeaderboard[] {
+  const categoryMap = new Map<string, { name: string; position: number }>();
+
+  for (const t of tournaments) {
+    for (const c of t.categories) {
+      const norm = c.name.trim().toLowerCase();
+      if (!categoryMap.has(norm)) {
+        categoryMap.set(norm, { name: c.name.trim(), position: c.position });
+      } else {
+        const existing = categoryMap.get(norm)!;
+        if (c.position < existing.position) {
+          existing.position = c.position;
+        }
+      }
+    }
+  }
+
+  // Si ningún torneo tiene categorías creadas, consolidamos en una única tabla general
+  if (categoryMap.size === 0) {
+    const singleDataList: CircuitTournamentData[] = tournaments.map((t, idx) => {
+      const playoffRounds = t.matches
+        .filter((m) => m.stage === "playoff" && !m.isThirdPlace)
+        .map((m) => m.round);
+      const totalPlayoffRounds = playoffRounds.length > 0 ? Math.max(...playoffRounds) : 0;
+      const finalMatch = totalPlayoffRounds > 0
+        ? t.matches.find(
+            (m) => m.stage === "playoff" && !m.isThirdPlace && m.round === totalPlayoffRounds && m.winnerTeamId,
+          )
+        : undefined;
+      return {
+        id: t.id,
+        name: t.name,
+        circuitOrder: t.circuitOrder ?? idx + 1,
+        status: t.status,
+        championTeamId: t.championTeamId ?? finalMatch?.winnerTeamId ?? null,
+        totalPlayoffRounds,
+        matches: t.matches,
+        teams: t.teams,
+      };
+    });
+
+    return [
+      {
+        categoryName: "General",
+        leaderboard: computeCircuitLeaderboard(pointsConfig, singleDataList),
+      },
+    ];
+  }
+
+  const sortedCategories = [...categoryMap.entries()].sort(
+    ([, a], [, b]) => a.position - b.position || a.name.localeCompare(b.name),
+  );
+
+  const result: CircuitCategoryLeaderboard[] = [];
+
+  for (const [normKey, catMeta] of sortedCategories) {
+    const tourDataList: CircuitTournamentData[] = tournaments.map((t, idx) => {
+      const tourCat = t.categories.find((c) => c.name.trim().toLowerCase() === normKey);
+
+      // Equipos de esta categoría en la fecha
+      const catTeams = t.teams.filter((tm) => {
+        if (tourCat && tm.categoryId === tourCat.id) return true;
+        if (t.categories.length === 1 && !tm.categoryId) return true;
+        return false;
+      });
+      const catTeamIds = new Set(catTeams.map((tm) => tm.id));
+
+      // Partidos disputados en esta categoría
+      const catMatches = t.matches.filter((m) => {
+        if (tourCat && m.categoryId === tourCat.id) return true;
+        if (m.homeTeamId && catTeamIds.has(m.homeTeamId)) return true;
+        if (m.awayTeamId && catTeamIds.has(m.awayTeamId)) return true;
+        return false;
+      });
+
+      const catPlayoffRounds = catMatches
+        .filter((m) => m.stage === "playoff" && !m.isThirdPlace)
+        .map((m) => m.round);
+      const totalPlayoffRounds = catPlayoffRounds.length > 0 ? Math.max(...catPlayoffRounds) : 0;
+
+      const finalMatch = totalPlayoffRounds > 0
+        ? catMatches.find(
+            (m) => m.stage === "playoff" && !m.isThirdPlace && m.round === totalPlayoffRounds && m.winnerTeamId,
+          )
+        : undefined;
+
+      const championTeamId =
+        tourCat?.championTeamId ??
+        finalMatch?.winnerTeamId ??
+        (t.categories.length === 1 ? t.championTeamId : null);
+
+      return {
+        id: t.id,
+        name: t.name,
+        circuitOrder: t.circuitOrder ?? idx + 1,
+        status: t.status,
+        championTeamId,
+        totalPlayoffRounds,
+        matches: catMatches,
+        teams: catTeams,
+      };
+    });
+
+    const leaderboard = computeCircuitLeaderboard(pointsConfig, tourDataList);
+    result.push({
+      categoryName: catMeta.name,
+      leaderboard,
+    });
+  }
+
+  return result;
 }

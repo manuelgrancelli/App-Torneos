@@ -3,15 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { isNavItemActive, MAIN_NAV_ITEMS } from "./nav-items";
+import type { AccountRole } from "@/lib/auth";
+import { isNavItemActive, mainNavItems } from "./nav-items";
 
 /** Navegación principal en el header (solo desktop). */
-export function MainNav({ className }: { className?: string }) {
+export function MainNav({ className, role }: { className?: string; role: AccountRole }) {
   const pathname = usePathname();
 
   return (
     <nav aria-label="Secciones" className={cn("flex items-center gap-1.5", className)}>
-      {MAIN_NAV_ITEMS.map((item) => {
+      {mainNavItems(role).map((item) => {
         const active = isNavItemActive(pathname, item.href);
         return (
           <Link

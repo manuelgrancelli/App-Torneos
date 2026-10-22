@@ -34,6 +34,9 @@ select gen_random_uuid(), u.id, u.id::text, 'email',
 from auth.users u
 where u.email like '%@demo.test';
 
+-- Solo la organizadora demo tiene cuenta de organizador; el resto son jugadores (D-122).
+update public.profiles set account_role = 'organizer' where id = '00000000-0000-4000-8000-000000000001';
+
 -- Torneo demo de pádel armado con las mismas RPC que usa la app.
 do $$
 declare

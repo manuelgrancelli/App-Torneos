@@ -614,7 +614,12 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
               className="flex items-start gap-2 rounded-xl bg-amber-500/15 border border-amber-500/30 p-3 text-xs sm:text-sm text-amber-950 dark:text-amber-100 font-medium"
             >
               <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-              <span>{warning}</span>
+              <span>
+                {warning}
+                <span className="block text-[11px] font-normal opacity-90 mt-0.5">
+                  (Aviso informativo para el organizador: no bloquea la asignación, podés guardar este horario si decidís jugarlo acá).
+                </span>
+              </span>
             </p>
           ))}
         </div>

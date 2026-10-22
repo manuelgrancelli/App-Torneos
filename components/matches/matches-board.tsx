@@ -33,7 +33,6 @@ import { type BoardMatch, compareMatchesChronological, playoffRoundCount } from 
 import type { ScoringConfig } from "@/lib/domain/scoring";
 import { cn } from "@/lib/utils";
 import { AssignSlotDialog } from "./assign-slot-dialog";
-import { ExportMatchesImageModal } from "./export-matches-image-modal";
 import { ResultDialog } from "./result-dialog";
 
 type Filter = "all" | "unscheduled" | "pending" | "disputed";
@@ -428,17 +427,6 @@ export function MatchesBoard(props: MatchesBoardProps) {
                     <Badge variant="secondary" className="text-xs font-normal">
                       {group.items.length} {group.items.length === 1 ? "partido" : "partidos"}
                     </Badge>
-                    <ExportMatchesImageModal
-                      tournamentName={props.tournamentName ?? "Torneo"}
-                      sportName={props.sportName}
-                      timezone={props.timezone}
-                      matches={props.matches}
-                      initialDay={group.day ?? "unscheduled"}
-                      buttonText={group.day ? "Mandar día" : "Mandar"}
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs px-2.5 gap-1.5 font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-500/10 border-emerald-500/30"
-                    />
                   </div>
                 </div>
                 <ul className="divide-y rounded-lg border bg-card">

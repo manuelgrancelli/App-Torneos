@@ -77,7 +77,12 @@ export default async function BracketPage({
     (m) => !activeCategory || m.categoryId === activeCategory.id
   );
   const playoffMatches = categoryMatches.filter((m) => m.stage === "playoff");
-  const championId = activeCategory?.championTeamId ?? tournament.championTeamId;
+  const playoffRounds = playoffMatches.filter((m) => !m.isThirdPlace).map((m) => m.round);
+  const maxPlayoffRound = playoffRounds.length > 0 ? Math.max(...playoffRounds) : 0;
+  const finalMatch = maxPlayoffRound > 0
+    ? playoffMatches.find((m) => !m.isThirdPlace && m.round === maxPlayoffRound && m.winnerTeamId)
+    : null;
+  const championId = activeCategory?.championTeamId ?? tournament.championTeamId ?? finalMatch?.winnerTeamId;
   const champion = championId ? teamNames.get(championId) : null;
 
   // Si no hay grupos creados todavía para esta categoría ni partidos de playoff

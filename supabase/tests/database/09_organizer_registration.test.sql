@@ -10,6 +10,8 @@ insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data, aud, 
    '{"full_name": "Organizador"}', 'authenticated', 'authenticated'),
   ('cccccccc-0000-4000-8000-000000000002', 'other@organizer-registration.local', now(),
    '{"full_name": "Ajeno"}', 'authenticated', 'authenticated');
+-- Los usuarios de prueba pueden crear torneos (rol de cuenta, D-122).
+update public.profiles set account_role = 'organizer';
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub": "cccccccc-0000-4000-8000-000000000001", "role": "authenticated"}';

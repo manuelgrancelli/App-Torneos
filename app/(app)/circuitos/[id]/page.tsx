@@ -28,7 +28,7 @@ export default async function CircuitDetailPage({ params }: PageProps<"/circuito
   const circuit = await getOrganizerCircuit(id, user.id);
   if (!circuit) notFound();
 
-  const [dates, availableTournaments, leaderboard] = await Promise.all([
+  const [dates, availableTournaments, categoryLeaderboards] = await Promise.all([
     getCircuitDates(circuit.id),
     getAvailableTournamentsForCircuit(user.id, circuit.sportId, circuit.id),
     getCircuitLeaderboardData(circuit.id, circuit.pointsConfig),
@@ -53,7 +53,7 @@ export default async function CircuitDetailPage({ params }: PageProps<"/circuito
       <CircuitTabsView
         circuit={circuit}
         dates={dates}
-        leaderboard={leaderboard}
+        categoryLeaderboards={categoryLeaderboards}
         availableTournaments={availableTournaments}
       />
     </div>

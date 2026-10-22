@@ -1738,3 +1738,57 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
   - Al seleccionar la vista de "Árbol" (`viewMode === "diagram"`), las pestañas de rondas se ocultan automáticamente y el conmutador de modo se alinea a la derecha (`sm:ml-auto`), ya que el diagrama en árbol despliega siempre la totalidad de las columnas y cruces de forma integral con conectores horizontales.
 - **Motivo:** pedido directo del usuario para evitar opciones redundantes o inaplicables en la vista de árbol.
 - **Cómo aplicar:** `components/bracket/bracket-view.tsx`.
+
+### D-126 — Asignación manual en franjas amarillas y resiliencia en reprogramación de partidos (2026-10-21)
+- **Decisión:**
+  - **Franjas amarillas como advertencia no bloqueante (`components/matches/assign-slot-dialog.tsx`):**
+    - Las franjas marcadas en amarillo corresponden a horarios donde una o ambas parejas no marcaron disponibilidad horaria previa.
+    - Se clarificó el mensaje de advertencia visual para el organizador especificando que se trata de un aviso informativo y que no impide ni bloquea el guardado del horario si el organizador decide consensuarlo o programarlo en ese turno.
+    - Solo las colisiones rojas (superposición de cancha o cruce de horarios del mismo equipo) inhabilitan el botón de "Guardar horario".
+  - **Validación robusta y fallback en `assignSlot` (`app/(app)/torneos/[id]/partidos/actions.ts`):**
+    - Se incorporó verificación previa de existencia del partido en la base de datos (evitando errores genéricos 42501 si el identificador cambió por regeneración del cuadro) y de estado del resultado.
+    - Si el partido ya tiene resultado registrado (`result_status is not null`), se informa con precisión que debe borrarse el resultado antes de reprogramarlo.
+    - Si la RPC `assign_match_slot` arroja un error 42501 por desfase de tokens de sesión o permisos, se valida la autorización del organizador/co-admin vía `canUserManageTournament(supabase, tournamentId, userId)` y se efectúa la actualización directa sobre `matches`, garantizando que ningún organizador quede bloqueado de programar turnos.
+- **Motivo:** responder a la duda del organizador ante un error de permisos al guardar un partido en franja amarilla, asegurando mensajes nítidos y permitiendo guardar horarios libremente sin falsos bloqueos.
+- **Cómo aplicar:** `app/(app)/torneos/[id]/partidos/actions.ts`, `components/matches/assign-slot-dialog.tsx`.
+
+### D-127 — Identificación automática de campeones por categoría y puntuación/títulos en circuitos (2026-10-21)
+- **Decisión:**
+  - **Identificación reactiva del campeón por categoría (`lib/domain/circuits.ts`):**
+    - En `computeTeamRoundReached`, si `championTeamId` no viene explícitamente asignado en la entidad del torneo o categoría, se inspecciona el cruce final (`round === totalPlayoffRounds && !isThirdPlace`). Si `finalMatch.winnerTeamId === teamId`, el equipo se clasifica como `"champion"` (100 puntos y +1 título anual). Si perdió la final, se clasifica como `"runner_up"` (80 puntos y 0 títulos).
+    - En `computeCircuitCategoryLeaderboards`, se deduce automáticamente el campeón de cada categoría a partir del ganador del partido final (`cat.championTeamId ?? finalMatch?.winnerTeamId`), garantizando que la tabla anual refleje fielmente al campeón con su insignia de trofeo dorado aun si la columna de BD aún no hubiese sido persistida.
+  - **Persistencia de `champion_team_id` por categoría en acciones de partidos (`app/(app)/torneos/[id]/partidos/actions.ts`):**
+    - Al registrar el resultado (`recordResult`) de una final de playoffs (sin `next_match_id` y `!is_third_place`), se persiste `champion_team_id` directamente en `tournament_categories` para la categoría correspondiente (y en `tournaments.champion_team_id` en torneos de categoría única).
+    - Al eliminar el resultado (`clearResult`) de la final, se restablece `champion_team_id = null`.
+    - En la simulación de resultados (`simulateTournamentResults`), se persiste automáticamente el campeón de cada categoría.
+  - **Reconocimiento del campeón en la vista del cuadro (`app/(app)/torneos/[id]/cuadro/page.tsx`):**
+    - Se actualizó la resolución de `championId = activeCategory?.championTeamId ?? tournament.championTeamId ?? finalMatch?.winnerTeamId` para que el ganador de la final de cada categoría se muestre al instante en el cuadro y en la exportación de imagen.
+- **Motivo:** solucionar el error reportado por el usuario donde campeones y subcampeones sumaban ambos 80 puntos y no se les otorgaba el título en el ranking anual del circuito.
+- **Cómo aplicar:** `lib/domain/circuits.ts`, `lib/domain/circuits.test.ts`, `app/(app)/torneos/[id]/partidos/actions.ts`, `app/(app)/torneos/[id]/cuadro/page.tsx`.
+
+### D-128 — Botón verde interactivo en el paso 5 del progreso para finalizar torneo al concluir todas las categorías (2026-10-22)
+- **Decisión:**
+  - **Botón verde en el paso 5 (`FinalizeTournamentStepButton` en `components/tournaments/finalize-tournament-step-button.tsx` y `TournamentProgress`):**
+    - Cuando todas las categorías y cruces eliminatorios del torneo están finalizados (`counts.allCategoriesFinished` es verdadero, al no registrarse cruces pendientes y contar con los ganadores de las finales de cada categoría), el paso 5 ("Final") en la barra de progreso del panel (`TournamentProgress`) deja de ser un paso pasivo deshabilitado y se transforma en un botón verde interactivo (`FinalizeTournamentStepButton`).
+    - **Estilo:** botón píldora verde esmeralda (`bg-emerald-600 hover:bg-emerald-500 text-white font-semibold ring-2 ring-emerald-500/40 shadow-md shadow-emerald-600/30`), badge interior numerado "5", icono de trofeo `Trophy` y micro-animación periódica `animate-pulse` que orienta al organizador. En pantallas angostas mobile se compacta a "Finalizar" para garantizar visualización sin desbordes.
+    - La línea conectora entre Playoffs (paso 4) y Final (paso 5) adopta tonalidad esmeralda cuando los cruces eliminatorios concluyeron al 100%.
+    - Al hacer clic abre un diálogo modal de confirmación (`AlertDialog`) donde se detalla que todas las categorías han concluido y que los resultados, cruces y campeones se archivarán oficialmente.
+  - **Sincronización integral de finalización en backend (`app/(app)/torneos/[id]/actions.ts` y migración SQL `20261022010000_finalize_tournament_categories_support.sql`):**
+    - Al disparar la finalización del torneo (`changeTournamentStatus` con `status: "finished"`):
+      - Se obtienen las finales de playoffs y se asegura el campeón de cada categoría en `tournament_categories` y del torneo en `tournaments`.
+      - Se actualiza el estado de todas las categorías asociadas en `tournament_categories` a `'finished'`.
+      - Se actualiza `tournaments.status = 'finished'`.
+      - La función SQL `set_tournament_status` selecciona el ganador real (`winner_team_id`) en vez de `home_team_id` y actualiza automáticamente las categorías asociadas a `finished`.
+- **Motivo:** responder a la solicitud del usuario para que, cuando todas las categorías del torneo concluyan, en el paso 5 aparezca un botón verde para finalizar el torneo.
+- **Cómo aplicar:** `components/tournaments/finalize-tournament-step-button.tsx`, `components/tournaments/tournament-progress.tsx`, `app/(app)/torneos/[id]/layout.tsx`, `lib/data/tournaments.ts`, `app/(app)/torneos/[id]/actions.ts`, migración `supabase/migrations/20261022010000_finalize_tournament_categories_support.sql`.
+
+### D-129 — Remoción de campeón único global en fechas del circuito (2026-10-22) *(continúa D-112)*
+- **Decisión:**
+  - En la lista de fechas vinculadas a un circuito (`CircuitDatesList` en `components/circuits/circuit-dates-list.tsx`), se eliminó la etiqueta `"🏆 Campeón: [nombre]"`.
+  - La fila de cada fecha conserva los metadatos relevantes comunes: rango de fechas de juego, cantidad total de parejas inscriptas y acciones de gestión / desvinculación.
+  - Los campeones y subcampeones se visualizan de forma precisa y desagregada en la tabla de posiciones por categoría (`LeaderboardTable`) y dentro del cuadro eliminatorio de cada categoría (`BracketView`).
+- **Motivo:** atender el pedido directo del usuario señalando que, al disputarse múltiples categorías (ej. 6ta Caballeros, Suma 10, Suma 13 Damas), mostrar a una única pareja como campeona de la fecha completa resultaba erróneo e incompleto.
+- **Cómo aplicar:** `components/circuits/circuit-dates-list.tsx`.
+
+
+

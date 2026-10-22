@@ -16,6 +16,8 @@ insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data, aud, 
   ('aaaaaaaa-0000-4000-8000-000000000007', 'eva@test.local', now(), '{"full_name": "Eva"}', 'authenticated', 'authenticated'),
   -- Registrado pero sin confirmar el email.
   ('aaaaaaaa-0000-4000-8000-000000000008', 'sinconfirmar@test.local', null, '{"full_name": "Sin Confirmar"}', 'authenticated', 'authenticated');
+-- Los usuarios de prueba pueden crear torneos (rol de cuenta, D-122).
+update public.profiles set account_role = 'organizer';
 
 -- -----------------------------------------------------------------------------
 -- Alta del torneo y estados

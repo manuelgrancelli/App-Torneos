@@ -39,3 +39,26 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     avatarUrl: readString(metadata, "avatar_url", "picture"),
   };
 });
+
+export type AccountRole = "player" | "organizer";
+
+/**
+ * Rol de cuenta del usuario actual (D-122): "organizer" puede crear torneos y
+ * circuitos; "player" solo participa. Se lee de profiles en cada request (no
+ * del JWT) para que un cambio de rol aplique enseguida. Si la lectura falla
+ * (p. ej. la migración todavía no se corrió) se asume jugador: la UI nunca
+ * ofrece más de lo que la base permite.
+ */
+export const getAccountRole = cache(async (): Promise<AccountRole> => {
+  const user = await getCurrentUser();
+  if (!user) return "player";
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("profiles").select("account_role").eq("id", user.id).maybeSingle();
+  if (error || !data) return "player";
+  return data.account_role === "organizer" ? "organizer" : "player";
+});
+
+/** Atajo para páginas y acciones de organizador. */
+export async function isAccountOrganizer(): Promise<boolean> {
+  return (await getAccountRole()) === "organizer";
+}

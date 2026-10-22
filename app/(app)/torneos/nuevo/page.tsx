@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/shared/page-header";
 import type { SportOption } from "@/components/tournaments/tournament-form";
 import { TournamentWizard } from "@/components/tournaments/tournament-wizard";
+import { isAccountOrganizer } from "@/lib/auth";
 import { getSports } from "@/lib/data/tournaments";
 import type { ScoringConfig } from "@/lib/domain/scoring";
 import type { StandingsConfig } from "@/lib/domain/standings";
@@ -9,6 +11,8 @@ import type { StandingsConfig } from "@/lib/domain/standings";
 export const metadata: Metadata = { title: "Crear torneo" };
 
 export default async function NewTournamentPage() {
+  // Solo las cuentas de organizador crean torneos (D-122); la base también lo exige.
+  if (!(await isAccountOrganizer())) redirect("/torneos");
   const sports = await getSports();
   const options: SportOption[] = sports.map((sport) => {
     const raw = sport.default_scoring_config as Record<string, unknown>;

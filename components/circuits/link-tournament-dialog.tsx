@@ -20,7 +20,7 @@ import { Spinner } from "@/components/ui/spinner";
 type LinkTournamentDialogProps = {
   circuitId: string;
   nextOrder: number;
-  availableTournaments: { id: string; name: string; startsOn: string }[];
+  availableTournaments?: { id: string; name: string; startsOn: string }[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
@@ -28,14 +28,15 @@ type LinkTournamentDialogProps = {
 export function LinkTournamentDialog({
   circuitId,
   nextOrder,
-  availableTournaments,
+  availableTournaments = [],
   open,
   onOpenChange,
 }: LinkTournamentDialogProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const safeTournaments = Array.isArray(availableTournaments) ? availableTournaments : [];
   const [selectedTournamentId, setSelectedTournamentId] = useState(
-    availableTournaments[0]?.id ?? "",
+    safeTournaments[0]?.id ?? "",
   );
   const [order, setOrder] = useState(nextOrder);
 
@@ -74,7 +75,7 @@ export function LinkTournamentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {availableTournaments.length === 0 ? (
+        {safeTournaments.length === 0 ? (
           <p className="py-4 text-sm text-muted-foreground">
             No tenés torneos del mismo deporte disponibles para vincular. Creá uno nuevo desde la sección Torneos.
           </p>
@@ -88,7 +89,7 @@ export function LinkTournamentDialog({
                 onChange={(e) => setSelectedTournamentId(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {availableTournaments.map((t) => (
+                {safeTournaments.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name} ({t.startsOn})
                   </option>

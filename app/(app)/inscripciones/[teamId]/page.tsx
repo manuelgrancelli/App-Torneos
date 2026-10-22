@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { AvailabilityPicker } from "@/components/availability/availability-picker";
 import { MyMatches } from "@/components/matches/my-matches";
-import { SendTeamInvitationButton } from "@/components/registration/send-team-invitation-button";
+import { PlayerProgressPanel } from "@/components/player/player-progress-panel";
+import { ShareTeamInvitation } from "@/components/player/share-team-invitation";
 import { TeamActions } from "@/components/registration/team-actions";
 import { PublicPageLink } from "@/components/tournaments/public-page-link";
 import { StatusBadge, TeamStatusBadge, SportBadge } from "@/components/tournaments/status-badge";
@@ -13,10 +14,11 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth";
 import { buildTeamMatches } from "@/lib/competition-view";
-import { getCompetition } from "@/lib/data/competition";
+import { type Competition, getCompetition } from "@/lib/data/competition";
 import { getTeamForMember } from "@/lib/data/teams";
 import { formatDateRange } from "@/lib/dates";
 import { teamNoun } from "@/lib/domain/tournament-status";
+import { buildPlayerProgress } from "@/lib/player-progress";
 
 export const metadata: Metadata = { title: "Mi inscripción" };
 
@@ -35,6 +37,29 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
   const pendingMembers = team.members.filter((m) => !m.userId).length;
   const started = !["draft", "registration_open"].includes(tournament.status);
   const competition = started ? await getCompetition(tournament.id) : null;
+  // Progreso del equipo (D-122). Antes de los grupos alcanza con una competencia vacía.
+  const emptyCompetition: Competition = {
+    teams: [{ id: team.id, name: team.name, status: team.status }],
+    groups: [],
+    matches: [],
+    confirmations: [],
+    categories: [],
+  };
+  const progress = buildPlayerProgress({
+    teamId: team.id,
+    tournamentStatus: tournament.status,
+    championTeamId: tournament.championTeamId,
+    competition: competition ?? emptyCompetition,
+    scoring: tournament.scoringConfig,
+    standings: tournament.standingsConfig,
+    playoff: tournament.playoffConfig,
+  });
+  const teamNames = new Map((competition?.teams ?? []).map((t) => [t.id, t.name]));
+  const teamMembers = new Map((competition?.teams ?? []).map((t) => [t.id, (t.members ?? []).map((m) => m.name)]));
+  const courtNames = new Map(team.courts.map((c) => [c.id, c.name]));
+  const pendingInvites = team.isCaptain && registrationOpen
+    ? team.members.filter((m) => m.role === "player" && !m.userId && m.email)
+    : [];
   const myMatches = competition
     ? buildTeamMatches(
         team.id,
@@ -87,6 +112,15 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
           El organizador rechazó la inscripción. Podés editar el equipo para que la vuelva a revisar.
         </p>
       ) : null}
+
+      <PlayerProgressPanel
+        progress={progress}
+        tournamentStatus={tournament.status}
+        timezone={tournament.timezone}
+        teamNames={teamNames}
+        teamMembers={teamMembers}
+        courtNames={courtNames}
+      />
 
       {started ? (
         <Card>
@@ -149,9 +183,6 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
                           : "Sin cuenta asociada"}
                     </p>
                   </div>
-                  {team.isCaptain && registrationOpen && member.role === "player" && !member.userId ? (
-                    <SendTeamInvitationButton teamId={team.id} memberId={member.id} />
-                  ) : null}
                   {member.role === "captain" ? (
                     <Badge variant="secondary">
                       <Crown aria-hidden="true" />
@@ -161,6 +192,14 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
                 </li>
               ))}
             </ul>
+            {pendingInvites.map((member) => (
+              <ShareTeamInvitation
+                key={member.id}
+                teamId={team.id}
+                memberId={member.id}
+                memberLabel={member.fullName ?? member.displayName ?? member.email ?? "Tu compañero"}
+              />
+            ))}
             {registrationOpen ? (
               <TeamActions
                 teamId={team.id}

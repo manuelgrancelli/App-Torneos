@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { CurrentUser } from "@/lib/auth";
+import type { AccountRole, CurrentUser } from "@/lib/auth";
 import { APP_NAME } from "@/lib/config";
 import { TrophyLogo } from "@/components/brand/trophy-logo";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -7,7 +7,7 @@ import { MainNav } from "./main-nav";
 import { UserMenu } from "./user-menu";
 
 /** Header del área privada: marca, navegación (desktop) y menú de usuario. */
-export function AppHeader({ user }: { user: CurrentUser }) {
+export function AppHeader({ user, role }: { user: CurrentUser; role: AccountRole }) {
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-3 px-4">
@@ -20,7 +20,7 @@ export function AppHeader({ user }: { user: CurrentUser }) {
           <TrophyLogo />
           <span>{APP_NAME}</span>
         </Link>
-        <MainNav className="hidden md:flex" />
+        <MainNav className="hidden md:flex" role={role} />
         <div className="ml-auto flex items-center gap-2">
           <ThemeToggle />
           <UserMenu user={user} />

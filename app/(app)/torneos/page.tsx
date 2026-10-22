@@ -1,24 +1,35 @@
-import { Plus, Trophy } from "lucide-react";
+import { Plus, Ticket, Trophy } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ActiveTournamentCard } from "@/components/player/active-tournament-card";
 import { JoinCodeForm } from "@/components/registration/join-code-form";
+import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { TournamentDashboard } from "@/components/tournaments/tournament-dashboard";
 import { Button } from "@/components/ui/button";
-import { getCurrentUser } from "@/lib/auth";
+import { getAccountRole, getCurrentUser } from "@/lib/auth";
+import { type MyMatchRow, getMyMatches } from "@/lib/data/history";
 import { listOrganizedTournaments, listParticipations } from "@/lib/data/tournaments";
+import { compareMatchesChronological } from "@/lib/competition-view";
 
 export const metadata: Metadata = { title: "Mis torneos" };
+
+const ACTIVE_STATUSES = new Set(["registration_open", "group_stage", "playoffs"]);
 
 export default async function TournamentsPage() {
   // El layout de (app) ya garantiza la sesión.
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const [organized, participations] = await Promise.all([
+  const [role, organized, participations] = await Promise.all([
+    getAccountRole(),
     listOrganizedTournaments(user.id),
     listParticipations(user.id),
   ]);
+
+  if (role === "player") {
+    return <PlayerHome userId={user.id} organized={organized} participations={participations} />;
+  }
 
   return (
     <div className="space-y-6">
@@ -56,3 +67,72 @@ export default async function TournamentsPage() {
   );
 }
 
+/**
+ * Inicio de la cuenta de jugador (D-122): sin crear torneos ni circuitos.
+ * Arriba, los torneos en curso con su etapa y el próximo partido; después,
+ * el ingreso por código y el listado completo.
+ */
+async function PlayerHome({
+  userId,
+  organized,
+  participations,
+}: {
+  userId: string;
+  organized: Awaited<ReturnType<typeof listOrganizedTournaments>>;
+  participations: Awaited<ReturnType<typeof listParticipations>>;
+}) {
+  const active = participations.filter((p) => ACTIVE_STATUSES.has(p.tournament.status));
+  const { matches } = active.length > 0 ? await getMyMatches(userId) : { matches: [] as MyMatchRow[] };
+
+  const byTeam = new Map<string, MyMatchRow[]>();
+  for (const m of matches) byTeam.set(m.myTeamId, [...(byTeam.get(m.myTeamId) ?? []), m]);
+
+  return (
+    <div className="space-y-8">
+      <PageHeader
+        title="Mis torneos"
+        description="Inscribite con el código del torneo, seguí tu progreso e invitá a tu pareja."
+      />
+
+      <section aria-labelledby="en-curso" className="space-y-3">
+        <h2 id="en-curso" className="text-lg font-semibold tracking-tight">
+          En curso
+        </h2>
+        {active.length === 0 ? (
+          <EmptyState
+            icon={Ticket}
+            title="No estás jugando ningún torneo ahora"
+            description="Pedile al organizador el código o el link de inscripción y anotate con tu pareja."
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {active.map((participation) => {
+              const teamMatches = byTeam.get(participation.teamId) ?? [];
+              const next =
+                teamMatches.filter((m) => m.resultText === null).sort(compareMatchesChronological)[0] ?? null;
+              const played = teamMatches.filter((m) => m.outcome !== null);
+              return (
+                <ActiveTournamentCard
+                  key={participation.teamId}
+                  participation={participation}
+                  nextMatch={next}
+                  record={{ played: played.length, won: played.filter((m) => m.outcome === "win").length }}
+                />
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <JoinCodeForm />
+
+      {participations.length > 0 || organized.length > 0 ? (
+        <TournamentDashboard
+          organized={organized}
+          participations={participations}
+          hideOrganized={organized.length === 0}
+        />
+      ) : null}
+    </div>
+  );
+}

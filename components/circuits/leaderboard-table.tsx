@@ -5,16 +5,24 @@ import { type CircuitDateItem } from "@/lib/data/circuits";
 import { ROUND_LABELS, type LeaderboardPlayer } from "@/lib/domain/circuits";
 
 type LeaderboardTableProps = {
-  leaderboard: LeaderboardPlayer[];
-  dates: CircuitDateItem[];
+  categoryName?: string;
+  leaderboard?: LeaderboardPlayer[];
+  dates?: CircuitDateItem[];
 };
 
-export function LeaderboardTable({ leaderboard, dates }: LeaderboardTableProps) {
-  if (leaderboard.length === 0) {
+export function LeaderboardTable({
+  categoryName,
+  leaderboard = [],
+  dates = [],
+}: LeaderboardTableProps) {
+  const safeLeaderboard = Array.isArray(leaderboard) ? leaderboard : [];
+  const safeDates = Array.isArray(dates) ? dates : [];
+
+  if (safeLeaderboard.length === 0) {
     return (
       <EmptyState
         icon={Trophy}
-        title="Todavía no hay puntos en el ranking"
+        title={categoryName ? `Todavía no hay puntos en ${categoryName}` : "Todavía no hay puntos en el ranking"}
         description="A medida que vincules fechas al circuito y se jueguen los partidos, los jugadores sumarán puntos automáticamente según la fase alcanzada."
       />
     );
@@ -22,10 +30,20 @@ export function LeaderboardTable({ leaderboard, dates }: LeaderboardTableProps) 
 
   return (
     <div className="space-y-4">
+      {categoryName && categoryName !== "General" && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+          <span>
+            Ranking de <strong>{categoryName}</strong> ·{" "}
+            <span className="tabular-nums font-medium text-foreground">
+              {safeLeaderboard.length} {safeLeaderboard.length === 1 ? "jugador" : "jugadores"}
+            </span>
+          </span>
+        </div>
+      )}
       <div
         tabIndex={0}
         role="region"
-        aria-label="Tabla general de posiciones del circuito"
+        aria-label={categoryName ? `Tabla de posiciones de ${categoryName}` : "Tabla de posiciones del circuito"}
         className="overflow-x-auto rounded-xl border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <table className="w-full text-left text-sm">
@@ -46,7 +64,7 @@ export function LeaderboardTable({ leaderboard, dates }: LeaderboardTableProps) 
               <th scope="col" className="px-4 py-3 text-center font-medium">
                 Fechas
               </th>
-              {dates.map((date) => (
+              {safeDates.map((date) => (
                 <th key={date.id} scope="col" className="px-4 py-3 text-center font-medium whitespace-nowrap">
                   Fecha {date.circuitOrder}
                 </th>
@@ -54,7 +72,7 @@ export function LeaderboardTable({ leaderboard, dates }: LeaderboardTableProps) 
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {leaderboard.map((player) => {
+            {safeLeaderboard.map((player) => {
               const isPodium = player.rank <= 3;
               return (
                 <tr
@@ -102,7 +120,7 @@ export function LeaderboardTable({ leaderboard, dates }: LeaderboardTableProps) 
                   <td className="px-4 py-3.5 text-center tabular-nums text-muted-foreground">
                     {player.tournamentsPlayed}
                   </td>
-                  {dates.map((date) => {
+                  {safeDates.map((date) => {
                     const perf = player.performances.find((p) => p.tournamentId === date.id);
                     if (!perf) {
                       return (
