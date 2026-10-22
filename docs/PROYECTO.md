@@ -1790,5 +1790,50 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** atender el pedido directo del usuario señalando que, al disputarse múltiples categorías (ej. 6ta Caballeros, Suma 10, Suma 13 Damas), mostrar a una única pareja como campeona de la fecha completa resultaba erróneo e incompleto.
 - **Cómo aplicar:** `components/circuits/circuit-dates-list.tsx`.
 
+### D-130 — Idempotencia estricta en ensurePlayoffBracket y ocultamiento de alerta de parejas sin categoría tras inicio del torneo (2026-10-22)
+- **Decisión:**
+  - **Idempotencia estricta de `ensurePlayoffBracket` (`app/(app)/torneos/[id]/cuadro/actions.ts`):**
+    - En torneos con categorías, las llamadas de conveniencia a `ensurePlayoffBracket` (al abrir `/partidos` o tras finalizar partidos de grupos en `recordResult`) iteraban categorías e inyectaban `qualifiersPerGroup: options?.qualifiersPerGroup ?? cat.playoffConfig?.qualifiersPerGroup`.
+    - Al estar `cat.playoffConfig?.qualifiersPerGroup` definido, la función hija recibía `qualifiersPerGroup` con valor numérico truthy. En consecuencia, la guarda de chequeo de partidos existentes `if (existing && existing.length > 0 && !options?.qualifiersPerGroup)` se saltaba y ejecutaba de nuevo `apply_bracket`.
+    - `apply_bracket` eliminaba todos los partidos de playoffs sin resultado y los recreaba con nuevos UUIDs en segundo plano, desincronizando la interfaz del cliente React. Cuando el organizador enviaba el resultado de un partido de octavos, la Server Action `recordResult` no encontraba el partido en la base de datos (`match` nulo) y devolvía el error genérico "No encontramos el partido o no tenés permiso para modificarlo".
+    - Se agregó el flag explícito `force?: boolean` a `options`. Si ya existen cruces de playoff en la base de datos y `!options?.force`, `ensurePlayoffBracket` retorna de forma inmediata e idempotente (`return { ok: true, count: existing.length }`) sin alterar la base de datos.
+    - La regeneración destructiva de cruces queda reservada exclusivamente a la acción explícita del organizador `generateBracket` (`force: true`).
+  - **Mensajería clara y defensiva en `recordResult` (`app/(app)/torneos/[id]/partidos/actions.ts`):**
+    - Se desacopló la validación inicial: si `!match`, devuelve el mensaje descriptivo `"El partido no se encontró en la base de datos (pudo haber cambiado tras regenerar el cuadro). Recargá la página."` (alineado con la resiliencia de `assignSlot` de D-126).
+    - Si faltan rivales definidos, se reporta `"El partido todavía no tiene ambos rivales definidos."`.
+    - En la llamada a la RPC `record_match_result`, el mensaje de fallback en fallos generales se cambió de *"No encontramos el partido o no tenés permiso para modificarlo"* a *"No pudimos guardar el resultado. Probá de nuevo."*, evitando diagnósticos erróneos o confusos de permisos.
+  - **Ocultamiento de banner de parejas sin categoría una vez iniciado el torneo (`app/(app)/torneos/[id]/grupos/page.tsx` y `components/registration/registrations-list.tsx`):**
+    - En la pestaña de Grupos (`/torneos/[id]/grupos`), el cartel informativo de advertencia sobre parejas sin categoría asignada ahora se condiciona a `!isTournamentStarted`. Se considera iniciado el torneo cuando el estado es `playoffs` o `finished`, cuando ya se disputó algún partido (`resultStatus !== null`), o cuando el estado es `group_stage` con zonas ya generadas. De este modo, una vez que el torneo está en marcha, no interfiere en la operativa de partidos y zonas.
+    - En `components/registration/registrations-list.tsx`, el banner `BulkAssignBanner` se condicionó a `canReview` para no mostrar acciones administrativas a usuarios no organizadores.
+- **Motivo:** solucionar el error reportado por el usuario donde al cargar el resultado de octavos de playoffs (Zapata/Retamar vs Fleischmann/Wendler) salía "No encontramos el partido o no tenés permiso para modificarlo", y quitar el cartel de parejas sin categoría tras arrancar el torneo.
+- **Cómo aplicar:** `app/(app)/torneos/[id]/cuadro/actions.ts`, `app/(app)/torneos/[id]/partidos/actions.ts`, `app/(app)/torneos/[id]/grupos/page.tsx`, `components/registration/registrations-list.tsx`.
+
+### D-131 — Ocultamiento de acciones de preparación ("Sortear todas las categorías" y enlace a Inscripciones) al iniciar categorías (2026-10-22)
+- **Decisión:**
+  - En la vista de Grupos (`app/(app)/torneos/[id]/grupos/page.tsx`), se introdujo `allCategoriesStarted`: se evalúa que todas las categorías del torneo se encuentren ya iniciadas (en estado `group_stage`, `playoffs`, `finished`, o con grupos sorteados o partidos jugados).
+  - Cuando todas las categorías han iniciado (`allCategoriesStarted`) o el torneo general ya comenzó (`isTournamentStarted`), se ocultan completamente las acciones de preparación situadas junto a *"Categoría seleccionada:"*:
+    1. El botón modal *"Sortear todas las categorías"* (`BulkDrawDialog`).
+    2. El enlace *"Ver categorías en Inscripciones"*.
+  - En `BulkDrawDialog` (`components/groups/bulk-draw-dialog.tsx`), se agregó un filtro de seguridad adicional: categorías en `playoffs` o `finished` quedan excluidas como elegibles. Si ninguna categoría es elegible para sorteo (`eligibleCategories.length === 0`), el componente no renderiza nada (`return null`), evitando botones inertes o confusos.
+  - En la acción masiva `drawAllCategories` (`app/(app)/torneos/[id]/grupos/actions.ts`), se saltean explícitamente categorías que ya se encuentren en `playoffs` o `finished`.
+  - En la vista del Cuadro (`app/(app)/torneos/[id]/cuadro/page.tsx`), el enlace *"Ver categorías en Inscripciones"* sobre las pestañas de categorías también se oculta una vez iniciado el torneo (`!isTournamentStarted`).
+- **Motivo:** responder al pedido directo del organizador para limpiar la interfaz de botones y enlaces de preparación previa (sorteo masivo y gestión de inscripciones) una vez que las categorías ya fueron sorteadas e iniciadas.
+- **Cómo aplicar:** `app/(app)/torneos/[id]/grupos/page.tsx`, `components/groups/bulk-draw-dialog.tsx`, `app/(app)/torneos/[id]/grupos/actions.ts`, `app/(app)/torneos/[id]/cuadro/page.tsx`.
+
+### D-132 — Cabecera pegajosa (Sticky Header) en tablas de ranking de circuitos (2026-10-22)
+- **Decisión:**
+  - En la tabla de posiciones del circuito (`LeaderboardTable` en `components/circuits/leaderboard-table.tsx`):
+    - Se delimitó la altura del contenedor con `max-h-[70dvh] sm:max-h-[75dvh]` y desplazamiento fluido (`overflow-auto`), conteniendo listas extensas de jugadores sin desbordar la pantalla verticalmente.
+    - Se fijó la cabecera `<thead>` y cada una de sus celdas `<th>` con `sticky top-0 z-20`, fondo semiopaco `bg-muted/95`, desenfoque `backdrop-blur-md`, borde inferior nítido `border-b border-border/80` y sombra sutil `shadow-xs`.
+    - Al desplazarse hacia abajo a través de los puestos (#15, #21, #24, etc.), las columnas (`Pos`, `Jugador`, `Puntos`, `Títulos`, `Fechas`, y las fechas del circuito) permanecen fijas arriba, garantizando que siempre se identifique qué representa cada valor sin perder la referencia.
+    - El desplazamiento horizontal (para consultar fechas específicas) mantiene la cabecera en perfecta sincronización con las columnas de datos.
+    - Se homogeneizaron los espaciados con `px-3 py-3 sm:px-4 sm:py-3.5` optimizados para lectura y uso táctil mobile.
+  - En `app/(app)/layout.tsx`:
+    - Se reemplazó `overflow-x-hidden` por `overflow-x-clip` en el contenedor raíz, evitando que el motor WebKit de iOS Safari inhabilite el comportamiento de `position: sticky` en `AppHeader` y elementos interiores.
+- **Motivo:** responder a la solicitud del usuario con boceto ilustrativo para que, al desplazarse hacia abajo en los rankings y ver puestos medios/bajos, la cabecera con los títulos de las columnas (Pos, Jugador, Puntos, Fechas) se mantenga visible y no se pierda la referencia de cada estadística.
+- **Cómo aplicar:** `components/circuits/leaderboard-table.tsx`, `app/(app)/layout.tsx`.
+
+
+
 
 

@@ -132,7 +132,13 @@ export const recordResult = createAction(recordResultSchema, async (input, { sup
     .eq("tournament_id", input.tournamentId)
     .maybeSingle();
   if (matchError) return actionError(dbErrorMessage(matchError));
-  if (!match || !match.tournaments || !match.home_team_id || !match.away_team_id) return actionError(NOT_FOUND);
+  if (!match) {
+    return actionError("El partido no se encontró en la base de datos (pudo haber cambiado tras regenerar el cuadro). Recargá la página.");
+  }
+  if (!match.tournaments) return actionError(NOT_FOUND);
+  if (!match.home_team_id || !match.away_team_id) {
+    return actionError("El partido todavía no tiene ambos rivales definidos.");
+  }
 
   let config: ScoringConfig;
   const categoryId = (match.category_id as string | null) ?? null;
@@ -207,7 +213,7 @@ export const recordResult = createAction(recordResultSchema, async (input, { sup
     p_is_draw: winnerSide === null,
     p_is_walkover: input.kind === "walkover",
   });
-  if (error) return actionError(dbErrorMessage(error, NOT_FOUND));
+  if (error) return actionError(dbErrorMessage(error, "No pudimos guardar el resultado. Probá de nuevo."));
 
   let scheduledNext = 0;
 

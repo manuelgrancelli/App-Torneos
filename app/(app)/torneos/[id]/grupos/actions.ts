@@ -166,6 +166,11 @@ export const drawAllCategories = createAction(
     const skippedCategories: string[] = [];
 
     for (const cat of categories) {
+      if (cat.status === "playoffs" || cat.status === "finished") {
+        skippedCategories.push(`${cat.name} (ya está en playoffs o finalizada)`);
+        continue;
+      }
+
       if (categoriesWithResults.has(cat.id)) {
         skippedCategories.push(`${cat.name} (ya tiene resultados cargados)`);
         continue;

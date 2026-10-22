@@ -33,6 +33,7 @@ export async function ensurePlayoffBracket(
     thirdPlace?: boolean;
     categoryId?: string;
     revalidate?: boolean;
+    force?: boolean;
   },
 ): Promise<{ ok: boolean; count?: number; error?: string; warnings?: string[] }> {
   const { data: tournament, error: tourError } = await supabase
@@ -55,8 +56,9 @@ export async function ensurePlayoffBracket(
       if (cat.status === "playoffs" || tournament.status === "playoffs" || catAllDone) {
         const res = await ensurePlayoffBracket(supabase, tournamentId, {
           categoryId: cat.id,
-          qualifiersPerGroup: options?.qualifiersPerGroup ?? cat.playoffConfig?.qualifiersPerGroup,
-          thirdPlace: options?.thirdPlace ?? cat.playoffConfig?.thirdPlace,
+          qualifiersPerGroup: options?.qualifiersPerGroup,
+          thirdPlace: options?.thirdPlace,
+          force: options?.force,
           revalidate: false,
         });
         if (res.ok) {
@@ -84,7 +86,7 @@ export async function ensurePlayoffBracket(
 
   const { data: existing, error: existError } = await existQuery.limit(1);
   if (existError) return { ok: false, error: dbErrorMessage(existError) };
-  if (existing && existing.length > 0 && !options?.qualifiersPerGroup) {
+  if (existing && existing.length > 0 && !options?.force) {
     return { ok: true, count: existing.length };
   }
 
@@ -198,6 +200,7 @@ export const generateBracket = createAction(generateBracketSchema, async (input,
     categoryId: input.categoryId,
     qualifiersPerGroup: input.qualifiersPerGroup,
     thirdPlace: input.thirdPlace,
+    force: true,
   });
   if (!result.ok) return actionError(result.error ?? "No pudimos generar el cuadro.");
   return actionOk({ warnings: result.warnings ?? [] }, "Generamos el cuadro.");

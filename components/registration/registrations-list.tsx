@@ -561,7 +561,7 @@ export function RegistrationsList({
             </p>
         </div>
       ) : null}
-      {categories && categories.length > 0 && teams.some((t) => !t.categoryId) ? (
+      {canReview && categories && categories.length > 0 && teams.some((t) => !t.categoryId) ? (
         <BulkAssignBanner
           tournamentId={tournamentId}
           unassignedCount={teams.filter((t) => !t.categoryId).length}

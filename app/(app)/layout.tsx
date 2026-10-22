@@ -18,7 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const role = await getAccountRole();
 
   return (
-    <div className="flex min-h-dvh flex-col overflow-x-hidden max-w-full">
+    <div className="flex min-h-dvh flex-col overflow-x-clip max-w-full">
       <SkipLink />
       <AppHeader user={user} role={role} />
       {/* pb-24 deja lugar a la barra inferior en mobile. */}

@@ -85,6 +85,12 @@ export default async function BracketPage({
   const championId = activeCategory?.championTeamId ?? tournament.championTeamId ?? finalMatch?.winnerTeamId;
   const champion = championId ? teamNames.get(championId) : null;
 
+  const isTournamentStarted =
+    tournament.status === "playoffs" ||
+    tournament.status === "finished" ||
+    competition.matches.some((m) => m.resultStatus !== null) ||
+    (tournament.status === "group_stage" && competition.groups.length > 0);
+
   // Si no hay grupos creados todavía para esta categoría ni partidos de playoff
   if (groups.length === 0 && playoffMatches.length === 0) {
     return (
@@ -93,12 +99,14 @@ export default async function BracketPage({
           <div className="space-y-1">
             <div className="flex items-center justify-between gap-4">
               <h2 className="text-sm font-medium text-muted-foreground">Categoría seleccionada:</h2>
-              <Link
-                href={`/torneos/${tournament.id}/inscripciones`}
-                className="text-xs text-primary hover:underline font-medium"
-              >
-                Ver categorías en Inscripciones
-              </Link>
+              {!isTournamentStarted ? (
+                <Link
+                  href={`/torneos/${tournament.id}/inscripciones`}
+                  className="text-xs text-primary hover:underline font-medium"
+                >
+                  Ver categorías en Inscripciones
+                </Link>
+              ) : null}
             </div>
             <CategoryTabs
               categories={competition.categories.map((c) => ({
@@ -181,12 +189,14 @@ export default async function BracketPage({
         <div className="space-y-1">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-sm font-medium text-muted-foreground">Categoría seleccionada:</h2>
-            <Link
-              href={`/torneos/${tournament.id}/inscripciones`}
-              className="text-xs text-primary hover:underline font-medium"
-            >
-              Ver categorías en Inscripciones
-            </Link>
+            {!isTournamentStarted ? (
+              <Link
+                href={`/torneos/${tournament.id}/inscripciones`}
+                className="text-xs text-primary hover:underline font-medium"
+              >
+                Ver categorías en Inscripciones
+              </Link>
+            ) : null}
           </div>
           <CategoryTabs
             categories={competition.categories.map((c) => ({

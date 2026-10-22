@@ -71,6 +71,27 @@ export default async function GroupsPage({
       tournament.status !== "group_stage"
     : false;
 
+  const isTournamentStarted =
+    tournament.status === "playoffs" ||
+    tournament.status === "finished" ||
+    competition.matches.some((m) => m.resultStatus !== null) ||
+    (tournament.status === "group_stage" && competition.groups.length > 0);
+
+  const allCategoriesStarted =
+    hasCategories &&
+    competition.categories.length > 0 &&
+    competition.categories.every((c) => {
+      const hasGroups = competition.groups.some((g) => g.categoryId === c.id);
+      const hasCatResults = competition.matches.some(
+        (m) => m.categoryId === c.id && m.resultStatus !== null
+      );
+      const isAdvancedStatus =
+        c.status === "group_stage" || c.status === "playoffs" || c.status === "finished";
+      return isAdvancedStatus || hasGroups || hasCatResults;
+    });
+
+  const shouldHideSetupActions = allCategoriesStarted || isTournamentStarted;
+
   const canEdit = isCategoryGroupStage && !hasResults;
   const scheduling = canEdit ? await getSchedulingData(tournament.id) : null;
   const categoryScoring = activeCategory?.scoringConfig ?? tournament.scoringConfig;
@@ -97,31 +118,33 @@ export default async function GroupsPage({
         <div className="space-y-1">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-sm font-medium text-muted-foreground">Categoría seleccionada:</h2>
-            <div className="flex items-center gap-3">
-              <BulkDrawDialog
-                tournamentId={tournament.id}
-                categories={competition.categories.map((c) => ({
-                  id: c.id,
-                  name: c.name,
-                  approvedCount: competition.teams.filter(
-                    (t) =>
-                      t.status === "approved" &&
-                      (t.categoryId === c.id || (!t.categoryId && competition.categories.length === 1)),
-                  ).length,
-                  hasResults: competition.matches.some(
-                    (m) => m.categoryId === c.id && m.resultStatus !== null,
-                  ),
-                  existingGroupsCount: competition.groups.filter((g) => g.categoryId === c.id).length,
-                  status: c.status,
-                }))}
-              />
-              <Link
-                href={`/torneos/${tournament.id}/inscripciones`}
-                className="text-xs text-primary hover:underline font-medium"
-              >
-                Ver categorías en Inscripciones
-              </Link>
-            </div>
+            {!shouldHideSetupActions ? (
+              <div className="flex items-center gap-3">
+                <BulkDrawDialog
+                  tournamentId={tournament.id}
+                  categories={competition.categories.map((c) => ({
+                    id: c.id,
+                    name: c.name,
+                    approvedCount: competition.teams.filter(
+                      (t) =>
+                        t.status === "approved" &&
+                        (t.categoryId === c.id || (!t.categoryId && competition.categories.length === 1)),
+                    ).length,
+                    hasResults: competition.matches.some(
+                      (m) => m.categoryId === c.id && m.resultStatus !== null,
+                    ),
+                    existingGroupsCount: competition.groups.filter((g) => g.categoryId === c.id).length,
+                    status: c.status,
+                  }))}
+                />
+                <Link
+                  href={`/torneos/${tournament.id}/inscripciones`}
+                  className="text-xs text-primary hover:underline font-medium"
+                >
+                  Ver categorías en Inscripciones
+                </Link>
+              </div>
+            ) : null}
           </div>
           <CategoryTabs
             categories={competition.categories.map((c) => ({
@@ -140,7 +163,7 @@ export default async function GroupsPage({
         </div>
       ) : null}
 
-      {hasCategories && competition.categories.length > 1 && unassignedTeams.length > 0 ? (
+      {!isTournamentStarted && hasCategories && competition.categories.length > 1 && unassignedTeams.length > 0 ? (
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
           <div className="flex items-center gap-2">
             <AlertCircle className="size-5 shrink-0 text-amber-600 dark:text-amber-400" />

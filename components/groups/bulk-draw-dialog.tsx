@@ -76,9 +76,14 @@ export function BulkDrawDialog({ tournamentId, categories }: BulkDrawDialogProps
     }));
   }
 
-  const eligibleCategories = categories.filter((c) => c.approvedCount >= 2 && !c.hasResults);
-  const blockedByResults = categories.filter((c) => c.hasResults);
-  const blockedByCount = categories.filter((c) => c.approvedCount < 2 && !c.hasResults);
+  const isCategoryLocked = (c: CategoryForBulkDraw) =>
+    c.hasResults || c.status === "playoffs" || c.status === "finished";
+
+  const eligibleCategories = categories.filter(
+    (c) => c.approvedCount >= 2 && !isCategoryLocked(c),
+  );
+  const blockedByResults = categories.filter((c) => isCategoryLocked(c));
+  const blockedByCount = categories.filter((c) => c.approvedCount < 2 && !isCategoryLocked(c));
 
   function onSubmit() {
     startTransition(async () => {
@@ -103,7 +108,7 @@ export function BulkDrawDialog({ tournamentId, categories }: BulkDrawDialogProps
     });
   }
 
-  if (categories.length <= 1) {
+  if (categories.length <= 1 || eligibleCategories.length === 0) {
     return null;
   }
 
