@@ -1979,4 +1979,68 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** responder a la solicitud del usuario ("el color verde de grupos de los que clasifican en modo claro es un verde muy claro, hacelo mas oscuro").
 - **Cómo aplicar:** `components/groups/standings-table.tsx`.
 
+### D-142 — Enmarcado de alto contraste con bordes grafito oscuro y líneas marcadas en tarjetas y secciones (2026-10-22)
+- **Decisión:**
+  - **Ajuste global de variables de color (`app/globals.css`):**
+    - Se calibró la variable `--border`, `--input` y `--sidebar-border` en `:root` claro a `oklch(0.30 0 0)` (un grafito carbón oscuro nítido ~#444444, con contraste 5.8:1 sobre fondo blanco) y `--ring` a `oklch(0.40 0 0)`.
+    - En `.dark`, se elevó `--border` a `oklch(1 0 0 / 18%)` e `--input` a `oklch(1 0 0 / 22%)`.
+  - **Formulario de código de acceso (`components/registration/join-code-form.tsx`):**
+    - Se reemplazó el marco pálido `border-primary/20` por un marco perimetral sólido `border-2 border-border` con `hover:border-primary`.
+    - El icono de ticket y el campo de código de 10 dígitos incorporan bordes definidos `border border-border` y `border border-input focus:border-ring`.
+  - **Estados vacíos (`components/shared/empty-state.tsx` y `components/ui/empty.tsx`):**
+    - Se reemplazó el trazado punteado débil de 1px por `border-2 border-dashed border-border`, logrando que los contenedores de estado vacío ("En curso", filtros sin resultados) tengan presencia visual firme y reconocible.
+    - Se añadió borde `border border-border shadow-2xs` al contenedor del icono en `EmptyMedia`.
+  - **Panel de torneos ("Mis torneos", `components/tournaments/tournament-dashboard.tsx`):**
+    - Secciones "Organizo" y "Participo": marco perimetral `border-2 border-border`, chevrons con borde definido `border border-border`, badges de estado y divisor interior superior `border-t-2 border-border`.
+    - Buscador reactivo y tabs: bordes nítidos sin reducción de opacidad (`border border-input`, `border border-border`).
+  - **Tarjetas de torneos (`components/tournaments/tournament-card.tsx` y `components/player/active-tournament-card.tsx`):**
+    - `OrganizedTournamentCard`, `ParticipationCard`, `FinishedTournamentCard` y `ActiveTournamentCard`: marco perimetral `border-2 border-border` con hover `hover:border-primary`, caja de emoji deportiva con `border border-border`, panel de equipo / parejas con `border border-border` y footer con `border-t border-border`.
+  - **Componentes base de tarjeta y KPIs (`components/ui/card.tsx`, `tournament-stats-summary.tsx`, `player-stats-summary.tsx`):**
+    - `Card` incorpora `border-2 border-border`, y los KPIs de estadísticas incorporan `border-2 border-border`.
+- **Motivo:** responder a la solicitud del usuario ("necesito que sean mas marcadas las lineas te dejo un boceto, porque sino no se nota mucho").
+- **Cómo aplicar:** `app/globals.css`, `components/registration/join-code-form.tsx`, `components/shared/empty-state.tsx`, `components/ui/empty.tsx`, `components/tournaments/tournament-dashboard.tsx`, `components/tournaments/tournament-card.tsx`, `components/player/active-tournament-card.tsx`, `components/ui/card.tsx`, `components/tournaments/tournament-stats-summary.tsx`, `components/player/player-stats-summary.tsx`.
+
+### D-143 — Filtro estricto de participaciones efectivas en torneos y circuitos para jugadores (2026-10-22)
+- **Decisión:**
+  - **Diagnóstico del problema:** Si un usuario se inscribía a un torneo y resultaba rechazado por el organizador (`status === 'rejected'`), se daba de baja, o fue aceptado pero el organizador nunca lo incluyó en ninguna categoría del torneo (`teams.category_id IS NULL` y sin grupo asignado en torneos multicategoría como "t 6ta cfeefefe"), el torneo seguía figurando bajo "Participo" en el dashboard de torneos. Además, si ese torneo pertenecía a un circuito, el jugador podía visualizar el circuito en la lista y acceder a su tabla general de posiciones aún sin haber disputado efectivamente ninguna fecha.
+  - **Exclusión en lista de torneos participados (`lib/data/tournaments.ts` - `listParticipations`):**
+    - Se descartaron equipos con estado rechazado (`status === 'rejected'`).
+    - Se descartaron equipos con estado pendiente (`pending`) si el torneo ya avanzó a fase de grupos, playoffs o finalizado (`status !== 'registration_open' && status !== 'draft'`).
+    - Para torneos con categorías (`tournament_categories.length > 0`), se exige que el equipo tenga `category_id` asignado o esté presente en `group_teams`. Si el organizador aceptó al equipo pero nunca lo asignó a ninguna categoría, el torneo no se lista en "Participo".
+  - **Restricción de circuitos a jugadores con participación efectiva (`lib/data/circuits.ts` y `app/(app)/circuitos/[id]/page.tsx`):**
+    - En `lib/data/circuits.ts`, se implementó y exportó la función `playerHasPlayedInCircuit(userId, circuitId)` y se adaptó `listParticipatingCircuits(userId)`.
+    - Un jugador solo califica como participante de un circuito si tiene un equipo con `status === 'approved'`, con categoría válida asignada (`category_id` o `group_teams`), en al menos una fecha del circuito que esté activa o completada (`group_stage`, `playoffs`, `finished`).
+    - En `app/(app)/circuitos/[id]/page.tsx`, si el usuario que accede no es organizador (`!isOrganizer`) y `playerHasPlayedInCircuit` devuelve `false`, se redirige inmediatamente a `/circuitos`, impidiendo la visualización de la tabla y detalles del circuito a usuarios que no hayan disputado ninguna fecha.
+  - **Sincronización de tipos TypeScript (`lib/supabase/database.types.ts`):**
+    - Se añadió la columna `category_id: string | null` a `teams.Row`, `teams.Insert` y `teams.Update` para concordar con la migración `20261008000300_integrated_tournament_categories.sql`.
+- **Motivo:** responder al requerimiento del usuario donde en un torneo aceptado pero sin categoría asignada por el organizador, el torneo no debe figurar en "Participo" ni habilitar la visualización de la tabla del circuito si nunca jugó al menos una fecha.
+- **Cómo aplicar:** `lib/supabase/database.types.ts`, `lib/data/tournaments.ts`, `lib/data/circuits.ts`, `app/(app)/circuitos/[id]/page.tsx`.
+
+### D-144 — Estilo verde interior y ejemplo de código ABCDE-FGHIJ en ingreso de torneos (2026-10-22)
+- **Decisión:**
+  - En el formulario de ingreso con código (`JoinCodeForm` en `components/registration/join-code-form.tsx`):
+    - Se cambió el placeholder de ejemplo de `XXXXX-XXXXX` a `ABCDE-FGHIJ`.
+    - Se adaptó el mensaje de error de longitud inválida para usar el mismo ejemplo coherente: `"El código tiene 10 letras y números (por ejemplo ABCDE-FGHIJ)."`.
+    - Se estilizó el interior del input con tono verde esmeralda visible de alto contraste tanto en tema claro como oscuro (`bg-emerald-100/90 dark:bg-emerald-950/60`), con tipografía legible de alto contraste (`text-emerald-950 dark:text-emerald-100`), texto de placeholder en tono esmeralda armónico (`placeholder:text-emerald-800/60 dark:placeholder:text-emerald-400/60`), bordes verdes firmes (`border-2 border-emerald-600/70 dark:border-emerald-500/70`) y estados focus acordes (`focus:bg-emerald-100 dark:focus:bg-emerald-950/80 focus:border-emerald-600 focus-visible:ring-emerald-500/30`).
+- **Motivo:** responder al requerimiento del usuario ("la parte donde hay que ingresar codigo del torneo que por dentro aparezca en verde, y uqe siga apareciendo el ejemplo del codigo pero en lugar de XXXXX-XXXXX aparezca ABCDE-FGHIJ").
+- **Cómo aplicar:** `components/registration/join-code-form.tsx`.
+
+### D-145 — Dashboard interactivo de circuitos con división entre Organizo y Participo (2026-10-22)
+- **Decisión:**
+  - Se creó el componente `CircuitDashboard` (`components/circuits/circuit-dashboard.tsx`) para la cuenta de organizador en `/circuitos`, replicando exactamente la estructura, ergonomía e interactividad de `TournamentDashboard`:
+    - **Segmented Control / Pestañas de filtrado:** Pestañas "Todos", "Organizo" y "Participo", cada una con su contador numérico en badge monocromático.
+    - **Buscador reactivo instantáneo:** Campo de búsqueda rápida con icono, botón de limpieza rápida ("X") y filtrado en tiempo real por nombre de circuito, deporte o descripción. Si una búsqueda no arroja resultados, despliega un estado vacío con botón para restablecer.
+    - **Sección plegable "Organizo":**
+      - Encabezado interactivo con chevron animado de 90°, título "Organizo", badge de cantidad de circuitos, subtítulo ("Circuitos anuales bajo tu administración") y badge de estado ("Plegar circuitos / Abierto" o "Ver circuitos / Cerrado").
+      - Panel interior con borde grafito oscuro `border-t-2 border-border`, que lista los circuitos creados por el organizador en grilla responsiva (`sm:grid-cols-2 lg:grid-cols-3`) o muestra un estado vacío con botón a `/circuitos/nuevo` si aún no tiene circuitos creados.
+    - **Sección plegable "Participo":**
+      - Encabezado idéntico con chevron animado, título "Participo", badge de cantidad de circuitos donde el usuario ha jugado efectivamente al menos una fecha, subtítulo ("Circuitos donde jugás al menos una fecha") y botón plegable.
+      - Panel interior que lista los circuitos participados en grilla responsiva o muestra un estado vacío informativo si aún no ha disputado fechas de circuitos.
+  - En `app/(app)/circuitos/page.tsx`, se integró `CircuitDashboard` para cuentas de organizador, pasando tanto `organizedCircuits` como `participatingCircuits`.
+- **Motivo:** responder a la solicitud del usuario ("para el que es organizador en circuitos debe tener la division como en torneos entre los circuitos que orgganiza y los que participa").
+- **Cómo aplicar:** `components/circuits/circuit-dashboard.tsx`, `app/(app)/circuitos/page.tsx`.
+
+
+
+
 

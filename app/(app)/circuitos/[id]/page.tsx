@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { CircuitTabsView } from "@/components/circuits/circuit-tabs-view";
 import { DeleteCircuitButton } from "@/components/circuits/delete-circuit-button";
 import { PageHeader } from "@/components/shared/page-header";
@@ -10,6 +10,7 @@ import {
   getCircuitDates,
   getCircuitDetail,
   getCircuitLeaderboardData,
+  playerHasPlayedInCircuit,
 } from "@/lib/data/circuits";
 
 export async function generateMetadata({ params }: PageProps<"/circuitos/[id]">) {
@@ -27,6 +28,14 @@ export default async function CircuitDetailPage({ params }: PageProps<"/circuito
   if (!circuit) notFound();
 
   const isOrganizer = circuit.organizerId === user.id;
+
+  // Un jugador solo puede ver el circuito si ha jugado al menos una fecha (D-143).
+  if (!isOrganizer) {
+    const hasPlayed = await playerHasPlayedInCircuit(user.id, circuit.id);
+    if (!hasPlayed) {
+      redirect("/circuitos");
+    }
+  }
 
   const [dates, availableTournaments, categoryLeaderboards] = await Promise.all([
     getCircuitDates(circuit.id),

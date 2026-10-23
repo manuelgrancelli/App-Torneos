@@ -19,7 +19,7 @@ type EmptyStateProps = {
 /** Estado vacío estándar para listados y secciones sin datos. */
 export function EmptyState({ icon: Icon, title, description, action }: EmptyStateProps) {
   return (
-    <Empty className="border border-dashed">
+    <Empty className="border-2 border-dashed border-border">
       <EmptyHeader>
         <EmptyMedia variant="icon">
           <Icon aria-hidden="true" />

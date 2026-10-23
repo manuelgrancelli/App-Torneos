@@ -25,11 +25,11 @@ export function ActiveTournamentCard({ participation, nextMatch, record }: Props
   return (
     <Link
       href={`/inscripciones/${participation.teamId}`}
-      className="group block space-y-4 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/5 via-card to-card p-4 shadow-xs transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-5"
+      className="group block space-y-4 rounded-2xl border-2 border-border bg-gradient-to-br from-primary/5 via-card to-card p-4 shadow-xs transition-all hover:-translate-y-0.5 hover:border-primary hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-5"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-background text-xl">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-xl">
             <span role="img" aria-label={tournament.sportName}>
               {getSportEmoji(tournament.sportName)}
             </span>
@@ -48,7 +48,7 @@ export function ActiveTournamentCard({ participation, nextMatch, record }: Props
 
       <PlayerStepper status={tournament.status} />
 
-      <div className="rounded-xl border border-border/60 bg-background/70 p-3 text-sm">
+      <div className="rounded-xl border border-border bg-background/70 p-3 text-sm">
         {participation.teamStatus === "pending" ? (
           <p className="flex items-start gap-2 text-amber-900 dark:text-amber-200">
             <Clock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />

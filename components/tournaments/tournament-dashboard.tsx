@@ -87,7 +87,7 @@ export function TournamentDashboard({
             Todos mis torneos
           </h2>
         ) : (
-          <div className="inline-flex rounded-xl bg-muted/60 p-1 border border-border/50 text-xs font-medium overflow-x-auto max-w-full">
+          <div className="inline-flex rounded-xl bg-muted/60 p-1 border border-border text-xs font-medium overflow-x-auto max-w-full">
             <button
               type="button"
               onClick={() => setActiveTab("all")}
@@ -99,7 +99,7 @@ export function TournamentDashboard({
               )}
             >
               <span>Todos</span>
-              <span className="rounded-full bg-muted px-1.5 py-0.2 text-[10px] tabular-nums font-mono">
+              <span className="rounded-full bg-muted px-1.5 py-0.2 text-[10px] tabular-nums font-mono border border-border/50">
                 {activeOrganized.length + participations.length}
               </span>
             </button>
@@ -118,7 +118,7 @@ export function TournamentDashboard({
               )}
             >
               <span>Organizo</span>
-              <span className="rounded-full bg-muted px-1.5 py-0.2 text-[10px] tabular-nums font-mono">
+              <span className="rounded-full bg-muted px-1.5 py-0.2 text-[10px] tabular-nums font-mono border border-border/50">
                 {activeOrganized.length}
               </span>
             </button>
@@ -137,7 +137,7 @@ export function TournamentDashboard({
               )}
             >
               <span>Participo</span>
-              <span className="rounded-full bg-muted px-1.5 py-0.2 text-[10px] tabular-nums font-mono">
+              <span className="rounded-full bg-muted px-1.5 py-0.2 text-[10px] tabular-nums font-mono border border-border/50">
                 {participations.length}
               </span>
             </button>
@@ -151,7 +151,7 @@ export function TournamentDashboard({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Buscar torneo o equipo..."
-            className="h-9 pl-9 pr-8 text-xs bg-muted/30 focus:bg-background rounded-xl border-border/70"
+            className="h-9 pl-9 pr-8 text-xs bg-muted/30 focus:bg-background rounded-xl border border-input focus:border-ring"
           />
           {searchQuery ? (
             <button
@@ -168,7 +168,7 @@ export function TournamentDashboard({
 
       {/* Empty state si el filtro por texto no encontró coincidencias */}
       {searchQuery && totalResults === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border p-8 text-center">
+        <div className="rounded-2xl border-2 border-dashed border-border p-8 text-center">
           <p className="text-sm font-medium text-foreground">
             No se encontraron torneos con &quot;{searchQuery}&quot;
           </p>
@@ -191,7 +191,7 @@ export function TournamentDashboard({
       {showActiveOrganized && (!searchQuery || filteredActiveOrganized.length > 0) ? (
         <section
           aria-labelledby="organizo"
-          className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-xs transition-colors"
+          className="overflow-hidden rounded-2xl border-2 border-border bg-card shadow-xs transition-colors"
         >
           <button
             type="button"
@@ -205,8 +205,8 @@ export function TournamentDashboard({
                 className={cn(
                   "flex size-8 shrink-0 items-center justify-center rounded-lg border transition-transform duration-200",
                   effectiveOrganizedOpen
-                    ? "rotate-90 border-primary/40 bg-primary/10 text-primary"
-                    : "border-border/60 bg-muted/50 text-muted-foreground",
+                    ? "rotate-90 border-primary bg-primary/10 text-primary"
+                    : "border-border bg-muted/50 text-muted-foreground",
                 )}
               >
                 <ChevronRight className="size-4" aria-hidden="true" />
@@ -216,7 +216,7 @@ export function TournamentDashboard({
                   <h2 id="organizo" className="text-base font-semibold text-foreground leading-tight">
                     Organizo
                   </h2>
-                  <Badge variant="secondary" className="text-xs font-medium">
+                  <Badge variant="secondary" className="text-xs font-medium border border-border/50">
                     {filteredActiveOrganized.length} {filteredActiveOrganized.length === 1 ? "torneo" : "torneos"}
                   </Badge>
                 </div>
@@ -234,7 +234,7 @@ export function TournamentDashboard({
                 className={cn(
                   "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
                   effectiveOrganizedOpen
-                    ? "border-primary/30 bg-primary/10 text-primary"
+                    ? "border-primary/50 bg-primary/10 text-primary"
                     : "border-border bg-background text-muted-foreground",
                 )}
               >
@@ -246,7 +246,7 @@ export function TournamentDashboard({
           {effectiveOrganizedOpen && (
             <div
               id="organizo-panel"
-              className="border-t border-border/60 bg-muted/20 p-3.5 sm:p-4"
+              className="border-t-2 border-border bg-muted/20 p-3.5 sm:p-4"
             >
               {filteredActiveOrganized.length === 0 ? (
                 <EmptyState
@@ -273,7 +273,7 @@ export function TournamentDashboard({
       {showParticipations && (!searchQuery || filteredParticipations.length > 0) ? (
         <section
           aria-labelledby="participo"
-          className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-xs transition-colors"
+          className="overflow-hidden rounded-2xl border-2 border-border bg-card shadow-xs transition-colors"
         >
           <button
             type="button"
@@ -287,8 +287,8 @@ export function TournamentDashboard({
                 className={cn(
                   "flex size-8 shrink-0 items-center justify-center rounded-lg border transition-transform duration-200",
                   effectiveParticipatingOpen
-                    ? "rotate-90 border-primary/40 bg-primary/10 text-primary"
-                    : "border-border/60 bg-muted/50 text-muted-foreground",
+                    ? "rotate-90 border-primary bg-primary/10 text-primary"
+                    : "border-border bg-muted/50 text-muted-foreground",
                 )}
               >
                 <ChevronRight className="size-4" aria-hidden="true" />
@@ -298,7 +298,7 @@ export function TournamentDashboard({
                   <h2 id="participo" className="text-base font-semibold text-foreground leading-tight">
                     Participo
                   </h2>
-                  <Badge variant="secondary" className="text-xs font-medium">
+                  <Badge variant="secondary" className="text-xs font-medium border border-border/50">
                     {filteredParticipations.length} {filteredParticipations.length === 1 ? "torneo" : "torneos"}
                   </Badge>
                 </div>
@@ -316,7 +316,7 @@ export function TournamentDashboard({
                 className={cn(
                   "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
                   effectiveParticipatingOpen
-                    ? "border-primary/30 bg-primary/10 text-primary"
+                    ? "border-primary/50 bg-primary/10 text-primary"
                     : "border-border bg-background text-muted-foreground",
                 )}
               >
@@ -328,7 +328,7 @@ export function TournamentDashboard({
           {effectiveParticipatingOpen && (
             <div
               id="participo-panel"
-              className="border-t border-border/60 bg-muted/20 p-3.5 sm:p-4"
+              className="border-t-2 border-border bg-muted/20 p-3.5 sm:p-4"
             >
               {filteredParticipations.length === 0 ? (
                 <EmptyState

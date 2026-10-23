@@ -106,63 +106,189 @@ export const listOrganizedCircuits = cache(
   },
 );
 
-/** Listado de circuitos en los que participa el jugador (al menos una fecha anotado). */
+/**
+ * Verifica si un jugador ha jugado efectivamente al menos una fecha en un circuito determinado.
+ * Requiere que en al menos un torneo del circuito que esté en juego o finalizado:
+ * - El equipo esté aprobado.
+ * - Si el torneo tiene categorías configuradas, el equipo esté asignado a una de ellas.
+ */
+export const playerHasPlayedInCircuit = cache(
+  async (userId: string, circuitId: string): Promise<boolean> => {
+    const supabase = await createClient();
+
+    // 1. Torneos del circuito que hayan comenzado o finalizado
+    const { data: tourRows, error: tourError } = await supabase
+      .from("tournaments")
+      .select("id, status")
+      .eq("circuit_id", circuitId)
+      .in("status", ["group_stage", "playoffs", "finished"]);
+
+    if (tourError || !tourRows || tourRows.length === 0) {
+      return false;
+    }
+
+    const tournamentIds = tourRows.map((t) => t.id);
+
+    // 2. Equipos aprobados del usuario en esos torneos
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: memberRows, error: memberError } = await (supabase as any)
+      .from("team_members")
+      .select("team_id, teams!inner(id, tournament_id, status, category_id)")
+      .eq("user_id", userId)
+      .eq("teams.status", "approved")
+      .in("teams.tournament_id", tournamentIds);
+
+    if (memberError || !memberRows || memberRows.length === 0) {
+      return false;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const candidateTeams: any[] = memberRows.map((m: any) => m.teams).filter(Boolean);
+
+    // 3. Categorías de esos torneos
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: catRows } = await (supabase as any)
+      .from("tournament_categories")
+      .select("id, tournament_id")
+      .in("tournament_id", tournamentIds);
+
+    const categoriesByTournament = new Map<string, string[]>();
+    for (const cat of catRows ?? []) {
+      const list = categoriesByTournament.get(cat.tournament_id) ?? [];
+      list.push(cat.id);
+      categoriesByTournament.set(cat.tournament_id, list);
+    }
+
+    // 4. Mapeo de grupos para equipos sin category_id directo
+    const unassignedTeamIds = candidateTeams
+      .filter((tm) => !tm.category_id && (categoriesByTournament.get(tm.tournament_id)?.length ?? 0) > 0)
+      .map((tm) => tm.id);
+
+    const groupTeamCatMap = new Map<string, string>();
+    if (unassignedTeamIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: gtRows } = await (supabase as any)
+        .from("group_teams")
+        .select("team_id, groups(category_id)")
+        .in("team_id", unassignedTeamIds);
+
+      for (const gt of gtRows ?? []) {
+        if (gt.team_id && gt.groups?.category_id) {
+          groupTeamCatMap.set(gt.team_id, gt.groups.category_id);
+        }
+      }
+    }
+
+    // 5. Verificar si al menos un equipo participó válidamente con categoría en su fecha
+    for (const team of candidateTeams) {
+      const tourCats = categoriesByTournament.get(team.tournament_id) ?? [];
+      if (tourCats.length > 0) {
+        const effectiveCatId = team.category_id ?? groupTeamCatMap.get(team.id) ?? null;
+        if (!effectiveCatId || !tourCats.includes(effectiveCatId)) {
+          // El equipo no participó en ninguna categoría del torneo
+          continue;
+        }
+      }
+      return true;
+    }
+
+    return false;
+  },
+);
+
+/** Listado de circuitos en los que el jugador ha jugado efectivamente al menos una fecha. */
 export const listParticipatingCircuits = cache(
   async (userId: string): Promise<{ circuits: CircuitListItem[]; migrationPending: boolean }> => {
     const supabase = await createClient();
 
-    // 1. Torneos donde el usuario integra un equipo (no rechazado)
-    const { data: memberRows, error: memberError } = await supabase
+    // 1. Torneos asociados a circuitos que ya estén en juego o finalizados donde el usuario tiene un equipo aprobado
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: memberRows, error: memberError } = await (supabase as any)
       .from("team_members")
-      .select("teams!inner(tournament_id, status)")
-      .eq("user_id", userId);
+      .select("team_id, teams!inner(id, tournament_id, status, category_id, tournaments!teams_tournament_id_fkey!inner(id, circuit_id, status))")
+      .eq("user_id", userId)
+      .eq("teams.status", "approved")
+      .not("teams.tournaments.circuit_id", "is", null)
+      .in("teams.tournaments.status", ["group_stage", "playoffs", "finished"]);
 
     if (memberError) {
       if (isSchemaPendingError(memberError)) return { circuits: [], migrationPending: false };
       throw memberError;
     }
 
+    if (!memberRows || memberRows.length === 0) {
+      return { circuits: [], migrationPending: false };
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tournamentIds = Array.from(
-      new Set(
-        (memberRows ?? [])
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .filter((m: any) => m.teams && m.teams.status !== "rejected")
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map((m: any) => m.teams.tournament_id)
-          .filter(Boolean),
-      ),
-    );
+    const candidateTeams: any[] = memberRows.map((m: any) => ({
+      ...m.teams,
+      tournament: m.teams.tournaments,
+    }));
 
-    if (tournamentIds.length === 0) {
+    const tournamentIds = Array.from(new Set(candidateTeams.map((tm) => tm.tournament_id)));
+
+    // 2. Traer categorías de esos torneos
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: catRows } = await (supabase as any)
+      .from("tournament_categories")
+      .select("id, tournament_id")
+      .in("tournament_id", tournamentIds);
+
+    const categoriesByTournament = new Map<string, string[]>();
+    for (const cat of catRows ?? []) {
+      const list = categoriesByTournament.get(cat.tournament_id) ?? [];
+      list.push(cat.id);
+      categoriesByTournament.set(cat.tournament_id, list);
+    }
+
+    // 3. Fallback de categorías por group_teams
+    const unassignedTeamIds = candidateTeams
+      .filter((tm) => !tm.category_id && (categoriesByTournament.get(tm.tournament_id)?.length ?? 0) > 0)
+      .map((tm) => tm.id);
+
+    const groupTeamCatMap = new Map<string, string>();
+    if (unassignedTeamIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: gtRows } = await (supabase as any)
+        .from("group_teams")
+        .select("team_id, groups(category_id)")
+        .in("team_id", unassignedTeamIds);
+
+      for (const gt of gtRows ?? []) {
+        if (gt.team_id && gt.groups?.category_id) {
+          groupTeamCatMap.set(gt.team_id, gt.groups.category_id);
+        }
+      }
+    }
+
+    // 4. Filtrar los circuitIds donde el usuario realmente compitió en una categoría
+    const playedCircuitIds = new Set<string>();
+    for (const tm of candidateTeams) {
+      const circuitId = tm.tournament?.circuit_id;
+      if (!circuitId) continue;
+
+      const tourCats = categoriesByTournament.get(tm.tournament_id) ?? [];
+      if (tourCats.length > 0) {
+        const effectiveCatId = tm.category_id ?? groupTeamCatMap.get(tm.id) ?? null;
+        if (!effectiveCatId || !tourCats.includes(effectiveCatId)) {
+          // No participó en ninguna categoría
+          continue;
+        }
+      }
+
+      playedCircuitIds.add(circuitId);
+    }
+
+    if (playedCircuitIds.size === 0) {
       return { circuits: [], migrationPending: false };
     }
 
-    // 2. Torneos asociados a circuitos
-    const { data: tourRows, error: tourError } = await supabase
-      .from("tournaments")
-      .select("id, circuit_id")
-      .in("id", tournamentIds)
-      .not("circuit_id", "is", null);
-
-    if (tourError) {
-      if (isSchemaPendingError(tourError)) return { circuits: [], migrationPending: true };
-      throw tourError;
-    }
-
-    const circuitIds = Array.from(
-      new Set((tourRows ?? []).map((t) => t.circuit_id).filter(Boolean)),
-    );
-
-    if (circuitIds.length === 0) {
-      return { circuits: [], migrationPending: false };
-    }
-
-    // 3. Obtener los circuitos con deporte y conteo de fechas
+    // 5. Obtener los circuitos con deporte y conteo de fechas
     const { data, error } = await supabase
       .from("circuits")
       .select("id, name, slug, sport_id, year, description, created_at, sports(name), tournaments(id)")
-      .in("id", circuitIds)
+      .in("id", Array.from(playedCircuitIds))
       .order("year", { ascending: false })
       .order("created_at", { ascending: false });
 

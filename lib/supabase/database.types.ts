@@ -287,13 +287,13 @@ isOneToOne: false
                   ]
                 },"teams": {
                   Row: {
-                    "captain_id": string,"created_at": string,"id": string,"name": string,"organizer_registered": boolean,"status": Database["public"]['Enums']["team_status"],"test_generated": boolean,"tournament_id": string,"updated_at": string
+                    "captain_id": string,"category_id": string | null,"created_at": string,"id": string,"name": string,"organizer_registered": boolean,"status": Database["public"]['Enums']["team_status"],"test_generated": boolean,"tournament_id": string,"updated_at": string
                   }
                   Insert: {
-                    "captain_id": string,"created_at"?: string,"id"?: string,"name": string,"organizer_registered"?: boolean,"status"?: Database["public"]['Enums']["team_status"],"test_generated"?: boolean,"tournament_id": string,"updated_at"?: string
+                    "captain_id": string,"category_id"?: string | null,"created_at"?: string,"id"?: string,"name": string,"organizer_registered"?: boolean,"status"?: Database["public"]['Enums']["team_status"],"test_generated"?: boolean,"tournament_id": string,"updated_at"?: string
                   }
                   Update: {
-                    "captain_id"?: string,"created_at"?: string,"id"?: string,"name"?: string,"organizer_registered"?: boolean,"status"?: Database["public"]['Enums']["team_status"],"test_generated"?: boolean,"tournament_id"?: string,"updated_at"?: string
+                    "captain_id"?: string,"category_id"?: string | null,"created_at"?: string,"id"?: string,"name"?: string,"organizer_registered"?: boolean,"status"?: Database["public"]['Enums']["team_status"],"test_generated"?: boolean,"tournament_id"?: string,"updated_at"?: string
                   }
                   Relationships: [
                     {

@@ -26,7 +26,7 @@ export function OrganizedTournamentCard({ tournament }: { tournament: Tournament
   return (
     <Link
       href={`/torneos/${tournament.id}`}
-      className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border-2 border-border bg-card p-4 sm:p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-primary hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {/* Indicador de estado superior */}
       <div
@@ -44,7 +44,7 @@ export function OrganizedTournamentCard({ tournament }: { tournament: Tournament
         {/* Cabecera con deporte, nombre y badges */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted/60 text-lg border border-border/60 shadow-2xs group-hover:scale-105 group-hover:bg-muted transition-transform">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted/60 text-lg border border-border shadow-2xs group-hover:scale-105 group-hover:bg-muted transition-transform">
               <span role="img" aria-label={tournament.sportName}>
                 {getSportEmoji(tournament.sportName)}
               </span>
@@ -99,7 +99,7 @@ export function OrganizedTournamentCard({ tournament }: { tournament: Tournament
         )}
 
         {/* Panel de parejas inscriptas */}
-        <div className="space-y-1.5 rounded-xl bg-muted/30 p-3 border border-border/40">
+        <div className="space-y-1.5 rounded-xl bg-muted/30 p-3 border border-border">
           <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
               <Users className="size-3.5 text-primary" aria-hidden="true" />
@@ -122,7 +122,7 @@ export function OrganizedTournamentCard({ tournament }: { tournament: Tournament
       </div>
 
       {/* Footer con fechas y botón de administrar */}
-      <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3 text-xs text-muted-foreground">
+      <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
           <CalendarDays className="size-3.5" aria-hidden="true" />
           {formatDateRange(tournament.startsOn, tournament.endsOn)}
@@ -144,13 +144,13 @@ export function ParticipationCard({ participation }: { participation: Participat
   return (
     <Link
       href={`/inscripciones/${participation.teamId}`}
-      className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border-2 border-border bg-card p-4 sm:p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-primary hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="space-y-3.5">
         {/* Cabecera */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted/60 text-lg border border-border/60 shadow-2xs group-hover:scale-105 group-hover:bg-muted transition-transform">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted/60 text-lg border border-border shadow-2xs group-hover:scale-105 group-hover:bg-muted transition-transform">
               <span role="img" aria-label={tournament.sportName}>
                 {getSportEmoji(tournament.sportName)}
               </span>
@@ -169,7 +169,7 @@ export function ParticipationCard({ participation }: { participation: Participat
         </div>
 
         {/* Detalle del equipo del participante */}
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-muted/30 p-3 border border-border/40">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-muted/30 p-3 border border-border">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary font-bold text-xs">
               <ShieldCheck className="size-4" aria-hidden="true" />
@@ -183,7 +183,7 @@ export function ParticipationCard({ participation }: { participation: Participat
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <span className="rounded-md border bg-background/80 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <span className="rounded-md border border-border bg-background/80 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
               {participation.role === "captain" ? "Capitán" : "Jugador"}
             </span>
             <TeamStatusBadge status={participation.teamStatus} />
@@ -192,7 +192,7 @@ export function ParticipationCard({ participation }: { participation: Participat
       </div>
 
       {/* Footer */}
-      <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3 text-xs text-muted-foreground">
+      <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
           <CalendarDays className="size-3.5" aria-hidden="true" />
           {formatDateRange(tournament.startsOn, tournament.endsOn)}
@@ -215,7 +215,7 @@ export function FinishedTournamentCard({ tournament }: { tournament: TournamentL
   return (
     <Link
       href={`/torneos/${tournament.id}`}
-      className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border-2 border-border bg-card p-4 sm:p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-primary hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {/* Indicador de estado superior neutral / zinc */}
       <div className="absolute inset-x-0 top-0 h-1 bg-zinc-400/80" />
@@ -224,7 +224,7 @@ export function FinishedTournamentCard({ tournament }: { tournament: TournamentL
         {/* Cabecera con deporte, nombre y badges */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted/60 text-lg border border-border/60 shadow-2xs group-hover:scale-105 group-hover:bg-muted transition-transform">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted/60 text-lg border border-border shadow-2xs group-hover:scale-105 group-hover:bg-muted transition-transform">
               <span role="img" aria-label={tournament.sportName}>
                 {getSportEmoji(tournament.sportName)}
               </span>
@@ -259,14 +259,14 @@ export function FinishedTournamentCard({ tournament }: { tournament: TournamentL
             {categories.slice(0, 3).map((cat) => (
               <span
                 key={cat.id}
-                className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-foreground"
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-foreground"
               >
                 <span className="truncate max-w-[110px]">{cat.name}</span>
                 <span className="font-mono text-[10px] text-muted-foreground">({cat.approvedTeams})</span>
               </span>
             ))}
             {categories.length > 3 ? (
-              <span className="text-[10px] font-medium text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded-md">
+              <span className="text-[10px] font-medium text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded-md border border-border/50">
                 +{categories.length - 3} más
               </span>
             ) : null}
@@ -274,7 +274,7 @@ export function FinishedTournamentCard({ tournament }: { tournament: TournamentL
         ) : null}
 
         {/* Estado finalizado */}
-        <div className="flex items-center gap-2 rounded-xl bg-muted/30 border border-border/40 p-2.5 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 rounded-xl bg-muted/30 border border-border p-2.5 text-xs text-muted-foreground">
           <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
           <span>Edición finalizada y resultados archivados</span>
         </div>
@@ -293,7 +293,7 @@ export function FinishedTournamentCard({ tournament }: { tournament: TournamentL
       </div>
 
       {/* Footer con fechas y botón de ver */}
-      <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3 text-xs text-muted-foreground">
+      <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
           <CalendarDays className="size-3.5" aria-hidden="true" />
           {formatDateRange(tournament.startsOn, tournament.endsOn)}

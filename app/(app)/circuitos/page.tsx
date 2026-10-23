@@ -1,7 +1,8 @@
-import { Layers, Plus, Trophy } from "lucide-react";
+import { Plus, Trophy } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CircuitCard } from "@/components/circuits/circuit-card";
+import { CircuitDashboard } from "@/components/circuits/circuit-dashboard";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -66,8 +67,7 @@ export default async function CircuitsPage() {
   ]);
 
   const { circuits: organizedCircuits, migrationPending } = organizedResult;
-  const organizedIds = new Set(organizedCircuits.map((c) => c.id));
-  const otherParticipating = participatingResult.circuits.filter((c) => !organizedIds.has(c.id));
+  const { circuits: participatingCircuits } = participatingResult;
 
   return (
     <>
@@ -86,7 +86,7 @@ export default async function CircuitsPage() {
         }
       />
 
-      <div className="space-y-8">
+      <div className="space-y-6">
         {migrationPending ? (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-sm">
             <h2 className="text-base font-semibold text-amber-500 mb-2">
@@ -102,41 +102,14 @@ export default async function CircuitsPage() {
               El archivo listo para copiar está en: <code className="font-mono text-foreground font-semibold">supabase/migrations/20261006000100_circuits.sql</code>
             </p>
           </div>
-        ) : organizedCircuits.length === 0 ? (
-          <EmptyState
-            icon={Layers}
-            title="No creaste circuitos todavía"
-            description="Creá un circuito para agrupar varias fechas de torneo y consolidar una tabla general con puntos por jugador."
-            action={
-              <Button asChild variant="outline">
-                <Link href="/circuitos/nuevo">Crear circuito</Link>
-              </Button>
-            }
-          />
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {organizedCircuits.map((circuit) => (
-              <CircuitCard key={circuit.id} circuit={circuit} />
-            ))}
-          </div>
-        )}
-
-        {otherParticipating.length > 0 && (
-          <section className="space-y-4 pt-6 border-t">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight">Circuitos donde juego</h2>
-              <p className="text-sm text-muted-foreground">
-                Circuitos organizados por otros clubes o usuarios donde participás como jugador.
-              </p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {otherParticipating.map((circuit) => (
-                <CircuitCard key={circuit.id} circuit={circuit} />
-              ))}
-            </div>
-          </section>
+          <CircuitDashboard
+            organized={organizedCircuits}
+            participating={participatingCircuits}
+          />
         )}
       </div>
     </>
   );
 }
+

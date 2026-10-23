@@ -42,12 +42,12 @@ export function TournamentStatsSummary({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {/* KPI 1: Organizador */}
-        <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-4 shadow-2xs transition-all hover:border-border">
+        <div className="relative overflow-hidden rounded-2xl border-2 border-border bg-card p-4 shadow-2xs transition-all hover:border-primary">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">
               Torneos que organizo
             </span>
-            <div className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary border border-border/50">
               <Trophy className="size-4" aria-hidden="true" />
             </div>
           </div>
@@ -66,12 +66,12 @@ export function TournamentStatsSummary({
         </div>
 
         {/* KPI 2: Participante */}
-        <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-4 shadow-2xs transition-all hover:border-border">
+        <div className="relative overflow-hidden rounded-2xl border-2 border-border bg-card p-4 shadow-2xs transition-all hover:border-primary">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">
               Torneos donde juego
             </span>
-            <div className="flex size-7 items-center justify-center rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-border/50">
               <Users className="size-4" aria-hidden="true" />
             </div>
           </div>
@@ -88,10 +88,10 @@ export function TournamentStatsSummary({
         {/* KPI 3: Atención Requerida */}
         <div
           className={cn(
-            "relative overflow-hidden rounded-2xl border p-4 shadow-2xs transition-all",
+            "relative overflow-hidden rounded-2xl border-2 p-4 shadow-2xs transition-all",
             totalPendingReviews > 0
-              ? "border-amber-500/30 bg-amber-500/5 text-amber-950 dark:text-amber-200"
-              : "border-border/80 bg-card"
+              ? "border-amber-500/50 bg-amber-500/5 text-amber-950 dark:text-amber-200"
+              : "border-border bg-card hover:border-primary"
           )}
         >
           <div className="flex items-center justify-between">

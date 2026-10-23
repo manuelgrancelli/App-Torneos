@@ -21,10 +21,10 @@ export function PlayerStatsSummary({ tournaments, stats }: { tournaments: number
       </h2>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {items.map((item) => (
-          <div key={item.label} className="rounded-2xl border border-border/80 bg-card p-4 shadow-2xs">
+          <div key={item.label} className="rounded-2xl border-2 border-border bg-card p-4 shadow-2xs">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">{item.label}</span>
-              <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary border border-border/50">
                 <item.icon className="size-4" aria-hidden="true" />
               </span>
             </div>
