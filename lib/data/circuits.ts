@@ -106,9 +106,91 @@ export const listOrganizedCircuits = cache(
   },
 );
 
-/** Obtiene el circuito para el organizador. */
-export const getOrganizerCircuit = cache(
-  async (circuitId: string, userId: string): Promise<CircuitDetail | null> => {
+/** Listado de circuitos en los que participa el jugador (al menos una fecha anotado). */
+export const listParticipatingCircuits = cache(
+  async (userId: string): Promise<{ circuits: CircuitListItem[]; migrationPending: boolean }> => {
+    const supabase = await createClient();
+
+    // 1. Torneos donde el usuario integra un equipo (no rechazado)
+    const { data: memberRows, error: memberError } = await supabase
+      .from("team_members")
+      .select("teams!inner(tournament_id, status)")
+      .eq("user_id", userId);
+
+    if (memberError) {
+      if (isSchemaPendingError(memberError)) return { circuits: [], migrationPending: false };
+      throw memberError;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tournamentIds = Array.from(
+      new Set(
+        (memberRows ?? [])
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .filter((m: any) => m.teams && m.teams.status !== "rejected")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((m: any) => m.teams.tournament_id)
+          .filter(Boolean),
+      ),
+    );
+
+    if (tournamentIds.length === 0) {
+      return { circuits: [], migrationPending: false };
+    }
+
+    // 2. Torneos asociados a circuitos
+    const { data: tourRows, error: tourError } = await supabase
+      .from("tournaments")
+      .select("id, circuit_id")
+      .in("id", tournamentIds)
+      .not("circuit_id", "is", null);
+
+    if (tourError) {
+      if (isSchemaPendingError(tourError)) return { circuits: [], migrationPending: true };
+      throw tourError;
+    }
+
+    const circuitIds = Array.from(
+      new Set((tourRows ?? []).map((t) => t.circuit_id).filter(Boolean)),
+    );
+
+    if (circuitIds.length === 0) {
+      return { circuits: [], migrationPending: false };
+    }
+
+    // 3. Obtener los circuitos con deporte y conteo de fechas
+    const { data, error } = await supabase
+      .from("circuits")
+      .select("id, name, slug, sport_id, year, description, created_at, sports(name), tournaments(id)")
+      .in("id", circuitIds)
+      .order("year", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      if (isSchemaPendingError(error)) return { circuits: [], migrationPending: true };
+      throw error;
+    }
+
+    return {
+      circuits: (data ?? []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        sportId: c.sport_id,
+        sportName: c.sports?.name ?? "",
+        year: c.year,
+        description: c.description,
+        tournamentsCount: c.tournaments?.length ?? 0,
+        createdAt: c.created_at,
+      })),
+      migrationPending: false,
+    };
+  },
+);
+
+/** Obtiene el detalle general de un circuito (disponible públicamente y para participantes). */
+export const getCircuitDetail = cache(
+  async (circuitId: string): Promise<CircuitDetail | null> => {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("circuits")
@@ -120,7 +202,7 @@ export const getOrganizerCircuit = cache(
       if (isSchemaPendingError(error)) return null;
       throw error;
     }
-    if (!data || data.organizer_id !== userId) return null;
+    if (!data) return null;
 
     return {
       id: data.id,
@@ -134,6 +216,15 @@ export const getOrganizerCircuit = cache(
       organizerId: data.organizer_id,
       createdAt: data.created_at,
     };
+  },
+);
+
+/** Obtiene el circuito para el organizador (solo si es el creador). */
+export const getOrganizerCircuit = cache(
+  async (circuitId: string, userId: string): Promise<CircuitDetail | null> => {
+    const circuit = await getCircuitDetail(circuitId);
+    if (!circuit || circuit.organizerId !== userId) return null;
+    return circuit;
   },
 );
 
@@ -238,14 +329,50 @@ export const getCircuitLeaderboardData = cache(
     if (matchError) throw matchError;
 
     // 4. Obtener equipos y sus miembros
+    // Intento 1: Llamar a la función RPC con SECURITY DEFINER (evita que RLS oculte a otros jugadores al consultar como jugador)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: teams, error: teamError } = await (supabase as any)
-      .from("teams")
-      .select("id, tournament_id, category_id, name, team_members(user_id, display_name, profiles(full_name))")
-      .in("tournament_id", tournamentIds)
-      .neq("status", "rejected");
+    let teamsWithMembers: any[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: rpcRows, error: rpcError } = await (supabase as any).rpc("get_circuit_teams_and_members", {
+      p_tournament_ids: tournamentIds,
+    });
 
-    if (teamError) throw teamError;
+    if (!rpcError && Array.isArray(rpcRows) && rpcRows.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const byTeam = new Map<string, any>();
+      for (const row of rpcRows) {
+        let tm = byTeam.get(row.team_id);
+        if (!tm) {
+          tm = {
+            id: row.team_id,
+            tournament_id: row.tournament_id,
+            category_id: row.category_id,
+            name: row.team_name,
+            team_members: [],
+          };
+          byTeam.set(row.team_id, tm);
+        }
+        if (row.user_id || row.display_name || row.full_name) {
+          tm.team_members.push({
+            user_id: row.user_id,
+            display_name: row.display_name,
+            profiles: row.full_name ? { full_name: row.full_name } : null,
+          });
+        }
+      }
+      teamsWithMembers = Array.from(byTeam.values());
+    } else {
+      // Fallback a consulta directa sobre teams
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: directTeams, error: teamError } = await (supabase as any)
+        .from("teams")
+        .select("id, tournament_id, category_id, name, team_members(user_id, display_name, profiles(full_name))")
+        .in("tournament_id", tournamentIds)
+        .neq("status", "rejected");
+
+      if (teamError) throw teamError;
+      teamsWithMembers = directTeams ?? [];
+    }
 
     // 5. Mapear para el motor de dominio multideporte / multicategoría
     const multiCatTournaments: CircuitMultiCategoryTournamentData[] = tournaments.map((t, idx) => ({
@@ -280,19 +407,49 @@ export const getCircuitLeaderboardData = cache(
           isThirdPlace: m.is_third_place,
         })),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      teams: (teams ?? [])
+      teams: (teamsWithMembers ?? [])
         .filter((tm: any) => tm.tournament_id === t.id)
-        .map((tm: any) => ({
-          id: tm.id,
-          tournamentId: tm.tournament_id,
-          categoryId: tm.category_id,
-          name: tm.name,
-          members: (tm.team_members ?? []).map((mem: any) => ({
-            userId: mem.user_id,
-            displayName: mem.display_name,
+        .map((tm: any) => {
+          const rawMembers = (tm.team_members ?? []).map((mem: any) => ({
+            userId: mem.user_id ?? null,
+            displayName: mem.display_name ?? null,
             fullName: mem.profiles?.full_name ?? null,
-          })),
-        })),
+          }));
+
+          let members = rawMembers;
+
+          // Si RLS de Supabase ocultó a los integrantes de otros equipos (vista de jugador sin RPC):
+          if (members.length === 0 && tm.name) {
+            const parts = tm.name.split(/\s*[\/\-&]\s*/).map((s: string) => s.trim()).filter(Boolean);
+            if (parts.length > 0) {
+              members = parts.map((pName: string) => ({
+                userId: null,
+                displayName: pName,
+                fullName: pName,
+              }));
+            } else {
+              members = [{ userId: null, displayName: tm.name, fullName: tm.name }];
+            }
+          } else if (members.length === 1 && tm.name) {
+            // En parejas, si RLS sólo devolvió al usuario actual (pero ocultó al compañero):
+            const parts = tm.name.split(/\s*[\/\-&]\s*/).map((s: string) => s.trim()).filter(Boolean);
+            if (parts.length >= 2) {
+              const currentName = (members[0]?.fullName ?? members[0]?.displayName ?? "").toLowerCase();
+              const partnerName = parts.find((p: string) => !currentName.includes(p.toLowerCase())) ?? parts[1];
+              if (partnerName) {
+                members.push({ userId: null, displayName: partnerName, fullName: partnerName });
+              }
+            }
+          }
+
+          return {
+            id: tm.id,
+            tournamentId: tm.tournament_id,
+            categoryId: tm.category_id,
+            name: tm.name,
+            members,
+          };
+        }),
     }));
 
     return computeCircuitCategoryLeaderboards(pointsConfig, multiCatTournaments);

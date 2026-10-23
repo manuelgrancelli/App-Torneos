@@ -1833,7 +1833,150 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** responder a la solicitud del usuario con boceto ilustrativo para que, al desplazarse hacia abajo en los rankings y ver puestos medios/bajos, la cabecera con los títulos de las columnas (Pos, Jugador, Puntos, Fechas) se mantenga visible y no se pierda la referencia de cada estadística.
 - **Cómo aplicar:** `components/circuits/leaderboard-table.tsx`, `app/(app)/layout.tsx`.
 
+### D-133 — Acceso y visualización de circuitos y rankings para jugadores (2026-10-22)
+- **Decisión:**
+  - **Acceso a Circuitos en la navegación de jugadores (`components/layout/nav-items.ts`):**
+    - Se incorporó `{ href: "/circuitos", label: "Circuitos", icon: Layers }` tanto en `PLAYER_MAIN_NAV_ITEMS` (desktop) como en `PLAYER_BOTTOM_NAV_ITEMS` (mobile).
+    - La barra inferior móvil en cuentas de jugador queda estructurada en 4 columnas idénticas a la del organizador: *Mis torneos*, *Circuitos*, *Próximos* y *Mi historial* (accediendo al perfil desde el avatar del header).
+  - **Listado de circuitos según participación (`app/(app)/circuitos/page.tsx` y `lib/data/circuits.ts`):**
+    - Se implementó `listParticipatingCircuits(userId)` que consulta los torneos donde el usuario integra un equipo (no rechazado) vinculados a circuitos con `circuit_id is not null`.
+    - Si el usuario tiene rol de jugador (`role === "player"`), la sección muestra exclusivamente los circuitos en los que está inscripto y compite, con tarjeta informativa, cantidad de fechas y enlace directo a su ranking. Si no compite en ninguno, se ofrece un estado vacío descriptivo.
+    - Si el usuario es organizador, se conservan sus circuitos administrados y se agrega una sección inferior *"Circuitos donde juego"* si participa como jugador en torneos de otros organizadores.
+  - **Visualización de detalle en modo consulta (`app/(app)/circuitos/[id]/page.tsx` y `components/circuits/circuit-tabs-view.tsx`):**
+    - Se reemplazó la restricción `data.organizer_id !== userId` por `getCircuitDetail(id)` con cálculo booleano `canManage = circuit.organizerId === user.id`.
+    - Para jugadores (`!canManage`): se ocultan el botón de eliminar circuito, el diálogo modal de vincular torneos y los botones de gestión administrativa.
+    - En la pestaña de *Fechas* (`CircuitDatesList`), el título y el botón de acción de cada fecha redirigen a la página pública del torneo (`/t/[slug]`) para consultar fixture y zonas, ocultando el botón destructivo de desvinculación.
+    - En la pestaña de *Puntos*, se renderiza una tarjeta de consulta limpia con el baremo oficial de puntos otorgados por cada ronda eliminatoria alcanzada.
+  - **Resaltado del jugador en el ranking (`components/circuits/leaderboard-table.tsx`):**
+    - Se integró `currentUserId`: cuando la clave del jugador coincide con `user:${currentUserId}`, la fila se resalta con fondo sutil `bg-primary/10`, tipografía seminegrita y la insignia `"Vos"` junto a su nombre.
+  - **Enlaces directos desde torneos al circuito (`app/(app)/inscripciones/[teamId]/page.tsx` y `app/t/[slug]/page.tsx`):**
+    - Se actualizaron `getTeamForMember` (`lib/data/teams.ts`) y `loadPublicTournament` (`lib/data/public.ts`) para incluir la relación con `circuits`.
+    - Al visualizar una inscripción o la página pública de un torneo que forma parte de un circuito, se despliega una barra dorada con trofeo que indica la fecha del circuito y ofrece acceso directo con un clic a la tabla general de posiciones.
+- **Motivo:** responder al requerimiento del usuario para que los jugadores puedan consultar en el apartado de circuitos aquellos en los que están anotados (habiendo jugado al menos una fecha), ingresar a sus tablas de posiciones por categoría y seguir sus puntos acumulados.
+- **Cómo aplicar:** `components/layout/nav-items.ts`, `lib/data/circuits.ts`, `app/(app)/circuitos/page.tsx`, `app/(app)/circuitos/[id]/page.tsx`, `components/circuits/circuit-tabs-view.tsx`, `components/circuits/circuit-dates-list.tsx`, `components/circuits/leaderboard-table.tsx`, `lib/data/teams.ts`, `app/(app)/inscripciones/[teamId]/page.tsx`, `lib/data/public.ts`, `app/t/[slug]/page.tsx`.
 
+### D-134 — Secciones plegables en el panel de torneos ("Organizo" y "Participo") con estilo acordeón de categorías (2026-10-22)
+- **Decisión:**
+  - En `TournamentDashboard` (`components/tournaments/tournament-dashboard.tsx`), las secciones de *"Organizo"* y *"Participo"* adoptan el patrón de diseño idéntico al acordeón de parejas por categoría de `RegistrationsList` (`components/registration/registrations-list.tsx`):
+    - **Contenedor tarjeta:** `overflow-hidden rounded-2xl border border-border/80 bg-card shadow-xs transition-colors`.
+    - **Cabecera accionable interactiva:** botón de ancho completo accesible (`aria-expanded`, `aria-controls`), con hover suave `hover:bg-muted/40`:
+      - **Extremo izquierdo:** contenedor cuadrado `size-8 rounded-lg border` con `ChevronRight` que rota a 90° (`rotate-90 border-primary/40 bg-primary/10 text-primary`) al estar abierto y retorna a estado neutral (`border-border/60 bg-muted/50 text-muted-foreground`) al cerrarse.
+      - **Identificador y subtítulo:** título de la sección (`Organizo` / `Participo`), insignia numérica destacada (`Badge variant="secondary"` con cantidad de torneos) y texto descriptivo secundario.
+      - **Extremo derecho:** etiqueta contextual (`"Plegar torneos"` / `"Ver torneos"`) y cápsula de estado dinámico (`"Abierto"` con acento primario vs `"Cerrado"` en gris neutro).
+    - **Contenido interior desplegable:** al estar abierto, se presenta sobre `border-t border-border/60 bg-muted/20 p-3.5 sm:p-4`, alojando la cuadrícula de tarjetas de torneos o el estado vacío correspondiente.
+    - **Búsqueda inteligente:** cuando el usuario escribe en el buscador reactivo, las secciones se abren de manera automática (`effectiveOrganizedOpen` / `effectiveParticipatingOpen`) para que los resultados filtrados sean visibles de inmediato.
+    - Se prescinde de la barra intermedia de "Expandir todas • Plegar todas" para mantener la vista limpia y minimalista, operando directamente cada sección desde su propia tarjeta interactiva.
+- **Motivo:** responder a la solicitud del usuario ("ORGANIZO Y PARTICIPO DEBE SER PLEGABLE YA QUE SI TENES MUCHOS TORNEOS DE PARTICIPO O ORGANIZO TENES QUE BAJAR DEMASIADO - QUE SEA PLEGABLE COMO CUANDO VES LAS PAREJAS POR CATEGORIA") para evitar desplazamientos excesivos en cuentas con múltiples torneos activos o participaciones simultáneas.
+- **Cómo aplicar:** `components/tournaments/tournament-dashboard.tsx`.
 
+### D-135 — Reordenamiento de inicio para jugadores y simplificación de inscripción por código (2026-10-22)
+- **Decisión:**
+  - En la vista de inicio para cuentas de jugador (`PlayerHome` en `app/(app)/torneos/page.tsx`):
+    - Se invirtió el orden para priorizar la acción de ingreso:
+      1. Encabezado principal (`PageHeader`).
+      2. Portal de inscripción por código (`JoinCodeForm`).
+      3. Sección de torneos en curso (`En curso`).
+      4. Listado completo / dashboard con torneos participados (`TournamentDashboard`).
+  - En el formulario de inscripción con código (`JoinCodeForm` en `components/registration/join-code-form.tsx`):
+    - Se removió el texto descriptivo secundario en gris para lograr un bloque más compacto.
+    - Se actualizó la etiqueta de la pregunta a: *"¿Tenés un código de inscripción a un torneo?"*.
+- **Motivo:** responder a la solicitud del usuario ("si soy jugador quiero que primero aparezca la opcion de poner un codigo y despues torneos en curso, es decir orden contrario al que esta").
+- **Cómo aplicar:** `app/(app)/torneos/page.tsx`, `components/registration/join-code-form.tsx`, `tests/e2e/registration.spec.ts`.
+
+### D-136 — Habilitación de acceso a circuitos para jugadores y corrección de redirección (2026-10-22)
+- **Decisión:**
+  - En `app/(app)/circuitos/layout.tsx`:
+    - Se eliminó la guarda previa que redirigía incondicionalmente a las cuentas de jugador a `/torneos` (`if (!(await isAccountOrganizer())) redirect("/torneos")`).
+    - El layout ahora permite el paso directo tanto a organizadores como a jugadores para que puedan consultar las secciones de circuitos.
+  - En `app/(app)/circuitos/nuevo/page.tsx`:
+    - Se colocó la protección de rol organizador (`if (!(await isAccountOrganizer())) redirect("/circuitos")`) para que la creación de nuevos circuitos sea exclusiva de administradores.
+  - En `lib/data/circuits.ts` (`listParticipatingCircuits`):
+    - Se removió el filtro de columna anidada `.neq("teams.status", "rejected")` sobre `team_members` que podía disparar errores de esquema en PostgREST, realizando el filtrado de estados de equipo de forma segura en memoria TypeScript/JavaScript.
+  - En `app/(app)/circuitos/page.tsx`:
+    - Para jugadores sin fechas disputadas en ningún circuito, se configuró el título exacto requerido: *"No te has anotado a ningún circuito aún"*, con el estado vacío explicativo y botón de retorno.
+  - En `components/circuits/circuit-tabs-view.tsx`:
+    - Se adaptó la descripción del estado vacío del ranking para jugadores, diferenciándola de las instrucciones dirigidas a organizadores.
+- **Motivo:** solucionar el bloqueo donde los jugadores eran devueltos a *"Mis torneos"* al hacer clic en *"Circuitos"*, permitiendo que puedan ver los circuitos en los que han competido al menos una fecha con su ranking consolidado, o ver *"No te has anotado a ningún circuito aún"* en caso contrario.
+- **Cómo aplicar:** `app/(app)/circuitos/layout.tsx`, `app/(app)/circuitos/nuevo/page.tsx`, `lib/data/circuits.ts`, `app/(app)/circuitos/page.tsx`, `components/circuits/circuit-tabs-view.tsx`.
+
+### D-137 — Corrección de superposición visual en formulario de código con container queries (2026-10-22)
+- **Decisión:**
+  - En `JoinCodeForm` (`components/registration/join-code-form.tsx`):
+    - Se reemplazó la regla de media query basada en viewport (`lg:flex-row`) por container queries de Tailwind v4 (`@container` en la tarjeta y `@2xl:flex-row` en el contenedor interior).
+    - Cuando el componente se renderiza en vistas acotadas o modales (como en `app/(app)/unirse/[code]/page.tsx` con contenedor `max-w-lg` de 512px ante un código inválido), el layout se mantiene apilado verticalmente de manera limpia: cabecera en fila superior y formulario con input `sm:flex-1` y botón en la fila inferior.
+    - Se eliminó el `shrink-0` forzado y el ancho rígido `sm:w-64` que provocaban que el texto "Inscripción con código" fuera aplastado a 28px de ancho y se superpusiera sobre el campo de texto y la etiqueta "¿Tenés un código de inscripción a un torneo?".
+    - En pantallas amplias donde la tarjeta supera los 672px (`@2xl`), se despliega horizontalmente a los extremos (`items-center justify-between`) con ancho controlado `w-72` para el input.
+- **Motivo:** solucionar el defecto visual reportado donde al ingresar un código no válido y presentarse la pantalla de error en contenedor estrecho, las letras del título y el campo de texto se superponían de forma ilegible.
+- **Cómo aplicar:** `components/registration/join-code-form.tsx`.
+
+### D-138 — Visibilidad de jugadores y rankings en circuitos para cuentas de jugador (2026-10-22)
+- **Decisión:**
+  - **Causa identificada:** En `public.team_members`, la política de seguridad RLS (`"team_members: el equipo y el organizador"`) restringe la lectura a los miembros del propio equipo o al organizador del torneo (para proteger la columna privada `email`). Además, `private.can_view_profile` en `public.profiles` restringe la lectura de nombres completos a compañeros de equipo u organizadores. Por tanto, cuando un jugador consultaba la tabla de posiciones de un circuito, `team_members` y `profiles` de los otros equipos retornaban listas vacías `[]`, provocando que el motor de dominio no pudiera listar los jugadores ni sus puntos.
+  - **Solución a nivel base de datos (`supabase/migrations/20261022200000_circuit_leaderboard.sql`):**
+    - Se creó la función SQL con `security definer` `public.get_circuit_teams_and_members(p_tournament_ids uuid[])`.
+    - Esta función une `teams`, `team_members` y `profiles` de forma segura, retornando únicamente los campos públicos de competencia (`team_id`, `tournament_id`, `category_id`, `team_name`, `user_id`, `display_name`, `full_name`) sin exponer en ningún momento los emails privados de los participantes.
+  - **Solución en capa de datos y fallback en memoria (`lib/data/circuits.ts`):**
+    - En `getCircuitLeaderboardData`, se invoca en primera instancia el RPC seguro `get_circuit_teams_and_members`.
+    - Si el RPC no está disponible o para equipos cargados sin cuentas de usuario vinculadas, se implementó un parser de respaldo inteligente que extrae los nombres de los jugadores a partir de `teams.name` (reconociendo separadores de parejas como `" / "`, `" - "` o `" & "`).
+    - Si el usuario logueado compite en un equipo, sus credenciales `user:${currentUserId}` se conservan intactas para mantener el resaltado y la insignia `"Vos"`.
+- **Motivo:** solucionar el problema reportado ("por que desde jugador no me aparecen los jugadores de cada tabla?") donde la tabla de posiciones de un circuito aparecía vacía o con 0 jugadores al ingresar desde una cuenta con rol jugador.
+- **Cómo aplicar:** `supabase/migrations/20261022200000_circuit_leaderboard.sql`, `lib/data/circuits.ts`.
+
+### D-139 — Enmarcado con bordes negros y divisores de columnas en tema claro según boceto (2026-10-22)
+- **Decisión:**
+  - **Aumento de contraste general en tema claro (`app/globals.css`):**
+    - Se incrementó la variable `--border`, `--input` y `--sidebar-border` en `:root` de `oklch(0.922 0 0)` (~1.15:1 de contraste, prácticamente invisible sobre fondo blanco) a `oklch(0.70 0 0)` (contraste superior a 3.5:1, cumpliendo WCAG para elementos visuales y de control).
+    - Se ajustó `--ring` a `oklch(0.55 0 0)` para otorgar nitidez inmediata a todos los bordes, campos y separadores de la aplicación en tema claro.
+  - **Enmarcado de tarjetas (`components/ui/card.tsx`):**
+    - Se reforzó la definición perimetral con `ring-1 ring-foreground/20 dark:ring-border border border-border/80` para que las tarjetas de toda la plataforma cuenten con un marco visual nítido y reconocible en fondo claro.
+  - **Pestañas principales del circuito (`components/circuits/circuit-tabs-view.tsx`):**
+    - `TabsList` cuenta con un marco exterior pronunciado `border-2 border-foreground/70 dark:border-border bg-muted/60 p-1 rounded-xl shadow-xs`.
+    - Cada `TabsTrigger` al estar activo incorpora marco independiente `data-[state=active]:border-foreground/70 dark:data-[state=active]:border-border data-[state=active]:shadow-xs`.
+  - **Selector de categorías por píldoras (`components/circuits/circuit-tabs-view.tsx`):**
+    - Los botones no seleccionados cuentan con un marco perimetral negro `border-2 border-foreground/60 dark:border-border bg-card text-foreground hover:bg-muted hover:border-foreground` y badge numérico con borde `border border-foreground/25 dark:border-border`.
+    - La opción seleccionada mantiene su relleno sólido `border-2 border-primary bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/30`.
+    - La línea divisoria de categorías se fijó en `border-b-2 border-foreground/25 dark:border-border/80 pb-3.5`.
+  - **Tabla de posiciones del circuito (`components/circuits/leaderboard-table.tsx`):**
+    - Marco perimetral completo: `border-2 border-foreground/80 dark:border-border rounded-xl shadow-xs`.
+    - Encabezado `thead`: `border-b-2 border-foreground/80 dark:border-border text-foreground`.
+    - **Líneas divisorias verticales entre cada una de las columnas (Pos, Jugador, Puntos, Títulos, Fechas y Fecha N):**
+      - En el `thead`: cada celda `th` posee `border-r border-foreground/30 dark:border-border/60` (salvo la última columna).
+      - En el `tbody`: cada celda `td` posee `border-r border-foreground/20 dark:border-border/40` (salvo la última columna).
+      - Filas horizontales: separadas por `divide-y divide-foreground/20 dark:divide-border`.
+  - **Insignias y elementos de cabecera (`components/tournaments/sport-badge.tsx` y `app/(app)/circuitos/[id]/page.tsx`):**
+    - `SportBadge` y badge de año incorporan bordes definidos (`border-lime-600/50`, `border-foreground/50`) para destacar con claridad sobre el fondo blanco.
+- **Motivo:** responder al boceto y requerimiento directo del usuario ("te dejo un boceto de como quiero que se vea en tema claro, quiero que esten los marcos con negro porque sino me parece como que no se notan mucho las opciones,y evalua toda la pagina en fondo claro, los bordes deben estar con negro sino no se entiende del todo").
+- **Cómo aplicar:** `app/globals.css`, `components/ui/card.tsx`, `components/circuits/circuit-tabs-view.tsx`, `components/circuits/leaderboard-table.tsx`, `components/tournaments/sport-badge.tsx`, `app/(app)/circuitos/[id]/page.tsx`.
+
+### D-140 — Aislamiento estricto de cuadros de playoffs y partidos por categoría en vistas de jugadores y públicas (2026-10-22)
+- **Decisión:**
+  - **Diagnóstico del problema:**
+    En torneos vinculados a circuitos con múltiples categorías (ej: Suma 10, 6ta Caballeros, Suma 13 Damas), un jugador al abrir las fechas del circuito o navegar a `/t/[slug]` o `/inscripciones/[teamId]` veía un único cuadro gigante donde los 37 partidos de playoffs de las 3 categorías estaban mezclados dentro de un mismo diagrama.
+    Esto se originó por una conjunción de 5 factores:
+    1. En `lib/data/public.ts`, el `Promise.all` de `loadPublicTournament` omitía `categories` en la iteración de control de errores. Si categorías fallaba o retornaba vacío bajo permisos anon, `competition.categories` quedaba vacío `[]`, lo que hacía que `hasCategories = categories.length > 0` fuera `false` en `app/t/[slug]/page.tsx`, deshabilitando el selector `CategoryTabs` y volcando la totalidad de partidos (`competition.matches`) en un único cuadro.
+    2. En `lib/player-progress.ts` (`buildPlayerProgress`), si una pareja tenía `categoryId: null` (como ocurría con parejas históricas), `category` era `undefined` y el filtro `inCategory` devolvía la totalidad de filas sin filtrar (`return true`). Por tanto, `progress.playoffMatches` contenía los cruces de todas las categorías.
+    3. En `lib/competition-view.ts`, tanto `cardsFromMatches` como `buildProjectedBracket` carecían de guardas de aislamiento por categoría; si recibían partidos o grupos mezclados, los estructuraba juntos en un único árbol.
+    4. En PostgreSQL / PostgREST, la coexistencia de firmas sobrecargadas de `apply_bracket(uuid, jsonb)` y `apply_groups(uuid, jsonb)` (creadas en `20261019160000_tournament_admins_and_collaborators.sql` sin `p_category_id`) provocaba ambigüedad PostgREST (`PGRST203`) y causaba que partidos de playoff se insertaran con `category_id = NULL`.
+    5. En `app/(app)/circuitos/actions.ts`, `linkTournamentToCircuit` y `unlinkTournamentFromCircuit` no invalidaban la caché de la página pública con `refreshPublicTournament(tournamentId)`.
+  - **Solución integral implementada:**
+    - **`lib/data/public.ts`:** Se sumó `categories` al array de control de errores y se implementó inferencia automática de categoría de equipos a través de `group_teams` si `team.category_id` es nulo.
+    - **`lib/data/competition.ts`:** Inferencia de `categoryId` de equipos en `getCompetition` a partir de sus grupos cuando `t.category_id` viene nulo.
+    - **`lib/player-progress.ts`:** Si `team.categoryId` es nulo, se deduce de los grupos o partidos de la pareja (o se asigna la primera categoría si el torneo tiene categorías). Además, si el torneo cuenta con categorías, `inCategory` nunca retorna filas no filtradas.
+    - **`lib/competition-view.ts`:** Se incorporó el parámetro `categoryId?: string` a `cardsFromMatches` y `buildProjectedBracket`, con guarda defensiva estricta: si hay múltiples categorías en los partidos/grupos pasados, aísla exclusivamente los elementos de una única categoría, impidiendo matemáticamente que se mezclen rondas o llaves de distintas divisiones.
+    - **`app/t/[slug]/page.tsx`:** Síntesis defensiva de categorías desde grupos/partidos si `categories` viniera vacío; mapeo estricto de partidos mediante `groupCategoryMap` y `activeCategory.id`; paso de `activeCategory?.id` a `cardsFromMatches`, `buildProjectedBracket` y `fixtureItems`; y visualización de `CategoryTabs` tanto en grupos como en cuadro y fixture.
+    - **`app/(app)/circuitos/actions.ts`:** Invocación de `refreshPublicTournament(tournamentId)` al vincular y desvincular torneos en un circuito.
+    - **Migración SQL (`20261022210000_fix_bracket_categories_isolation_and_overloads.sql`):** Eliminación de las sobrecargas obsoletas de 2 parámetros de `apply_bracket` y `apply_groups` (preservando las versiones canónicas de 3 parámetros con soporte de co-organizadores) y backfill de `teams.category_id` a partir de `group_teams`.
+- **Motivo:** solucionar el problema crítico reportado por el usuario ("hay un problema que podria ser muy grave que desde el lado del jugador cuando vas a ver las fechas de los circuitos en un circuito que habia 3 categorias, de esas 3 categorias se armo un solo cuadro con todas las categorias mezcladas, fijate y solucionalo porfavor").
+- **Cómo aplicar:** implementado en `lib/data/public.ts`, `lib/data/competition.ts`, `lib/player-progress.ts`, `lib/competition-view.ts`, `app/t/[slug]/page.tsx`, `app/(app)/circuitos/actions.ts` y migración `supabase/migrations/20261022210000_fix_bracket_categories_isolation_and_overloads.sql`.
+
+### D-141 — Mayor contraste en verde de clasificación en tablas de grupos en modo claro (2026-10-22)
+- **Decisión:**
+  - En la tabla de posiciones de grupos (`StandingsTable` en `components/groups/standings-table.tsx`):
+    - Se reemplazó el color verde muy pálido previo de las filas clasificadas en tema claro (`bg-emerald-50`, `#ECFDF5`) por un verde esmeralda más oscuro, definido y nítido (`bg-emerald-200/80` con hover `bg-emerald-200`).
+    - En la celda fija `th`, se fijó `bg-emerald-200` sólido para prevenir transparencias durante el desplazamiento horizontal.
+    - Se aplicó tipografía de alto contraste `text-emerald-950` para el nombre del equipo, número de posición y todas las estadísticas (`PJ`, `PG`, `PP`, `DS`, `DG`, `Pts`), garantizando un ratio de contraste superior a 10:1 (WCAG AAA).
+    - En el diálogo modal de detalle de pareja (`DialogHeader`), el badge de *"Zona de clasificación"* se actualizó a `bg-emerald-200 text-emerald-950 border border-emerald-400`.
+- **Motivo:** responder a la solicitud del usuario ("el color verde de grupos de los que clasifican en modo claro es un verde muy claro, hacelo mas oscuro").
+- **Cómo aplicar:** `components/groups/standings-table.tsx`.
 
 

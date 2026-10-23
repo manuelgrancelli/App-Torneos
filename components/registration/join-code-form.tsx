@@ -25,29 +25,24 @@ export function JoinCodeForm() {
   }
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card to-background p-4 sm:p-5 shadow-xs transition-all hover:border-primary/30">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-start gap-3 min-w-0">
+    <div className="@container relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card to-background p-4 sm:p-5 shadow-xs transition-all hover:border-primary/30">
+      <div className="flex flex-col gap-4 @2xl:flex-row @2xl:items-center @2xl:justify-between">
+        <div className="flex items-center gap-3 shrink-0">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-2xs">
             <Ticket className="size-5" aria-hidden="true" />
           </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-semibold text-base text-foreground">
-                Inscripción con código
-              </span>
-              <Sparkles className="size-3.5 text-primary" aria-hidden="true" />
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Ingresá el código de 10 caracteres provisto por el organizador para anotarte con tu pareja o equipo.
-            </p>
+          <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-base text-foreground">
+              Inscripción con código
+            </span>
+            <Sparkles className="size-3.5 text-primary" aria-hidden="true" />
           </div>
         </div>
 
-        <form onSubmit={onSubmit} noValidate className="flex flex-col sm:flex-row gap-2 shrink-0 sm:items-end">
-          <Field data-invalid={Boolean(error)} className="w-full sm:w-64">
-            <FieldLabel htmlFor="join-code" className="text-xs font-medium text-foreground">
-              ¿Tenés un código de inscripción?
+        <form onSubmit={onSubmit} noValidate className="flex flex-col sm:flex-row gap-2.5 sm:items-end">
+          <Field data-invalid={Boolean(error)} className="w-full sm:flex-1 @2xl:w-72 @2xl:flex-none">
+            <FieldLabel htmlFor="join-code" className="text-xs font-medium text-foreground whitespace-normal">
+              ¿Tenés un código de inscripción a un torneo?
             </FieldLabel>
             <Input
               id="join-code"
@@ -66,7 +61,7 @@ export function JoinCodeForm() {
           </Field>
           <Button
             type="submit"
-            className="h-10 group px-4 font-medium shadow-xs shadow-primary/20 hover:shadow-primary/30 transition-all active:scale-[0.98]"
+            className="h-10 group px-4 font-medium shadow-xs shadow-primary/20 hover:shadow-primary/30 transition-all active:scale-[0.98] shrink-0"
           >
             <span>Inscribirme</span>
             <ArrowRight className="size-4 group-hover:translate-x-1 transition-transform" aria-hidden="true" />

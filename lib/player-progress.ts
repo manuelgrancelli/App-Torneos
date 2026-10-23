@@ -61,18 +61,48 @@ export function qualifiersForGroup(group: GroupView, groupsInCategory: number, p
 export function buildPlayerProgress(input: PlayerProgressInput): PlayerProgress {
   const { teamId, competition } = input;
   const team = competition.teams.find((t) => t.id === teamId);
-  const categoryId = team?.categoryId ?? null;
+  let categoryId = team?.categoryId ?? null;
+
+  // Si el equipo no tiene categoría asignada en teams, inferirla del grupo o partido
+  if (!categoryId) {
+    const groupWithTeam = competition.groups.find((g) => g.teamIds.includes(teamId));
+    if (groupWithTeam?.categoryId) {
+      categoryId = groupWithTeam.categoryId;
+    } else {
+      const matchWithTeam = competition.matches.find(
+        (m) => (m.homeTeamId === teamId || m.awayTeamId === teamId) && m.categoryId,
+      );
+      if (matchWithTeam?.categoryId) {
+        categoryId = matchWithTeam.categoryId;
+      }
+    }
+  }
+
+  // Si todavía no se determinó y el torneo tiene categorías, tomar la primera en vez de mezclar todas
+  if (!categoryId && competition.categories.length > 0) {
+    categoryId = competition.categories[0]?.id ?? null;
+  }
+
   const category = categoryId ? competition.categories.find((c) => c.id === categoryId) : undefined;
 
   const scoring = category?.scoringConfig ?? input.scoring;
   const standingsConfig = category?.standingsConfig ?? input.standings;
   const playoffConfig = category?.playoffConfig ?? input.playoff;
 
-  // Con categorías, cada una es una competencia aparte: se filtra por la del equipo.
+  // Con categorías, cada una es una competencia aparte: se filtra estrictamente por la del equipo.
   // Con una sola categoría, las filas viejas sin category_id también son suyas.
   const singleCategory = competition.categories.length === 1;
-  const inCategory = <T extends { categoryId?: string | null }>(rows: T[]): T[] =>
-    category ? rows.filter((r) => r.categoryId === category.id || (singleCategory && !r.categoryId)) : rows;
+  const inCategory = <T extends { categoryId?: string | null }>(rows: T[]): T[] => {
+    if (category) {
+      return rows.filter((r) => r.categoryId === category.id || (singleCategory && !r.categoryId));
+    }
+    // Salvaguarda crítica: si el torneo tiene múltiples categorías, NUNCA mezclar todas las categorías
+    if (competition.categories.length > 0) {
+      const fallbackCatId = competition.categories[0]?.id;
+      return fallbackCatId ? rows.filter((r) => r.categoryId === fallbackCatId) : [];
+    }
+    return rows;
+  };
   const categoryGroups = inCategory(competition.groups);
   const categoryMatches = inCategory(competition.matches);
   const playoffMatches = categoryMatches.filter((m) => m.stage === "playoff");

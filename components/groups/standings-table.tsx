@@ -164,7 +164,7 @@ export function StandingsTable({
                   className={cn(
                     "border-t transition-colors hover:bg-muted/40 cursor-pointer",
                     isQualified &&
-                      "bg-emerald-50 hover:bg-emerald-100/60 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50",
+                      "bg-emerald-200/80 text-emerald-950 hover:bg-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-100 dark:hover:bg-emerald-950/70 border-t-emerald-300/60 dark:border-t-emerald-900/40",
                   )}
                   onClick={() => setSelectedRow(row)}
                 >
@@ -173,7 +173,7 @@ export function StandingsTable({
                     className={cn(
                       "sticky left-0 z-10 max-w-44 px-3 py-2 text-left font-medium",
                       isQualified
-                        ? "bg-emerald-50 dark:bg-emerald-950/80"
+                        ? "bg-emerald-200 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-100"
                         : "bg-background",
                     )}
                   >
@@ -186,7 +186,16 @@ export function StandingsTable({
                       className="flex items-center gap-2 text-left w-full hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded py-1 px-1 -mx-1"
                       title="Ver integrantes y estadísticas de la pareja"
                     >
-                      <span className="w-4 text-muted-foreground tabular-nums shrink-0">{row.position}</span>
+                      <span
+                        className={cn(
+                          "w-4 tabular-nums shrink-0 font-semibold",
+                          isQualified
+                            ? "text-emerald-950 dark:text-emerald-300"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {row.position}
+                      </span>
                       <span className="truncate font-medium">{name}</span>
                       {row.decidedByLottery && row.played > 0 ? (
                         <Dices className="size-3.5 shrink-0 text-muted-foreground" aria-label="Posición definida por sorteo" />
@@ -196,7 +205,11 @@ export function StandingsTable({
                   {columns.map((c) => (
                     <td
                       key={c.key}
-                      className={cn("px-2 py-2 text-right tabular-nums", c.key === "points" && "font-semibold")}
+                      className={cn(
+                        "px-2 py-2 text-right tabular-nums",
+                        c.key === "points" && "font-semibold",
+                        isQualified && "text-emerald-950 dark:text-emerald-100",
+                      )}
                     >
                       {signed(c.key, value(row, c.key))}
                     </td>
@@ -224,17 +237,17 @@ export function StandingsTable({
                     className={cn(
                       "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold",
                       selectedRow.position <= qualifiers
-                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+                        ? "bg-emerald-200 text-emerald-950 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-400 dark:border-emerald-800"
                         : "bg-muted text-muted-foreground border",
                     )}
                   >
                     {selectedRow.position <= qualifiers ? (
-                      <Trophy className="size-3 text-emerald-600 dark:text-emerald-400" />
+                      <Trophy className="size-3 text-emerald-700 dark:text-emerald-400" />
                     ) : null}
                     {title} · Puesto #{selectedRow.position}
                   </span>
                   {selectedRow.position <= qualifiers ? (
-                    <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                    <span className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-400">
                       Zona de clasificación
                     </span>
                   ) : null}

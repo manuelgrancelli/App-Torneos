@@ -27,10 +27,16 @@ import { formatDateRange } from "@/lib/dates";
 type CircuitDatesListProps = {
   circuitId: string;
   dates?: CircuitDateItem[];
-  onOpenLinkDialog: () => void;
+  onOpenLinkDialog?: () => void;
+  canManage?: boolean;
 };
 
-export function CircuitDatesList({ circuitId, dates = [], onOpenLinkDialog }: CircuitDatesListProps) {
+export function CircuitDatesList({
+  circuitId,
+  dates = [],
+  onOpenLinkDialog,
+  canManage = true,
+}: CircuitDatesListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [unlinkTournamentId, setUnlinkTournamentId] = useState<string | null>(null);
@@ -62,29 +68,39 @@ export function CircuitDatesList({ circuitId, dates = [], onOpenLinkDialog }: Ci
             Cada fecha es un torneo con su propia sede, fixture y llaves eliminatorias.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={onOpenLinkDialog}>
-            <Unlink className="size-4" aria-hidden="true" />
-            Vincular torneo existente
-          </Button>
-          <Button asChild size="sm">
-            <Link href="/torneos/nuevo">
-              <Plus className="size-4" aria-hidden="true" />
-              Crear nueva fecha
-            </Link>
-          </Button>
-        </div>
+        {canManage && (
+          <div className="flex flex-wrap gap-2">
+            {onOpenLinkDialog ? (
+              <Button variant="outline" size="sm" onClick={onOpenLinkDialog}>
+                <Unlink className="size-4" aria-hidden="true" />
+                Vincular torneo existente
+              </Button>
+            ) : null}
+            <Button asChild size="sm">
+              <Link href="/torneos/nuevo">
+                <Plus className="size-4" aria-hidden="true" />
+                Crear nueva fecha
+              </Link>
+            </Button>
+          </div>
+        )}
       </div>
 
       {safeDates.length === 0 ? (
         <EmptyState
           icon={Calendar}
           title="No hay fechas cargadas"
-          description="Podés vincular un torneo que ya hayas creado o crear uno nuevo para que forme parte del circuito."
+          description={
+            canManage
+              ? "Podés vincular un torneo que ya hayas creado o crear uno nuevo para que forme parte del circuito."
+              : "El organizador todavía no vinculó fechas a este circuito."
+          }
           action={
-            <Button onClick={onOpenLinkDialog} variant="outline">
-              Vincular torneo existente
-            </Button>
+            canManage && onOpenLinkDialog ? (
+              <Button onClick={onOpenLinkDialog} variant="outline">
+                Vincular torneo existente
+              </Button>
+            ) : undefined
           }
         />
       ) : (
@@ -99,7 +115,10 @@ export function CircuitDatesList({ circuitId, dates = [], onOpenLinkDialog }: Ci
                     </span>
                     <span className="text-muted-foreground">•</span>
                     <h3 className="font-semibold text-base">
-                      <Link href={`/torneos/${date.id}`} className="hover:underline">
+                      <Link
+                        href={canManage ? `/torneos/${date.id}` : `/t/${date.slug}`}
+                        className="hover:underline"
+                      >
                         {date.name}
                       </Link>
                     </h3>
@@ -117,21 +136,32 @@ export function CircuitDatesList({ circuitId, dates = [], onOpenLinkDialog }: Ci
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Button asChild variant="outline" size="sm">
-                    <Link href={`/torneos/${date.id}`}>
-                      Gestionar fecha
-                      <ChevronRight className="size-3.5" aria-hidden="true" />
-                    </Link>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() => setUnlinkTournamentId(date.id)}
-                    aria-label={`Desvincular ${date.name} del circuito`}
-                  >
-                    <Trash2 className="size-4" aria-hidden="true" />
-                  </Button>
+                  {canManage ? (
+                    <>
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/torneos/${date.id}`}>
+                          Gestionar fecha
+                          <ChevronRight className="size-3.5" aria-hidden="true" />
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => setUnlinkTournamentId(date.id)}
+                        aria-label={`Desvincular ${date.name} del circuito`}
+                      >
+                        <Trash2 className="size-4" aria-hidden="true" />
+                      </Button>
+                    </>
+                  ) : (
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/t/${date.slug}`}>
+                        Ver torneo
+                        <ChevronRight className="size-3.5" aria-hidden="true" />
+                      </Link>
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>

@@ -3,17 +3,20 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { type CircuitDateItem } from "@/lib/data/circuits";
 import { ROUND_LABELS, type LeaderboardPlayer } from "@/lib/domain/circuits";
+import { cn } from "@/lib/utils";
 
 type LeaderboardTableProps = {
   categoryName?: string;
   leaderboard?: LeaderboardPlayer[];
   dates?: CircuitDateItem[];
+  currentUserId?: string;
 };
 
 export function LeaderboardTable({
   categoryName,
   leaderboard = [],
   dates = [],
+  currentUserId,
 }: LeaderboardTableProps) {
   const safeLeaderboard = Array.isArray(leaderboard) ? leaderboard : [];
   const safeDates = Array.isArray(dates) ? dates : [];
@@ -44,42 +47,59 @@ export function LeaderboardTable({
         tabIndex={0}
         role="region"
         aria-label={categoryName ? `Tabla de posiciones de ${categoryName}` : "Tabla de posiciones del circuito"}
-        className="relative overflow-auto max-h-[70dvh] sm:max-h-[75dvh] rounded-xl border bg-card shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="relative overflow-auto max-h-[70dvh] sm:max-h-[75dvh] rounded-xl border-2 border-foreground/80 dark:border-border bg-card shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <table className="w-full text-left text-sm border-collapse">
-          <thead className="sticky top-0 z-20 border-b border-border/80 bg-muted/95 text-xs font-semibold text-muted-foreground uppercase tracking-wider backdrop-blur-md shadow-xs">
+          <thead className="sticky top-0 z-20 border-b-2 border-foreground/80 dark:border-border bg-muted/95 text-xs font-semibold text-foreground uppercase tracking-wider backdrop-blur-md shadow-xs">
             <tr>
-              <th scope="col" className="sticky top-0 z-20 bg-muted/95 backdrop-blur-md px-3 py-3 sm:px-4 text-center font-semibold w-14 sm:w-16">
+              <th scope="col" className="sticky top-0 z-20 bg-muted/95 backdrop-blur-md px-3 py-3 sm:px-4 text-center font-semibold w-14 sm:w-16 border-r border-foreground/30 dark:border-border/60">
                 Pos
               </th>
-              <th scope="col" className="sticky top-0 z-20 bg-muted/95 backdrop-blur-md px-3 py-3 sm:px-4 font-semibold">
+              <th scope="col" className="sticky top-0 z-20 bg-muted/95 backdrop-blur-md px-3 py-3 sm:px-4 font-semibold border-r border-foreground/30 dark:border-border/60">
                 Jugador
               </th>
-              <th scope="col" className="sticky top-0 z-20 bg-muted/95 backdrop-blur-md px-3 py-3 sm:px-4 text-right font-semibold">
+              <th scope="col" className="sticky top-0 z-20 bg-muted/95 backdrop-blur-md px-3 py-3 sm:px-4 text-right font-semibold border-r border-foreground/30 dark:border-border/60">
                 Puntos
               </th>
-              <th scope="col" className="sticky top-0 z-20 bg-muted/95 backdrop-blur-md px-3 py-3 sm:px-4 text-center font-semibold">
+              <th scope="col" className="sticky top-0 z-20 bg-muted/95 backdrop-blur-md px-3 py-3 sm:px-4 text-center font-semibold border-r border-foreground/30 dark:border-border/60">
                 Títulos
               </th>
-              <th scope="col" className="sticky top-0 z-20 bg-muted/95 backdrop-blur-md px-3 py-3 sm:px-4 text-center font-semibold">
+              <th
+                scope="col"
+                className={cn(
+                  "sticky top-0 z-20 bg-muted/95 backdrop-blur-md px-3 py-3 sm:px-4 text-center font-semibold",
+                  safeDates.length > 0 && "border-r border-foreground/30 dark:border-border/60"
+                )}
+              >
                 Fechas
               </th>
-              {safeDates.map((date) => (
-                <th key={date.id} scope="col" className="sticky top-0 z-20 bg-muted/95 backdrop-blur-md px-3 py-3 sm:px-4 text-center font-semibold whitespace-nowrap">
+              {safeDates.map((date, idx) => (
+                <th
+                  key={date.id}
+                  scope="col"
+                  className={cn(
+                    "sticky top-0 z-20 bg-muted/95 backdrop-blur-md px-3 py-3 sm:px-4 text-center font-semibold whitespace-nowrap",
+                    idx < safeDates.length - 1 && "border-r border-foreground/30 dark:border-border/60"
+                  )}
+                >
                   Fecha {date.circuitOrder}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
+          <tbody className="divide-y divide-foreground/20 dark:divide-border">
             {safeLeaderboard.map((player) => {
               const isPodium = player.rank <= 3;
+              const isCurrentPlayer = Boolean(currentUserId && player.playerId === `user:${currentUserId}`);
               return (
                 <tr
                   key={player.playerId}
-                  className="transition-colors hover:bg-muted/50"
+                  className={cn(
+                    "transition-colors hover:bg-muted/50",
+                    isCurrentPlayer && "bg-primary/10 hover:bg-primary/15 font-semibold",
+                  )}
                 >
-                  <td className="px-3 py-3 sm:px-4 sm:py-3.5 text-center font-bold">
+                  <td className="px-3 py-3 sm:px-4 sm:py-3.5 text-center font-bold border-r border-foreground/20 dark:border-border/40">
                     {player.rank === 1 ? (
                       <span className="inline-flex size-7 items-center justify-center rounded-full bg-amber-500/15 text-amber-600 font-bold">
                         🥇 1
@@ -96,18 +116,26 @@ export function LeaderboardTable({
                       <span className="text-muted-foreground">#{player.rank}</span>
                     )}
                   </td>
-                  <td className="px-3 py-3 sm:px-4 sm:py-3.5 font-medium">
+                  <td className="px-3 py-3 sm:px-4 sm:py-3.5 font-medium border-r border-foreground/20 dark:border-border/40">
                     <div className="flex items-center gap-2">
-                      <div className="flex size-7 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                      <div className={cn(
+                        "flex size-7 items-center justify-center rounded-full",
+                        isCurrentPlayer ? "bg-primary text-primary-foreground font-bold" : "bg-muted text-muted-foreground",
+                      )}>
                         <User className="size-3.5" aria-hidden="true" />
                       </div>
                       <span className="font-semibold text-foreground">{player.playerName}</span>
+                      {isCurrentPlayer && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-primary/15 text-primary border-primary/30">
+                          Vos
+                        </Badge>
+                      )}
                     </div>
                   </td>
-                  <td className="px-3 py-3 sm:px-4 sm:py-3.5 text-right font-bold text-base tabular-nums text-primary">
+                  <td className="px-3 py-3 sm:px-4 sm:py-3.5 text-right font-bold text-base tabular-nums text-primary border-r border-foreground/20 dark:border-border/40">
                     {player.totalPoints}
                   </td>
-                  <td className="px-3 py-3 sm:px-4 sm:py-3.5 text-center">
+                  <td className="px-3 py-3 sm:px-4 sm:py-3.5 text-center border-r border-foreground/20 dark:border-border/40">
                     {player.titles > 0 ? (
                       <Badge variant="secondary" className="gap-1 font-bold">
                         <Trophy className="size-3 text-amber-500" aria-hidden="true" />
@@ -117,20 +145,38 @@ export function LeaderboardTable({
                       <span className="text-muted-foreground">-</span>
                     )}
                   </td>
-                  <td className="px-3 py-3 sm:px-4 sm:py-3.5 text-center tabular-nums text-muted-foreground">
+                  <td
+                    className={cn(
+                      "px-3 py-3 sm:px-4 sm:py-3.5 text-center tabular-nums text-muted-foreground",
+                      safeDates.length > 0 && "border-r border-foreground/20 dark:border-border/40"
+                    )}
+                  >
                     {player.tournamentsPlayed}
                   </td>
-                  {safeDates.map((date) => {
+                  {safeDates.map((date, idx) => {
                     const perf = player.performances.find((p) => p.tournamentId === date.id);
+                    const isLast = idx === safeDates.length - 1;
                     if (!perf) {
                       return (
-                        <td key={date.id} className="px-3 py-3 sm:px-4 sm:py-3.5 text-center text-muted-foreground text-xs">
+                        <td
+                          key={date.id}
+                          className={cn(
+                            "px-3 py-3 sm:px-4 sm:py-3.5 text-center text-muted-foreground text-xs",
+                            !isLast && "border-r border-foreground/20 dark:border-border/40"
+                          )}
+                        >
                           -
                         </td>
                       );
                     }
                     return (
-                      <td key={date.id} className="px-3 py-3 sm:px-4 sm:py-3.5 text-center whitespace-nowrap">
+                      <td
+                        key={date.id}
+                        className={cn(
+                          "px-3 py-3 sm:px-4 sm:py-3.5 text-center whitespace-nowrap",
+                          !isLast && "border-r border-foreground/20 dark:border-border/40"
+                        )}
+                      >
                         <div className="flex flex-col items-center">
                           <span className="font-bold tabular-nums text-foreground">
                             {perf.points} pts

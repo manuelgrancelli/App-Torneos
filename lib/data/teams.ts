@@ -46,6 +46,8 @@ export type MemberTeam = {
     standingsConfig: StandingsConfig;
     playoffConfig: PlayoffConfig;
     championTeamId: string | null;
+    circuit: { id: string; name: string; slug: string } | null;
+    circuitOrder: number | null;
   };
   slots: SlotView[];
   courts: { id: string; name: string }[];
@@ -75,15 +77,15 @@ function toMember(row: {
  */
 export const getTeamForMember = cache(async (teamId: string, userId: string): Promise<MemberTeam | null> => {
   const supabase = await createClient();
-  const { data: team, error } = await supabase
+  const { data: team, error } = await (supabase as any)
     .from("teams")
     .select(
-      "id, name, status, captain_id, tournament_id, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(slot_id), tournaments!teams_tournament_id_fkey(id, name, slug, status, timezone, starts_on, ends_on, results_require_confirmation, banner_url, scoring_config, standings_config, playoff_config, champion_team_id, sports(name, min_team_size, max_team_size))",
+      "id, name, status, captain_id, tournament_id, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(slot_id), tournaments!teams_tournament_id_fkey(id, name, slug, status, timezone, starts_on, ends_on, results_require_confirmation, banner_url, scoring_config, standings_config, playoff_config, champion_team_id, circuit_id, circuit_order, circuits(id, name, slug), sports(name, min_team_size, max_team_size))",
     )
     .eq("id", teamId)
     .maybeSingle();
   if (error) throw error;
-  if (!team || !team.tournaments || (!team.team_members.some((m) => m.user_id === userId) && team.captain_id !== userId)) return null;
+  if (!team || !team.tournaments || (!team.team_members.some((m: any) => m.user_id === userId) && team.captain_id !== userId)) return null;
 
   const [slots, courts] = await Promise.all([
     supabase
@@ -102,16 +104,16 @@ export const getTeamForMember = cache(async (teamId: string, userId: string): Pr
     name: team.name,
     status: team.status,
     isCaptain: team.captain_id === userId,
-    members: team.team_members
+    members: (team.team_members as any[])
       .map(toMember)
-      .sort((a, b) =>
+      .sort((a: TeamMemberView, b: TeamMemberView) =>
         a.role === b.role
           ? (a.fullName ?? a.displayName ?? a.email ?? "").localeCompare(b.fullName ?? b.displayName ?? b.email ?? "")
           : a.role === "captain"
             ? -1
             : 1,
       ),
-    availability: team.team_availability.map((a) => a.slot_id),
+    availability: ((team.team_availability as any[]) ?? []).map((a: any) => a.slot_id),
     tournament: {
       id: t.id,
       name: t.name,
@@ -129,6 +131,14 @@ export const getTeamForMember = cache(async (teamId: string, userId: string): Pr
       standingsConfig: normalizeStandingsConfig(t.standings_config),
       playoffConfig: normalizePlayoffConfig(t.playoff_config),
       championTeamId: t.champion_team_id,
+      circuit: (t as any).circuits
+        ? {
+            id: (t as any).circuits.id,
+            name: (t as any).circuits.name,
+            slug: (t as any).circuits.slug,
+          }
+        : null,
+      circuitOrder: (t as any).circuit_order ?? null,
     },
     slots: slots.data.map((s) => ({ id: s.id, startsAt: s.starts_at, endsAt: s.ends_at, courtId: s.court_id })),
     courts: courts.data,

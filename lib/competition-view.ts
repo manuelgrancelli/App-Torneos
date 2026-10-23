@@ -390,16 +390,29 @@ export function buildProjectedBracket(
   standingsConfig: StandingsConfig,
   playoffConfig: { qualifiersPerGroup: number; thirdPlace: boolean },
   teamNames: Map<string, string>,
+  categoryId?: string | null,
 ): BracketCard[] | null {
   if (groups.length === 0) return null;
+
+  let targetGroups = groups;
+  if (categoryId) {
+    targetGroups = groups.filter((g) => g.categoryId === categoryId);
+  } else {
+    const distinctCats = Array.from(new Set(groups.map((g) => g.categoryId).filter(Boolean)));
+    if (distinctCats.length > 1) {
+      targetGroups = groups.filter((g) => g.categoryId === distinctCats[0]);
+    }
+  }
+  if (targetGroups.length === 0) return null;
+
   const rawPerGroup = Math.max(1, playoffConfig.qualifiersPerGroup);
   const groupEffectiveQualifiers = (g: GroupView) =>
-    g.teamIds.length === 4 ? 3 : groups.length === 1 && rawPerGroup < 2 ? 2 : rawPerGroup;
+    g.teamIds.length === 4 ? 3 : targetGroups.length === 1 && rawPerGroup < 2 ? 2 : rawPerGroup;
 
-  const totalQualifiers = groups.reduce((acc, g) => acc + groupEffectiveQualifiers(g), 0);
+  const totalQualifiers = targetGroups.reduce((acc, g) => acc + groupEffectiveQualifiers(g), 0);
   if (totalQualifiers < 2 || totalQualifiers > 64) return null;
 
-  const standings = groupStandings(groups, matches, scoring, standingsConfig);
+  const standings = groupStandings(targetGroups, matches, scoring, standingsConfig);
 
   type SeedInfo = {
     seedBadge: string;
@@ -411,7 +424,7 @@ export function buildProjectedBracket(
 
   const seedInfoMap = new Map<string, SeedInfo>();
 
-  const virtualQualifiers: Qualifier[] = groups.flatMap((group, g) => {
+  const virtualQualifiers: Qualifier[] = targetGroups.flatMap((group, g) => {
     const rawLetter = group.name.replace(/grupo\s*/i, "").trim();
     const groupLetter = (rawLetter.length <= 2 ? rawLetter : "") || String.fromCharCode(65 + g);
     const groupStanding = standings[g];
@@ -424,7 +437,7 @@ export function buildProjectedBracket(
     return Array.from({ length: effectivePerGroup }, (_, i) => {
       const p = i + 1;
       const seedCode = `${p}${groupLetter}`;
-      const seedLabel = groups.length === 1 ? `${p}° ${group.name}` : `${p}° ${group.name || `Grupo ${groupLetter}`}`;
+      const seedLabel = targetGroups.length === 1 ? `${p}° ${group.name}` : `${p}° ${group.name || `Grupo ${groupLetter}`}`;
       const row = groupStanding?.rows[i];
 
       let teamId: string | null = null;
@@ -493,10 +506,19 @@ export function cardsFromMatches(
   teamNames: Map<string, string>,
   courtNames: Map<string, string>,
   seedMap?: Map<string, string>,
+  categoryId?: string | null,
 ): BracketCard[] {
-  return matches
-    .filter((m) => m.stage === "playoff")
-    .map((m) => {
+  let playoffMatches = matches.filter((m) => m.stage === "playoff");
+  if (categoryId) {
+    playoffMatches = playoffMatches.filter((m) => m.categoryId === categoryId);
+  } else {
+    const distinctCats = Array.from(new Set(playoffMatches.map((m) => m.categoryId).filter(Boolean)));
+    if (distinctCats.length > 1) {
+      playoffMatches = playoffMatches.filter((m) => m.categoryId === distinctCats[0]);
+    }
+  }
+
+  return playoffMatches.map((m) => {
       const side = (teamId: string | null): BracketCardTeam | null => {
         if (!teamId) return null;
         return {

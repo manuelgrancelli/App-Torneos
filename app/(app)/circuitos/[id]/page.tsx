@@ -8,15 +8,13 @@ import { getCurrentUser } from "@/lib/auth";
 import {
   getAvailableTournamentsForCircuit,
   getCircuitDates,
+  getCircuitDetail,
   getCircuitLeaderboardData,
-  getOrganizerCircuit,
 } from "@/lib/data/circuits";
 
 export async function generateMetadata({ params }: PageProps<"/circuitos/[id]">) {
   const { id } = await params;
-  const user = await getCurrentUser();
-  if (!user) return { title: "Circuito" };
-  const circuit = await getOrganizerCircuit(id, user.id);
+  const circuit = await getCircuitDetail(id);
   return { title: circuit ? `${circuit.name} - Ranking y fechas` : "Circuito" };
 }
 
@@ -25,12 +23,14 @@ export default async function CircuitDetailPage({ params }: PageProps<"/circuito
   const user = await getCurrentUser();
   if (!user) notFound();
 
-  const circuit = await getOrganizerCircuit(id, user.id);
+  const circuit = await getCircuitDetail(id);
   if (!circuit) notFound();
+
+  const isOrganizer = circuit.organizerId === user.id;
 
   const [dates, availableTournaments, categoryLeaderboards] = await Promise.all([
     getCircuitDates(circuit.id),
-    getAvailableTournamentsForCircuit(user.id, circuit.sportId, circuit.id),
+    isOrganizer ? getAvailableTournamentsForCircuit(user.id, circuit.sportId, circuit.id) : Promise.resolve([]),
     getCircuitLeaderboardData(circuit.id, circuit.pointsConfig),
   ]);
 
@@ -42,10 +42,12 @@ export default async function CircuitDetailPage({ params }: PageProps<"/circuito
         actions={
           <div className="flex items-center gap-2">
             <SportBadge sport={circuit.sportName} />
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-xs border-foreground/50 dark:border-border font-medium">
               Año {circuit.year}
             </Badge>
-            <DeleteCircuitButton circuitId={circuit.id} circuitName={circuit.name} />
+            {isOrganizer ? (
+              <DeleteCircuitButton circuitId={circuit.id} circuitName={circuit.name} />
+            ) : null}
           </div>
         }
       />
@@ -55,6 +57,8 @@ export default async function CircuitDetailPage({ params }: PageProps<"/circuito
         dates={dates}
         categoryLeaderboards={categoryLeaderboards}
         availableTournaments={availableTournaments}
+        canManage={isOrganizer}
+        currentUserId={user.id}
       />
     </div>
   );

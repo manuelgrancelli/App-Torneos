@@ -1,12 +1,12 @@
-import { Award, Layers, Plus } from "lucide-react";
+import { Layers, Plus, Trophy } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CircuitCard } from "@/components/circuits/circuit-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { getCurrentUser } from "@/lib/auth";
-import { listOrganizedCircuits } from "@/lib/data/circuits";
+import { getAccountRole, getCurrentUser } from "@/lib/auth";
+import { listOrganizedCircuits, listParticipatingCircuits } from "@/lib/data/circuits";
 
 export const metadata: Metadata = { title: "Circuitos y torneos anuales" };
 
@@ -14,7 +14,60 @@ export default async function CircuitsPage() {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const { circuits, migrationPending } = await listOrganizedCircuits(user.id);
+  const role = await getAccountRole();
+
+  if (role === "player") {
+    const { circuits, migrationPending } = await listParticipatingCircuits(user.id);
+
+    return (
+      <>
+        <PageHeader
+          title="Circuitos y torneos anuales"
+          description="Consultá la tabla de posiciones y tu puntaje acumulado en los circuitos donde jugás."
+        />
+
+        <div className="space-y-6">
+          {migrationPending ? (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-sm">
+              <h2 className="text-base font-semibold text-amber-500 mb-2">
+                ⚠️ Migración pendiente en la base de datos de Supabase
+              </h2>
+              <p className="text-muted-foreground">
+                La funcionalidad de circuitos multifecha requiere la tabla <code className="text-foreground font-mono font-semibold">circuits</code>.
+              </p>
+            </div>
+          ) : circuits.length === 0 ? (
+            <EmptyState
+              icon={Trophy}
+              title="No te has anotado a ningún circuito aún"
+              description="Cuando juegues al menos una fecha de un circuito, vas a poder consultar acá la tabla de posiciones por categoría y tu puntaje acumulado."
+              action={
+                <Button asChild variant="outline">
+                  <Link href="/torneos">Ir a mis torneos</Link>
+                </Button>
+              }
+            />
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {circuits.map((circuit) => (
+                <CircuitCard key={circuit.id} circuit={circuit} />
+              ))}
+            </div>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  // Cuenta de organizador: circuitos organizados + circuitos donde compite
+  const [organizedResult, participatingResult] = await Promise.all([
+    listOrganizedCircuits(user.id),
+    listParticipatingCircuits(user.id),
+  ]);
+
+  const { circuits: organizedCircuits, migrationPending } = organizedResult;
+  const organizedIds = new Set(organizedCircuits.map((c) => c.id));
+  const otherParticipating = participatingResult.circuits.filter((c) => !organizedIds.has(c.id));
 
   return (
     <>
@@ -33,7 +86,7 @@ export default async function CircuitsPage() {
         }
       />
 
-      <div className="space-y-6">
+      <div className="space-y-8">
         {migrationPending ? (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-sm">
             <h2 className="text-base font-semibold text-amber-500 mb-2">
@@ -49,7 +102,7 @@ export default async function CircuitsPage() {
               El archivo listo para copiar está en: <code className="font-mono text-foreground font-semibold">supabase/migrations/20261006000100_circuits.sql</code>
             </p>
           </div>
-        ) : circuits.length === 0 ? (
+        ) : organizedCircuits.length === 0 ? (
           <EmptyState
             icon={Layers}
             title="No creaste circuitos todavía"
@@ -62,10 +115,26 @@ export default async function CircuitsPage() {
           />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {circuits.map((circuit) => (
+            {organizedCircuits.map((circuit) => (
               <CircuitCard key={circuit.id} circuit={circuit} />
             ))}
           </div>
+        )}
+
+        {otherParticipating.length > 0 && (
+          <section className="space-y-4 pt-6 border-t">
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight">Circuitos donde juego</h2>
+              <p className="text-sm text-muted-foreground">
+                Circuitos organizados por otros clubes o usuarios donde participás como jugador.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {otherParticipating.map((circuit) => (
+                <CircuitCard key={circuit.id} circuit={circuit} />
+              ))}
+            </div>
+          </section>
         )}
       </div>
     </>

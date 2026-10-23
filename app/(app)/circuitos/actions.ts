@@ -6,6 +6,7 @@ import { actionError, actionOk, createAction } from "@/lib/actions/safe-action";
 import { isAccountOrganizer } from "@/lib/auth";
 import { isSchemaPendingError } from "@/lib/data/circuits";
 import { circuitPointsConfigSchema, circuitSchema } from "@/lib/domain/circuits";
+import { refreshPublicTournament } from "@/lib/public-cache";
 import { dbErrorMessage } from "@/lib/supabase/errors";
 import { slugWithSuffix } from "@/lib/utils/slug";
 
@@ -117,6 +118,7 @@ export const linkTournamentToCircuit = createAction(
 
     revalidatePath(`/circuitos/${circuitId}`);
     revalidatePath(`/torneos/${tournamentId}`);
+    refreshPublicTournament(tournamentId);
     return actionOk(undefined, "Fecha vinculada al circuito.");
   },
 );
@@ -141,6 +143,7 @@ export const unlinkTournamentFromCircuit = createAction(
 
     revalidatePath(`/circuitos/${circuitId}`);
     revalidatePath(`/torneos/${tournamentId}`);
+    refreshPublicTournament(tournamentId);
     return actionOk(undefined, "Fecha desvinculada del circuito.");
   },
 );

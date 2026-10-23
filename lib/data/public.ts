@@ -29,6 +29,8 @@ export type PublicTournament = {
   standingsConfig: StandingsConfig;
   playoffConfig: PlayoffConfig;
   championTeamId: string | null;
+  circuit: { id: string; name: string; slug: string } | null;
+  circuitOrder: number | null;
   competition: Competition;
   courts: { id: string; name: string; venue: string | null }[];
 };
@@ -51,7 +53,7 @@ async function loadPublicTournament(tournamentId: string): Promise<PublicTournam
     supabase
       .from("tournaments")
       .select(
-        "id, name, slug, description, banner_url, status, starts_on, ends_on, timezone, scoring_config, standings_config, playoff_config, champion_team_id, sports(name, min_team_size)",
+        "id, name, slug, description, banner_url, status, starts_on, ends_on, timezone, scoring_config, standings_config, playoff_config, champion_team_id, circuit_id, circuit_order, circuits(id, name, slug), sports(name, min_team_size)",
       )
       .eq("id", tournamentId)
       .maybeSingle(),
@@ -69,13 +71,27 @@ async function loadPublicTournament(tournamentId: string): Promise<PublicTournam
       .eq("tournament_id", tournamentId)
       .order("position"),
   ]);
-  for (const result of [tournament, teams, groups, matches, courts]) {
+  for (const result of [tournament, teams, groups, matches, courts, categories]) {
     if (result.error) throw result.error;
   }
   const t = tournament.data;
   if (!t) return null;
 
-  const allTeams = (teams.data as any[]) ?? [];
+  const rawGroups = ((groups.data as any[]) ?? []);
+  const groupTeamCatMap = new Map<string, string>();
+  for (const g of rawGroups) {
+    if (g.category_id && Array.isArray(g.group_teams)) {
+      for (const gt of g.group_teams) {
+        if (gt.team_id) groupTeamCatMap.set(gt.team_id, g.category_id);
+      }
+    }
+  }
+
+  const allTeams = ((teams.data as any[]) ?? []).map((team) => ({
+    ...team,
+    category_id: team.category_id ?? groupTeamCatMap.get(team.id) ?? null,
+  }));
+
   const parsedCategories: TournamentCategory[] = ((categories.data as any[]) ?? []).map((cat) => {
     const catTeams = allTeams.filter((tm) => tm.category_id === cat.id);
     return {
@@ -110,14 +126,22 @@ async function loadPublicTournament(tournamentId: string): Promise<PublicTournam
     standingsConfig: t.standings_config as StandingsConfig,
     playoffConfig: t.playoff_config as PlayoffConfig,
     championTeamId: t.champion_team_id,
+    circuit: (t as any).circuits
+      ? {
+          id: (t as any).circuits.id,
+          name: (t as any).circuits.name,
+          slug: (t as any).circuits.slug,
+        }
+      : null,
+    circuitOrder: (t as any).circuit_order ?? null,
     competition: {
-      teams: ((teams.data as any[]) ?? []).map((team) => ({
+      teams: allTeams.map((team) => ({
         id: team.id,
         name: team.name,
         status: team.status,
         categoryId: team.category_id ?? null,
       })),
-      groups: ((groups.data as any[]) ?? []).map((g) => ({
+      groups: rawGroups.map((g) => ({
         id: g.id,
         categoryId: g.category_id ?? null,
         name: g.name,

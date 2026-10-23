@@ -69,8 +69,8 @@ export default async function TournamentsPage() {
 
 /**
  * Inicio de la cuenta de jugador (D-122): sin crear torneos ni circuitos.
- * Arriba, los torneos en curso con su etapa y el próximo partido; después,
- * el ingreso por código y el listado completo.
+ * Arriba, el ingreso por código de inscripción; después, los torneos en curso
+ * con su etapa y el próximo partido, y al final el listado completo.
  */
 async function PlayerHome({
   userId,
@@ -93,6 +93,8 @@ async function PlayerHome({
         title="Mis torneos"
         description="Inscribite con el código del torneo, seguí tu progreso e invitá a tu pareja."
       />
+
+      <JoinCodeForm />
 
       <section aria-labelledby="en-curso" className="space-y-3">
         <h2 id="en-curso" className="text-lg font-semibold tracking-tight">
@@ -123,8 +125,6 @@ async function PlayerHome({
           </div>
         )}
       </section>
-
-      <JoinCodeForm />
 
       {participations.length > 0 || organized.length > 0 ? (
         <TournamentDashboard

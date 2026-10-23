@@ -14,7 +14,7 @@ test.describe("inscripción y disponibilidad (F5)", () => {
 
     // 1. El capitán se registra y entra con el código (con guion y minúsculas).
     await signUpAndConfirm(page, { name: "Carlos Capitán", email: captainEmail });
-    await page.getByLabel("¿Tenés un código de inscripción?").fill("demq2-padel");
+    await page.getByLabel(/¿Tenés un código de inscripción/).fill("demq2-padel");
     await page.getByRole("button", { name: "Inscribirme" }).click();
     await expect(page).toHaveURL(`/unirse/${DEMO_CODE}`);
     await expect(page.getByLabel("Nombre de la pareja")).toHaveValue("Capitán / ");

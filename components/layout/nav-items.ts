@@ -30,20 +30,21 @@ export const BOTTOM_NAV_ITEMS: NavItem[] = [
 ];
 
 /**
- * Navegación de la cuenta de jugador (D-122): sin Circuitos (son del
- * organizador). En mobile, Perfil ocupa la cuarta columna.
+ * Navegación de la cuenta de jugador: incluye Circuitos para consultar
+ * tablas de posiciones acumuladas de los torneos donde juega.
  */
 export const PLAYER_MAIN_NAV_ITEMS: NavItem[] = [
   { href: "/torneos", label: "Mis torneos", icon: Trophy },
+  { href: "/circuitos", label: "Circuitos", icon: Layers },
   { href: "/proximos", label: "Próximos", icon: CalendarClock },
   { href: "/historial", label: "Mi historial", icon: History },
 ];
 
 export const PLAYER_BOTTOM_NAV_ITEMS: NavItem[] = [
   { href: "/torneos", label: "Mis torneos", icon: Trophy },
+  { href: "/circuitos", label: "Circuitos", icon: Layers },
   { href: "/proximos", label: "Próximos", icon: CalendarClock },
   { href: "/historial", label: "Mi historial", icon: History },
-  { href: "/perfil", label: "Perfil", icon: UserRound },
 ];
 
 export function mainNavItems(role: AccountRole): NavItem[] {

@@ -34,16 +34,16 @@ export function getSportBadgeStyle(sport: string | null | undefined): string {
   if (!sport) return "bg-muted text-foreground border-border";
   const s = sport.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
   if (s.includes("padel") || s.includes("tenis") || s.includes("tennis")) {
-    return "bg-lime-500/10 text-lime-800 dark:text-lime-300 border-lime-500/25";
+    return "bg-lime-500/10 text-lime-900 dark:text-lime-300 border-lime-600/50 dark:border-lime-500/25";
   }
   if (s.includes("futbol") || s.includes("soccer") || s.includes("football")) {
-    return "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/25";
+    return "bg-emerald-500/10 text-emerald-900 dark:text-emerald-300 border-emerald-600/50 dark:border-emerald-500/25";
   }
   if (s.includes("basquet") || s.includes("basket")) {
-    return "bg-orange-500/10 text-orange-800 dark:text-orange-300 border-orange-500/25";
+    return "bg-orange-500/10 text-orange-900 dark:text-orange-300 border-orange-600/50 dark:border-orange-500/25";
   }
   if (s.includes("voley") || s.includes("volley")) {
-    return "bg-sky-500/10 text-sky-800 dark:text-sky-300 border-sky-500/25";
+    return "bg-sky-500/10 text-sky-900 dark:text-sky-300 border-sky-600/50 dark:border-sky-500/25";
   }
   return "bg-secondary text-secondary-foreground border-border";
 }

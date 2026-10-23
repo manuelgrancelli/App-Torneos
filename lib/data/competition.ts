@@ -122,6 +122,17 @@ export const getCompetition = cache(async (tournamentId: string): Promise<Compet
   }
 
   const singleCategoryId = categories.length === 1 ? categories[0]!.id : null;
+  const rawGroups = (groups.data ?? []) as Array<Record<string, unknown>>;
+  const groupTeamCatMap = new Map<string, string>();
+  for (const g of rawGroups) {
+    const catId = g.category_id as string | null;
+    const gTeams = (g.group_teams as Array<{ team_id: string }>) ?? [];
+    if (catId) {
+      for (const gt of gTeams) {
+        if (gt.team_id) groupTeamCatMap.set(gt.team_id, catId);
+      }
+    }
+  }
 
   return {
     teams: (teams.data ?? []).map((t: Record<string, unknown>) => {
@@ -139,7 +150,7 @@ export const getCompetition = cache(async (tournamentId: string): Promise<Compet
         id: t.id as string,
         name: t.name as string,
         status: t.status as Tables<"teams">["status"],
-        categoryId: ((t.category_id as string | null) ?? null) || singleCategoryId,
+        categoryId: ((t.category_id as string | null) ?? null) || groupTeamCatMap.get(t.id as string) || singleCategoryId,
         members,
       };
     }),

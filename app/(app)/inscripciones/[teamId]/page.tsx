@@ -1,5 +1,6 @@
-import { CalendarDays, Crown, UserRoundCheck, UserRoundX } from "lucide-react";
+import { CalendarDays, Crown, Trophy, UserRoundCheck, UserRoundX } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { AvailabilityPicker } from "@/components/availability/availability-picker";
@@ -91,6 +92,24 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
           <PublicPageLink slug={tournament.slug} status={tournament.status} />
         </p>
       </header>
+
+      {tournament.circuit ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs sm:text-sm text-amber-950 dark:text-amber-200">
+          <div className="flex items-center gap-2">
+            <Trophy className="size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+            <span>
+              Fecha {tournament.circuitOrder ? `${tournament.circuitOrder} del ` : "del "}
+              circuito <strong>{tournament.circuit.name}</strong>
+            </span>
+          </div>
+          <Link
+            href={`/circuitos/${tournament.circuit.id}`}
+            className="font-semibold text-primary underline underline-offset-2 hover:opacity-85 inline-flex items-center gap-1"
+          >
+            Ver tabla de posiciones &rarr;
+          </Link>
+        </div>
+      ) : null}
 
       {tournament.bannerUrl ? (
         <section aria-label="Afiche oficial del torneo">
