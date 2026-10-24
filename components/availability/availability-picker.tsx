@@ -165,12 +165,14 @@ export function AvailabilityPicker({ teamId, timezone, slots, courts: _courts, s
       </div>
 
       {!readOnly ? (
-        <div className="sticky bottom-20 z-10 flex items-center justify-between gap-3 rounded-xl border bg-background/95 p-3 shadow-sm backdrop-blur md:bottom-4">
-          <p className="text-sm" aria-live="polite">
-            {selectedWindowsCount === 1 ? "1 franja elegida" : `${selectedWindowsCount} franjas elegidas`}
-            {dirty ? <span className="text-muted-foreground"> · sin guardar</span> : null}
+        <div className="flex flex-col gap-3 pt-4 border-t border-border/60 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            <span className="font-medium text-foreground">
+              {selectedWindowsCount === 1 ? "1 franja elegida" : `${selectedWindowsCount} franjas elegidas`}
+            </span>
+            {dirty ? <span className="text-amber-600 dark:text-amber-400 font-medium"> · sin guardar</span> : null}
           </p>
-          <Button type="button" onClick={save} disabled={!dirty || isPending}>
+          <Button type="button" onClick={save} disabled={!dirty || isPending} className="w-full sm:w-auto">
             {isPending ? <Spinner /> : <Save aria-hidden="true" />}
             Guardar
           </Button>

@@ -2055,7 +2055,17 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
     - La tipografía del título se calibró a `text-sm font-semibold` y la etiqueta a `text-[11px]`.
     - La altura de los controles (input monospace verde y botón *"Inscribirme"*) se redujo a `h-9` con espaciado ágil `gap-2 sm:gap-2.5`, optimizando la ergonomía visual en mobile y desktop.
 - **Motivo:** responder al pedido directo del usuario ("esto achicalo un poco y el tiquet que sea dorado").
-- **Cómo aplicar:** `components/registration/join-code-form.tsx`.
+### D-148 — Corrección de superposición en selector de disponibilidad (AvailabilityPicker) en mobile (2026-10-24)
+- **Decisión:**
+  - **Diagnóstico del problema:** En la pantalla de inscripción del equipo/jugador (`app/(app)/inscripciones/[teamId]/page.tsx`), el selector `AvailabilityPicker` contenía la barra de confirmación con clases `sticky bottom-20 z-10 bg-background/95`. En dispositivos móviles (especialmente al tener 2 o 3 días como viernes, sábado y domingo), la barra flotante se anclaba a 80px sobre la barra de navegación inferior (`BottomNav`), posicionándose exactamente sobre la franja horaria del último día (domingo). Esto ocultaba el botón de selección del domingo e inducía al usuario a creer que el domingo no se podía elegir o venía roto, a diferencia de la vista de organizador (`OrganizerRegistrationForm`) donde no existía elemento sticky.
+  - **Reestructuración al flujo natural del componente (`components/availability/availability-picker.tsx`):**
+    - Se eliminó el posicionamiento `sticky bottom-20 z-10` y el contenedor tipo pastilla flotante que invadía el contenido interior de la tarjeta `Card`.
+    - Se transformó el bloque de guardado en un pie de sección ordenado dentro del flujo normal del documento (`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 border-t border-border/60`).
+    - El botón `"Guardar"` adopta ancho completo en móviles (`w-full sm:w-auto`) y el contador destaca visualmente las franjas seleccionadas y el estado `· sin guardar` en tono ámbar cuando existen cambios pendientes.
+    - La franja del domingo queda totalmente descubierta, con su botón de horario de 13:00 a 22:00 visible y listo para ser seleccionado normalmente.
+- **Motivo:** responder al reporte del usuario ("yo habia hecho 3 franjas una vie,1 sab 1 dom, pero la del dom no me deja seleccionar y me da la opcion de guardar pero la del dom esta mal, y probe como se veia desde el organizador y se ve bien").
+- **Cómo aplicar:** `components/availability/availability-picker.tsx`.
+
 
 
 
