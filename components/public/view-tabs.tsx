@@ -28,7 +28,7 @@ export function ViewTabs<T extends string>({
                 className={cn(
                   "-mb-px inline-flex h-11 items-center border-b-2 border-transparent px-3 text-sm font-medium text-muted-foreground transition-colors",
                   "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                  current && "border-foreground text-foreground",
+                  current && "border-amber-500 text-amber-600 dark:text-amber-400 font-semibold",
                 )}
               >
                 {view.label}

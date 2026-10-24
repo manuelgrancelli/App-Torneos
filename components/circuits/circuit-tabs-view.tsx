@@ -70,21 +70,21 @@ export function CircuitTabsView({
         <TabsList className="grid w-full grid-cols-3 max-w-md border-2 border-foreground/70 dark:border-border bg-muted/60 p-1 rounded-xl shadow-xs">
           <TabsTrigger
             value="ranking"
-            className="gap-2 border border-transparent font-semibold data-[state=active]:border-foreground/70 dark:data-[state=active]:border-border data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs"
+            className="gap-2 border border-transparent font-semibold data-[state=active]:border-foreground/70 dark:data-[state=active]:border-border data-[state=active]:bg-background data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:shadow-xs"
           >
-            <Trophy className="size-4" aria-hidden="true" />
+            <Trophy className="size-4 text-amber-500" aria-hidden="true" />
             Ranking
           </TabsTrigger>
           <TabsTrigger
             value="dates"
-            className="gap-2 border border-transparent font-semibold data-[state=active]:border-foreground/70 dark:data-[state=active]:border-border data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs"
+            className="gap-2 border border-transparent font-semibold data-[state=active]:border-foreground/70 dark:data-[state=active]:border-border data-[state=active]:bg-background data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:shadow-xs"
           >
             <CalendarDays className="size-4" aria-hidden="true" />
             Fechas ({safeDates.length})
           </TabsTrigger>
           <TabsTrigger
             value="config"
-            className="gap-2 border border-transparent font-semibold data-[state=active]:border-foreground/70 dark:data-[state=active]:border-border data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs"
+            className="gap-2 border border-transparent font-semibold data-[state=active]:border-foreground/70 dark:data-[state=active]:border-border data-[state=active]:bg-background data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:shadow-xs"
           >
             <Settings className="size-4" aria-hidden="true" />
             Puntos

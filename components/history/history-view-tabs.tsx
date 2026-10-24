@@ -60,7 +60,7 @@ export function HistoryViewTabs({
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition-all text-xs font-medium cursor-pointer",
               activeTab === "jugados"
-                ? "bg-background text-foreground shadow-xs font-semibold"
+                ? "bg-background text-amber-600 dark:text-amber-400 shadow-xs font-semibold"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -71,7 +71,7 @@ export function HistoryViewTabs({
                 className={cn(
                   "rounded-full px-1.5 py-0.2 text-[10px] tabular-nums font-semibold",
                   activeTab === "jugados"
-                    ? "bg-primary/15 text-primary"
+                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
                     : "bg-muted text-muted-foreground"
                 )}
               >
@@ -90,7 +90,7 @@ export function HistoryViewTabs({
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition-all text-xs font-medium cursor-pointer",
               activeTab === "organizados"
-                ? "bg-background text-foreground shadow-xs font-semibold"
+                ? "bg-background text-amber-600 dark:text-amber-400 shadow-xs font-semibold"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >

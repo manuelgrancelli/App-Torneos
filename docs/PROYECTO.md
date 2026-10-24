@@ -2040,6 +2040,26 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** responder a la solicitud del usuario ("para el que es organizador en circuitos debe tener la division como en torneos entre los circuitos que orgganiza y los que participa").
 - **Cómo aplicar:** `components/circuits/circuit-dashboard.tsx`, `app/(app)/circuitos/page.tsx`.
 
+### D-146 — Resaltado dorado en la opción de navegación activa y pestañas (2026-10-24)
+- **Decisión:**
+  - En la barra de navegación inferior móvil (`BottomNav` en `components/layout/bottom-nav.tsx`) y en el menú de escritorio (`MainNav` en `components/layout/main-nav.tsx`), la sección en la que el usuario se encuentra actualmente activo se destaca en color dorado (`text-amber-600 dark:text-amber-400 font-semibold`) en lugar del texto blanco previo (`text-foreground`).
+  - Tanto el icono vectorial como la etiqueta de texto adoptan el tono dorado con brillo óptimo en tema oscuro y alto contraste en tema claro, mientras que las secciones inactivas mantienen el estilo atenuado (`text-muted-foreground hover:text-foreground`).
+  - En la navegación interna del torneo (`TournamentNav` en `components/tournaments/tournament-nav.tsx`), la pestaña activa de administración (Grupos, Partidos, Cuadro, Canchas y franjas, Inscripciones, Configuración) y el menú "Más" se destacan con borde y tipografía dorada (`border-amber-500 text-amber-600 dark:text-amber-400 font-semibold`), y los puntos recomendados en `bg-amber-500`.
+  - En las vistas públicas de torneos (`ViewTabs` en `components/public/view-tabs.tsx`), en el historial del jugador (`HistoryViewTabs` en `components/history/history-view-tabs.tsx`) y en los circuitos (`CircuitTabsView` en `components/circuits/circuit-tabs-view.tsx`), la pestaña seleccionada se resalta coherentemente en tonos ámbar dorados.
+- **Motivo:** atender la confirmación directa del usuario ("ok, hacelo dorado") tras evaluar la jerarquía visual de la paleta (dorado para foco/éxito, verde esmeralda para acción y blanco para lectura de contenido).
+### D-147 — Formato compacto y ticket dorado en portal de inscripción con código (2026-10-24)
+- **Decisión:**
+  - En el formulario de ingreso con código (`JoinCodeForm` en `components/registration/join-code-form.tsx`):
+    - Se redujo el relleno perimetral a `py-2.5 px-3.5 sm:py-3 sm:px-4.5` (anteriormente `p-4 sm:p-5`), estilizando la tarjeta para un impacto vertical más esbelto y equilibrado.
+    - La insignia del icono de ticket se ajustó a tamaño compacto (`size-8` con icono `size-4`) y se transformó a tonalidad dorada (`bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 shadow-xs shadow-amber-500/10`), acompañada por el destello `Sparkles` en dorado ámbar.
+    - La tipografía del título se calibró a `text-sm font-semibold` y la etiqueta a `text-[11px]`.
+    - La altura de los controles (input monospace verde y botón *"Inscribirme"*) se redujo a `h-9` con espaciado ágil `gap-2 sm:gap-2.5`, optimizando la ergonomía visual en mobile y desktop.
+- **Motivo:** responder al pedido directo del usuario ("esto achicalo un poco y el tiquet que sea dorado").
+- **Cómo aplicar:** `components/registration/join-code-form.tsx`.
+
+
+
+
 
 
 

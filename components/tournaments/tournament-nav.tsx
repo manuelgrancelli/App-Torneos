@@ -95,7 +95,7 @@ export function TournamentNav({
                   className={cn(
                     "-mb-px inline-flex h-11 items-center gap-2 border-b-2 border-transparent px-3 text-sm font-medium text-muted-foreground transition-colors",
                     linkClass,
-                    active && "border-primary text-foreground font-semibold",
+                    active && "border-amber-500 text-amber-600 dark:text-amber-400 font-semibold",
                   )}
                 >
                   {item.label}
@@ -104,7 +104,7 @@ export function TournamentNav({
                       {badge}
                     </span>
                   ) : item.key === recommended && !active ? (
-                    <span className="size-1.5 rounded-full bg-primary" role="img" aria-label="Recomendada para esta fase" />
+                    <span className="size-1.5 rounded-full bg-amber-500" role="img" aria-label="Recomendada para esta fase" />
                   ) : null}
                 </Link>
               </li>
@@ -120,7 +120,7 @@ export function TournamentNav({
                   className={cn(
                     "-mb-px inline-flex h-11 items-center gap-1.5 border-b-2 border-transparent px-3 text-sm font-medium text-muted-foreground transition-colors cursor-pointer",
                     linkClass,
-                    isMoreActive && "border-primary text-foreground font-semibold",
+                    isMoreActive && "border-amber-500 text-amber-600 dark:text-amber-400 font-semibold",
                   )}
                 >
                   <MoreHorizontal className="size-4 shrink-0" aria-hidden="true" />
@@ -143,10 +143,10 @@ export function TournamentNav({
                         href={hrefOf(item.segment)}
                         className={cn(
                           "flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-md transition-colors cursor-pointer",
-                          active && "bg-muted text-foreground font-semibold",
+                          active && "bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold",
                         )}
                       >
-                        <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
+                        <Icon className={cn("size-4", active ? "text-amber-500" : "text-muted-foreground")} aria-hidden="true" />
                         <span>{item.label}</span>
                       </Link>
                     </DropdownMenuItem>
@@ -175,7 +175,7 @@ export function TournamentNav({
                 className={cn(
                   "-mb-px inline-flex h-11 items-center gap-2 border-b-2 border-transparent px-3 text-sm font-medium text-muted-foreground transition-colors",
                   linkClass,
-                  active && "border-primary text-foreground font-semibold",
+                  active && "border-amber-500 text-amber-600 dark:text-amber-400 font-semibold",
                 )}
               >
                 {item.label}
@@ -185,7 +185,7 @@ export function TournamentNav({
                     {badge}
                   </span>
                 ) : item.key === recommended && !active ? (
-                  <span className="size-1.5 rounded-full bg-primary" role="img" aria-label="Recomendada para esta fase" />
+                  <span className="size-1.5 rounded-full bg-amber-500" role="img" aria-label="Recomendada para esta fase" />
                 ) : null}
               </Link>
             </li>

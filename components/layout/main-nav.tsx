@@ -22,7 +22,7 @@ export function MainNav({ className, role }: { className?: string; role: Account
             className={cn(
               "flex h-9 items-center justify-center rounded-xl px-3.5 text-sm font-medium transition-all duration-150 border border-transparent",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              active ? "text-foreground font-semibold" : "text-muted-foreground",
+              active ? "text-amber-600 dark:text-amber-400 font-semibold" : "text-muted-foreground",
               "hover:bg-amber-500/15 hover:text-amber-900 dark:hover:text-amber-200 hover:border-amber-500/30",
             )}
           >

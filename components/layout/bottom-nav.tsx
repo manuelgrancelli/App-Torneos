@@ -28,9 +28,11 @@ export function BottomNav({ role }: { role: AccountRole }) {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex min-h-14 flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted-foreground px-1 text-center leading-tight",
+                  "flex min-h-14 flex-col items-center justify-center gap-1 text-[11px] font-medium px-1 text-center leading-tight transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                  active && "text-foreground font-semibold",
+                  active
+                    ? "text-amber-600 dark:text-amber-400 font-semibold"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 <Icon className="size-5" aria-hidden="true" />
