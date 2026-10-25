@@ -14,11 +14,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { TeamShield } from "@/components/teams/team-shield";
 
 type StandingsTableProps = {
   title: string;
   rows: StandingRow[];
   teamNames: Record<string, string> | Map<string, string>;
+  teamLogos?: Record<string, string | null> | Map<string, string | null>;
   teamMembers?: Record<string, string[]> | Map<string, string[]>;
   scoringType: "sets" | "goals";
   /** Puestos que clasifican (se resaltan). */
@@ -66,6 +68,15 @@ function getTeamName(teamNames: Record<string, string> | Map<string, string>, id
   return teamNames[id] ?? "Equipo";
 }
 
+function getTeamLogo(
+  teamLogos: Record<string, string | null> | Map<string, string | null> | undefined,
+  id: string,
+): string | null {
+  if (!teamLogos) return null;
+  if (teamLogos instanceof Map) return teamLogos.get(id) ?? null;
+  return teamLogos[id] ?? null;
+}
+
 function getTeamMembers(
   teamMembers: Record<string, string[]> | Map<string, string[]> | undefined,
   teamNames: Record<string, string> | Map<string, string>,
@@ -97,6 +108,7 @@ export function StandingsTable({
   title,
   rows,
   teamNames,
+  teamLogos,
   teamMembers,
   scoringType,
   qualifiers = 0,
@@ -108,6 +120,7 @@ export function StandingsTable({
   const lottery = rows.some((r) => r.decidedByLottery && r.played > 0);
 
   const selectedTeamName = selectedRow ? getTeamName(teamNames, selectedRow.teamId) : "";
+  const selectedTeamLogo = selectedRow ? getTeamLogo(teamLogos, selectedRow.teamId) : null;
   const selectedMembers = selectedRow ? getTeamMembers(teamMembers, teamNames, selectedRow.teamId) : [];
 
   // Partidos del equipo seleccionado en esta zona
@@ -158,6 +171,7 @@ export function StandingsTable({
             {rows.map((row) => {
               const isQualified = row.position <= qualifiers;
               const name = getTeamName(teamNames, row.teamId);
+              const logo = getTeamLogo(teamLogos, row.teamId);
               return (
                 <tr
                   key={row.teamId}
@@ -196,6 +210,7 @@ export function StandingsTable({
                       >
                         {row.position}
                       </span>
+                      {logo ? <TeamShield shieldUrl={logo} teamName={name} size="xs" /> : null}
                       <span className="truncate font-medium">{name}</span>
                       {row.decidedByLottery && row.played > 0 ? (
                         <Dices className="size-3.5 shrink-0 text-muted-foreground" aria-label="Posición definida por sorteo" />
@@ -252,12 +267,19 @@ export function StandingsTable({
                     </span>
                   ) : null}
                 </div>
-                <DialogTitle className="text-xl font-bold tracking-tight text-foreground">
-                  {selectedTeamName}
-                </DialogTitle>
-                <DialogDescription className="text-xs text-muted-foreground">
-                  Detalle de integrantes y rendimiento acumulado en la fase de grupos.
-                </DialogDescription>
+                <div className="flex items-center gap-3">
+                  {selectedTeamLogo ? (
+                    <TeamShield shieldUrl={selectedTeamLogo} teamName={selectedTeamName} size="md" />
+                  ) : null}
+                  <div className="min-w-0">
+                    <DialogTitle className="text-xl font-bold tracking-tight text-foreground truncate">
+                      {selectedTeamName}
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-muted-foreground">
+                      Detalle de integrantes y rendimiento acumulado en la fase de grupos.
+                    </DialogDescription>
+                  </div>
+                </div>
               </DialogHeader>
 
               {/* Nombres completos de ambos integrantes */}

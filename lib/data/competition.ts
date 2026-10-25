@@ -55,6 +55,7 @@ export type Competition = {
     id: string;
     name: string;
     status: Tables<"teams">["status"];
+    logoUrl?: string | null;
     categoryId?: string | null;
     members?: { id: string; name: string }[];
   }[];
@@ -150,6 +151,7 @@ export const getCompetition = cache(async (tournamentId: string): Promise<Compet
         id: t.id as string,
         name: t.name as string,
         status: t.status as Tables<"teams">["status"],
+        logoUrl: (t.logo_url as string | null) ?? null,
         categoryId: ((t.category_id as string | null) ?? null) || groupTeamCatMap.get(t.id as string) || singleCategoryId,
         members,
       };

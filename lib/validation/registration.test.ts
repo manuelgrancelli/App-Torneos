@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { organizerCreateTeamSchema, replaceTeamPlayerSchema } from "./registration";
+import {
+  joinTeamByInviteCodeSchema,
+  organizerCreateTeamSchema,
+  registerTeamSchema,
+  replaceTeamPlayerSchema,
+} from "./registration";
 
 describe("organizerCreateTeamSchema", () => {
   const baseData = {
@@ -84,6 +89,45 @@ describe("replaceTeamPlayerSchema", () => {
     const res = replaceTeamPlayerSchema.safeParse({
       ...validData,
       newTeamName: "A",
+    });
+    expect(res.success).toBe(false);
+  });
+});
+
+describe("registerTeamSchema & joinTeamByInviteCodeSchema", () => {
+  it("acepta escudo con preset vectorial preset:f-*", () => {
+    const res = registerTeamSchema.safeParse({
+      code: "ABCDEF",
+      teamName: "Deportivo Antigravity",
+      memberEmails: ["amigo@torneos.app"],
+      logoUrl: "preset:f-azulgrana",
+    });
+    expect(res.success).toBe(true);
+  });
+
+  it("acepta escudo con URL https", () => {
+    const res = registerTeamSchema.safeParse({
+      code: "ABCDEF",
+      teamName: "Atlético Club",
+      memberEmails: ["amigo@torneos.app"],
+      logoUrl: "https://example.com/escudo.png",
+    });
+    expect(res.success).toBe(true);
+  });
+
+  it("valida joinTeamByInviteCodeSchema con código válido", () => {
+    const res = joinTeamByInviteCodeSchema.safeParse({
+      inviteCode: "abc12345",
+    });
+    expect(res.success).toBe(true);
+    if (res.success) {
+      expect(res.data.inviteCode).toBe("abc12345");
+    }
+  });
+
+  it("rechaza joinTeamByInviteCodeSchema si el código es inválido", () => {
+    const res = joinTeamByInviteCodeSchema.safeParse({
+      inviteCode: "ab",
     });
     expect(res.success).toBe(false);
   });

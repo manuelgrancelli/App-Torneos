@@ -17,6 +17,7 @@ export const registerTeam = createAction(registerTeamSchema, async (input, { sup
     p_team_name: input.teamName,
     p_member_emails: input.memberEmails,
     p_category_id: input.categoryId ?? null,
+    p_logo_url: input.logoUrl ?? null,
   });
   if (error) return actionError(dbErrorMessage(error));
 

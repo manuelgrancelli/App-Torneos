@@ -9,7 +9,15 @@ import { dbErrorMessage } from "@/lib/supabase/errors";
 import type { SupabaseServerClient } from "@/lib/supabase/server";
 import { getRequestOrigin } from "@/lib/utils/origin";
 import { respondResultSchema } from "@/lib/validation/competition";
-import { availabilitySchema, teamIdSchema, updateRosterSchema } from "@/lib/validation/registration";
+import {
+  addTeamMemberSchema,
+  availabilitySchema,
+  joinTeamByInviteCodeSchema,
+  removeTeamMemberSchema,
+  teamIdSchema,
+  updateRosterSchema,
+  updateTeamShieldSchema,
+} from "@/lib/validation/registration";
 import { z } from "zod";
 
 function revalidateTeam(teamId: string) {
@@ -69,18 +77,82 @@ export const acceptTeamInvitation = createAction(invitationTokenSchema, async ({
   return actionOk({ teamId: data }, "Aceptaste la invitación. Ya formás parte del equipo.");
 });
 
-/** El capitán cambia nombre o integrantes; si cambia el plantel vuelve a "pendiente". */
+/** El capitán cambia nombre, integrantes o escudo; si cambia el plantel vuelve a "pendiente". */
 export const updateRoster = createAction(updateRosterSchema, async (input, { supabase }) => {
   const tournamentId = await teamTournamentId(supabase, input.teamId);
-  const { error } = await supabase.rpc("update_team_roster", {
+  const { error } = await (supabase.rpc as any)("update_team_roster", {
     p_team_id: input.teamId,
     p_team_name: input.teamName,
     p_member_emails: input.memberEmails,
+    p_logo_url: input.logoUrl ?? null,
   });
   if (error) return actionError(dbErrorMessage(error));
   revalidateTeam(input.teamId);
   if (tournamentId) refreshPublicTournament(tournamentId);
   return actionOk(undefined, "Guardamos el equipo.");
+});
+
+/** Suma un integrante de a uno al equipo por su email. */
+export const addTeamMember = createAction(addTeamMemberSchema, async ({ teamId, email }, { supabase }) => {
+  const tournamentId = await teamTournamentId(supabase, teamId);
+  const { data: memberId, error } = await (supabase.rpc as any)("add_team_member", {
+    p_team_id: teamId,
+    p_email: email,
+  });
+  if (error) return actionError(dbErrorMessage(error));
+
+  // Intentar enviar la invitación por email
+  try {
+    const origin = await getRequestOrigin();
+    await createAndSendTeamInvitation({ supabase, teamId, memberId, origin });
+  } catch (err) {
+    console.error("[addTeamMember] No se pudo enviar invitación automática por correo:", err);
+  }
+
+  revalidateTeam(teamId);
+  if (tournamentId) refreshPublicTournament(tournamentId);
+  return actionOk({ memberId }, `Sumamos a ${email} al equipo.`);
+});
+
+/** Remueve a un integrante del equipo. */
+export const removeTeamMember = createAction(removeTeamMemberSchema, async ({ teamId, memberId }, { supabase }) => {
+  const tournamentId = await teamTournamentId(supabase, teamId);
+  const { error } = await (supabase.rpc as any)("remove_team_member", {
+    p_team_id: teamId,
+    p_member_id: memberId,
+  });
+  if (error) return actionError(dbErrorMessage(error));
+
+  revalidateTeam(teamId);
+  if (tournamentId) refreshPublicTournament(tournamentId);
+  return actionOk(undefined, "Eliminamos al integrante del equipo.");
+});
+
+/** Actualiza el escudo del equipo. */
+export const updateTeamShield = createAction(updateTeamShieldSchema, async ({ teamId, logoUrl }, { supabase }) => {
+  const tournamentId = await teamTournamentId(supabase, teamId);
+  const { error } = await supabase
+    .from("teams")
+    .update({ logo_url: logoUrl })
+    .eq("id", teamId);
+  if (error) return actionError(dbErrorMessage(error));
+
+  revalidateTeam(teamId);
+  if (tournamentId) refreshPublicTournament(tournamentId);
+  return actionOk(undefined, "Actualizamos el escudo del equipo.");
+});
+
+/** Un jugador se une automáticamente al equipo usando el código de enlace de invitación. */
+export const joinTeamByInviteCode = createAction(joinTeamByInviteCodeSchema, async ({ inviteCode }, { supabase }) => {
+  const { data: teamId, error } = await (supabase.rpc as any)("join_team_by_invite_code", {
+    p_invite_code: inviteCode,
+  });
+  if (error) return actionError(dbErrorMessage(error));
+
+  const tournamentId = await teamTournamentId(supabase, teamId);
+  revalidateTeam(teamId);
+  if (tournamentId) refreshPublicTournament(tournamentId);
+  return actionOk({ teamId }, "¡Te uniste al equipo exitosamente!");
 });
 
 /** El capitán da de baja la inscripción (se borra el equipo). */

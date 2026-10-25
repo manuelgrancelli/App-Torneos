@@ -57,7 +57,7 @@ async function loadPublicTournament(tournamentId: string): Promise<PublicTournam
       )
       .eq("id", tournamentId)
       .maybeSingle(),
-    (supabase as any).from("teams").select("id, name, status, category_id").eq("tournament_id", tournamentId).order("name"),
+    (supabase as any).from("teams").select("id, name, status, category_id, logo_url").eq("tournament_id", tournamentId).order("name"),
     (supabase as any)
       .from("tournament_groups")
       .select("id, name, category_id, position, tiebreak_seed, group_teams(team_id, position)")
@@ -139,6 +139,7 @@ async function loadPublicTournament(tournamentId: string): Promise<PublicTournam
         id: team.id,
         name: team.name,
         status: team.status,
+        logoUrl: (team.logo_url as string | null) ?? null,
         categoryId: team.category_id ?? null,
       })),
       groups: rawGroups.map((g) => ({

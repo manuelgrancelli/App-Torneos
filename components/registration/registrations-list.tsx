@@ -23,6 +23,7 @@ import type { OrganizerTeam, TeamStatus } from "@/lib/data/teams";
 import { cn } from "@/lib/utils";
 import { ReplacePlayerDialog } from "./replace-player-dialog";
 import { TeamAvailabilityDialog, type DialogSlot } from "./team-availability-dialog";
+import { TeamShield } from "@/components/teams/team-shield";
 
 type Filter = "all" | TeamStatus;
 
@@ -267,6 +268,7 @@ function TeamCard({
   return (
     <li className="space-y-3 rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
       <div className="flex flex-wrap items-center gap-2">
+        <TeamShield shieldUrl={team.logoUrl} teamName={team.name} size="sm" />
         <h3 className="font-semibold text-foreground">{team.name}</h3>
         {categories && categories.length > 0 ? (
           <TeamCategorySelector

@@ -60,6 +60,7 @@ export default async function GroupsPage({
   );
 
   const teamNames = new Map(competition.teams.map((t) => [t.id, t.name]));
+  const teamLogos = new Map(competition.teams.map((t) => [t.id, t.logoUrl ?? null]));
   const hasResults = matches.some((m) => m.resultStatus !== null);
 
   const isCategoryGroupStage = activeCategory
@@ -240,6 +241,7 @@ export default async function GroupsPage({
                 title={group.name}
                 rows={rows}
                 teamNames={teamNames}
+                teamLogos={teamLogos}
                 teamMembers={teamMembersMap}
                 scoringType={categoryScoring.type}
                 qualifiers={

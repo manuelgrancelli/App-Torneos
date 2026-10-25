@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge, SportBadge } from "@/components/tournaments/status-badge";
 import { TournamentBanner } from "@/components/tournaments/tournament-banner";
 import { Badge } from "@/components/ui/badge";
+import { TeamShield } from "@/components/teams/team-shield";
 import {
   buildProjectedBracket,
   buildTeamSeedMap,
@@ -101,6 +102,7 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
   const categoryNames = new Map(categories.map((c) => [c.id, c.name]));
 
   const teamNames = new Map(competition.teams.map((t) => [t.id, t.name]));
+  const teamLogos = new Map(competition.teams.map((t) => [t.id, t.logoUrl ?? null]));
   const courts = new Map(tournament.courts.map((c) => [c.id, c]));
   const courtNames = new Map(tournament.courts.map((c) => [c.id, c.name]));
   const groupCategoryMap = new Map(competition.groups.map((g) => [g.id, g.categoryId]));
@@ -228,6 +230,7 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
                         title={group.name}
                         rows={rows}
                         teamNames={teamNames}
+                        teamLogos={teamLogos}
                         scoringType={(activeCategory?.scoringConfig ?? tournament.scoringConfig).type}
                         qualifiers={
                           group.teamIds.length === 4
@@ -350,9 +353,12 @@ function RegistrationView({
           <ul className="grid gap-2 sm:grid-cols-2">
             {teams.map((team) => (
               <li key={team.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
-                <span>{team.name}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <TeamShield shieldUrl={team.logoUrl} teamName={team.name} size="sm" />
+                  <span className="truncate">{team.name}</span>
+                </div>
                 {team.categoryId && categoryNames.has(team.categoryId) ? (
-                  <Badge variant="outline" className="text-[11px] font-medium border-primary/40 bg-primary/5 text-primary">
+                  <Badge variant="outline" className="text-[11px] font-medium border-primary/40 bg-primary/5 text-primary shrink-0">
                     {categoryNames.get(team.categoryId)}
                   </Badge>
                 ) : null}

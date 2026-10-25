@@ -16,17 +16,44 @@ export const memberEmailsSchema = z
   .max(60)
   .refine((emails) => new Set(emails).size === emails.length, { error: "Hay emails repetidos." });
 
+export const logoUrlSchema = z
+  .string()
+  .max(2048, { error: "El enlace del escudo no puede superar 2048 caracteres." })
+  .nullable()
+  .optional();
+
 export const registerTeamSchema = z.object({
   code: z.string().trim().min(1).max(40),
   categoryId: z.string().uuid().optional(),
   teamName: teamNameSchema,
   memberEmails: memberEmailsSchema,
+  logoUrl: logoUrlSchema,
 });
 
 export const updateRosterSchema = z.object({
   teamId: z.uuid(),
   teamName: teamNameSchema,
   memberEmails: memberEmailsSchema,
+  logoUrl: logoUrlSchema,
+});
+
+export const addTeamMemberSchema = z.object({
+  teamId: z.uuid(),
+  email: emailSchema,
+});
+
+export const removeTeamMemberSchema = z.object({
+  teamId: z.uuid(),
+  memberId: z.uuid(),
+});
+
+export const updateTeamShieldSchema = z.object({
+  teamId: z.uuid(),
+  logoUrl: z.string().max(2048).nullable(),
+});
+
+export const joinTeamByInviteCodeSchema = z.object({
+  inviteCode: z.string().trim().min(3).max(40),
 });
 
 export const teamIdSchema = z.object({ teamId: z.uuid() });
@@ -131,6 +158,10 @@ export type AssignTournamentTeamsCategoryInput = z.input<typeof assignTournament
 export type SetTeamAvailabilityInput = z.input<typeof setTeamAvailabilitySchema>;
 export type BulkImportTeamsInput = z.input<typeof bulkImportTeamsSchema>;
 export type ReplaceTeamPlayerInput = z.input<typeof replaceTeamPlayerSchema>;
+export type AddTeamMemberInput = z.input<typeof addTeamMemberSchema>;
+export type RemoveTeamMemberInput = z.input<typeof removeTeamMemberSchema>;
+export type UpdateTeamShieldInput = z.input<typeof updateTeamShieldSchema>;
+export type JoinTeamByInviteCodeInput = z.input<typeof joinTeamByInviteCodeSchema>;
 
 /** "demq2-padel " → "DEMQ2PADEL" (igual que normalize_code en la base). */
 export function normalizeInviteCode(code: string): string {

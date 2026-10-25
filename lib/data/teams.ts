@@ -26,6 +26,8 @@ export type MemberTeam = {
   id: string;
   name: string;
   status: TeamStatus;
+  logoUrl: string | null;
+  inviteCode: string | null;
   isCaptain: boolean;
   members: TeamMemberView[];
   availability: string[];
@@ -80,7 +82,7 @@ export const getTeamForMember = cache(async (teamId: string, userId: string): Pr
   const { data: team, error } = await (supabase as any)
     .from("teams")
     .select(
-      "id, name, status, captain_id, tournament_id, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(slot_id), tournaments!teams_tournament_id_fkey(id, name, slug, status, timezone, starts_on, ends_on, results_require_confirmation, banner_url, scoring_config, standings_config, playoff_config, champion_team_id, circuit_id, circuit_order, circuits(id, name, slug), sports(name, min_team_size, max_team_size))",
+      "id, name, logo_url, invite_code, status, captain_id, tournament_id, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(slot_id), tournaments!teams_tournament_id_fkey(id, name, slug, status, timezone, starts_on, ends_on, results_require_confirmation, banner_url, scoring_config, standings_config, playoff_config, champion_team_id, circuit_id, circuit_order, circuits(id, name, slug), sports(name, min_team_size, max_team_size))",
     )
     .eq("id", teamId)
     .maybeSingle();
@@ -103,6 +105,8 @@ export const getTeamForMember = cache(async (teamId: string, userId: string): Pr
     id: team.id,
     name: team.name,
     status: team.status,
+    logoUrl: (team.logo_url as string | null) ?? null,
+    inviteCode: (team.invite_code as string | null) ?? null,
     isCaptain: team.captain_id === userId,
     members: (team.team_members as any[])
       .map(toMember)
@@ -149,6 +153,8 @@ export type OrganizerTeam = {
   id: string;
   name: string;
   status: TeamStatus;
+  logoUrl?: string | null;
+  inviteCode?: string | null;
   categoryId: string | null;
   testGenerated: boolean;
   organizerRegistered: boolean;
@@ -166,7 +172,7 @@ export const listTournamentTeams = cache(async (tournamentId: string): Promise<O
   const [{ data, error }, categories] = await Promise.all([
     (supabase as any)
       .from("teams")
-      .select("id, name, status, category_id, test_generated, organizer_registered, created_at, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(slot_id)")
+      .select("id, name, logo_url, invite_code, status, category_id, test_generated, organizer_registered, created_at, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(slot_id)")
       .eq("tournament_id", tournamentId)
       .order("created_at"),
     getTournamentCategories(tournamentId),
@@ -180,6 +186,8 @@ export const listTournamentTeams = cache(async (tournamentId: string): Promise<O
     return {
       id: team.id as string,
       name: team.name as string,
+      logoUrl: (team.logo_url as string | null) ?? null,
+      inviteCode: (team.invite_code as string | null) ?? null,
       status: team.status as TeamStatus,
       categoryId: ((team.category_id as string | null) ?? null) || singleCategoryId,
       testGenerated: team.test_generated as boolean,

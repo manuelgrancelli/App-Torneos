@@ -14,6 +14,9 @@ type TeamActionsProps = {
   teamId: string;
   teamName: string;
   teamSize: number;
+  sportId?: string;
+  scoringType?: string;
+  logoUrl?: string | null;
   isCaptain: boolean;
   companionEmails: string[];
   captainName?: string;
@@ -25,6 +28,9 @@ export function TeamActions({
   teamId,
   teamName,
   teamSize,
+  sportId,
+  scoringType,
+  logoUrl,
   isCaptain,
   companionEmails,
   captainName,
@@ -92,7 +98,10 @@ export function TeamActions({
             mode="edit"
             teamId={teamId}
             teamSize={teamSize}
+            sportId={sportId}
+            scoringType={scoringType}
             defaultName={teamName}
+            defaultLogoUrl={logoUrl}
             defaultEmails={companionEmails}
             captainName={captainName}
             captainEmail={captainEmail}

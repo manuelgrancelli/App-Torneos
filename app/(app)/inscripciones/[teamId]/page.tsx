@@ -7,7 +7,11 @@ import { AvailabilityPicker } from "@/components/availability/availability-picke
 import { MyMatches } from "@/components/matches/my-matches";
 import { PlayerProgressPanel } from "@/components/player/player-progress-panel";
 import { ShareTeamInvitation } from "@/components/player/share-team-invitation";
+import { AddMemberInline } from "@/components/registration/add-member-inline";
+import { RemoveMemberButton } from "@/components/registration/remove-member-button";
 import { TeamActions } from "@/components/registration/team-actions";
+import { TeamInviteCard } from "@/components/registration/team-invite-card";
+import { TeamShield } from "@/components/teams/team-shield";
 import { PublicPageLink } from "@/components/tournaments/public-page-link";
 import { StatusBadge, TeamStatusBadge, SportBadge } from "@/components/tournaments/status-badge";
 import { TournamentBanner } from "@/components/tournaments/tournament-banner";
@@ -79,18 +83,23 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
           <span className="text-sm font-medium text-foreground">{tournament.name}</span>
           <SportBadge sport={tournament.sportName} />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{team.name}</h1>
-          <TeamStatusBadge status={team.status} />
+        <div className="flex flex-wrap items-center gap-3">
+          <TeamShield logoUrl={team.logoUrl} teamName={team.name} size="lg" />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-semibold tracking-tight">{team.name}</h1>
+              <TeamStatusBadge status={team.status} />
+            </div>
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground mt-0.5">
+              <span className="inline-flex items-center gap-1">
+                <CalendarDays className="size-4" aria-hidden="true" />
+                {formatDateRange(tournament.startsOn, tournament.endsOn)}
+              </span>
+              <StatusBadge status={tournament.status} />
+              <PublicPageLink slug={tournament.slug} status={tournament.status} />
+            </p>
+          </div>
         </div>
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <CalendarDays className="size-4" aria-hidden="true" />
-            {formatDateRange(tournament.startsOn, tournament.endsOn)}
-          </span>
-          <StatusBadge status={tournament.status} />
-          <PublicPageLink slug={tournament.slug} status={tournament.status} />
-        </p>
       </header>
 
       {tournament.circuit ? (
@@ -165,23 +174,38 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
       <div className="grid gap-6 lg:grid-cols-[1fr_2fr]">
         <Card>
           <CardHeader>
-            <CardTitle>
-              <h2 className="text-base font-semibold">{noun === "pareja" ? "Pareja" : "Equipo"}</h2>
-            </CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle>
+                <h2 className="text-base font-semibold">{noun === "pareja" ? "Pareja" : "Equipo"}</h2>
+              </CardTitle>
+              <span className="text-xs text-muted-foreground font-medium">
+                {team.members.length} {team.members.length === 1 ? "integrante" : "integrantes"}
+                {tournament.minTeamSize > team.members.length ? ` (mínimo ${tournament.minTeamSize})` : ""}
+              </span>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {team.isCaptain && registrationOpen && team.inviteCode ? (
+              <TeamInviteCard
+                inviteCode={team.inviteCode}
+                teamName={team.name}
+                tournamentName={tournament.name}
+              />
+            ) : null}
+
             {team.members.length < tournament.minTeamSize ? (
               <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs sm:text-sm text-amber-900 dark:text-amber-200">
                 <p className="font-semibold flex items-center gap-1.5">
-                  <span>Pareja incompleta</span>
+                  <span>{noun === "pareja" ? "Pareja incompleta" : "Plantel incompleto"}</span>
                 </p>
                 <p className="mt-1 text-muted-foreground">
                   {noun === "pareja"
                     ? "En los torneos de pádel se compite de a dos. Falta sumar el email de tu pareja. Hacé click en \"Editar equipo\" para agregarlo y que quede completa."
-                    : "El equipo no tiene el plantel completo de integrantes. Hacé click en \"Editar equipo\" para sumar a tus compañeros."}
+                    : `El equipo necesita al menos ${tournament.minTeamSize} jugadores para ser aprobado. Compartí el link de invitación o agregá compañeros abajo.`}
                 </p>
               </div>
             ) : null}
+
             <ul className="divide-y rounded-lg border">
               {team.members.map((member) => (
                 <li key={member.id} className="flex items-center gap-3 px-3 py-2">
@@ -207,10 +231,24 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
                       <Crown aria-hidden="true" />
                       Capitán
                     </Badge>
+                  ) : team.isCaptain && registrationOpen ? (
+                    <RemoveMemberButton
+                      teamId={team.id}
+                      memberId={member.id}
+                      memberName={member.fullName ?? member.displayName ?? member.email ?? "compañero"}
+                    />
                   ) : null}
                 </li>
               ))}
             </ul>
+
+            {team.isCaptain && registrationOpen ? (
+              <AddMemberInline
+                teamId={team.id}
+                isFull={team.members.length >= tournament.maxTeamSize}
+              />
+            ) : null}
+
             {pendingInvites.map((member) => (
               <ShareTeamInvitation
                 key={member.id}
@@ -219,11 +257,15 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
                 memberLabel={member.fullName ?? member.displayName ?? member.email ?? "Tu compañero"}
               />
             ))}
+
             {registrationOpen ? (
               <TeamActions
                 teamId={team.id}
                 teamName={team.name}
                 teamSize={tournament.minTeamSize}
+                sportId={tournament.sportName}
+                scoringType={tournament.scoringConfig.type}
+                logoUrl={team.logoUrl}
                 isCaptain={team.isCaptain}
                 captainName={team.members.find((m) => m.role === "captain")?.fullName ?? user.fullName}
                 captainEmail={team.members.find((m) => m.role === "captain")?.email ?? user.email}
