@@ -5,6 +5,7 @@ import { actionError, actionOk, createAction } from "@/lib/actions/safe-action";
 import { refreshPublicTournament } from "@/lib/public-cache";
 import { dbErrorMessage } from "@/lib/supabase/errors";
 import { canUserManageTournament } from "@/lib/data/tournaments";
+import { findMatchingCategory } from "@/lib/domain/category-matcher";
 import {
   assignTeamCategorySchema,
   assignTournamentTeamsCategorySchema,
@@ -111,7 +112,12 @@ export const assignAllUnassignedTeams = createAction(
 /** El organizador modifica la disponibilidad horaria (franjas) de una pareja. */
 export const setTeamAvailabilityByOrganizer = createAction(
   setTeamAvailabilitySchema,
-  async ({ tournamentId, teamId, slotIds }, { supabase }) => {
+  async ({ tournamentId, teamId, slotIds }, { supabase, userId }) => {
+    const canManage = await canUserManageTournament(supabase, tournamentId, userId);
+    if (!canManage) {
+      return actionError("No tenés permiso para modificar los horarios de este torneo.");
+    }
+
     const { data, error } = await supabase.rpc("set_team_availability", {
       p_team_id: teamId,
       p_slot_ids: slotIds,
@@ -123,8 +129,10 @@ export const setTeamAvailabilityByOrganizer = createAction(
 
     revalidatePath(`/torneos/${tournamentId}`, "layout");
     revalidatePath(`/torneos/${tournamentId}/inscripciones`);
+    revalidatePath(`/torneos/${tournamentId}/grupos`);
     revalidatePath(`/torneos/${tournamentId}/canchas-franjas`);
     revalidatePath(`/torneos/${tournamentId}/partidos`);
+    revalidatePath(`/inscripciones/${teamId}`);
     refreshPublicTournament(tournamentId);
 
     const count = data ?? 0;
@@ -135,6 +143,66 @@ export const setTeamAvailabilityByOrganizer = createAction(
         : count === 1
           ? "Se asignó 1 franja horaria a la pareja."
           : `Se asignaron ${count} franjas horarias a la pareja.`,
+    );
+  },
+);
+
+/**
+ * Habilita todas las franjas horarias del torneo a todas las parejas aprobadas
+ * que actualmente no tengan disponibilidad asignada (ej. parejas inscriptas por link/código).
+ */
+export const initializeTournamentTeamsAvailability = createAction(
+  tournamentRegistrationActionSchema,
+  async ({ tournamentId }, { supabase }) => {
+    const { data: slots, error: slotsError } = await supabase
+      .from("time_slots")
+      .select("id")
+      .eq("tournament_id", tournamentId);
+
+    if (slotsError || !slots || slots.length === 0) {
+      return actionError("El torneo no tiene franjas horarias creadas.");
+    }
+
+    const slotIds = slots.map((s) => s.id);
+
+    // Obtener parejas aprobadas
+    const { data: teams, error: teamsError } = await (supabase as any)
+      .from("teams")
+      .select("id, name")
+      .eq("tournament_id", tournamentId)
+      .eq("status", "approved");
+
+    if (teamsError) return actionError(dbErrorMessage(teamsError));
+
+    // Obtener disponibilidad existente
+    const { data: existingAvail } = await (supabase as any)
+      .from("team_availability")
+      .select("team_id")
+      .eq("tournament_id", tournamentId);
+
+    const teamWithAvailSet = new Set((existingAvail ?? []).map((r: { team_id: string }) => r.team_id));
+    const teamsWithoutAvail = (teams ?? []).filter((t: { id: string }) => !teamWithAvailSet.has(t.id));
+
+    if (teamsWithoutAvail.length === 0) {
+      return actionOk({ count: 0 }, "Todas las parejas ya tienen horarios asignados.");
+    }
+
+    for (const team of teamsWithoutAvail) {
+      await (supabase.rpc as any)("set_team_availability", {
+        p_team_id: team.id,
+        p_slot_ids: slotIds,
+      });
+    }
+
+    revalidatePath(`/torneos/${tournamentId}`, "layout");
+    revalidatePath(`/torneos/${tournamentId}/grupos`);
+    revalidatePath(`/torneos/${tournamentId}/inscripciones`);
+    revalidatePath(`/torneos/${tournamentId}/partidos`);
+    refreshPublicTournament(tournamentId);
+
+    return actionOk(
+      { count: teamsWithoutAvail.length },
+      `Se habilitaron todos los horarios a ${teamsWithoutAvail.length} ${teamsWithoutAvail.length === 1 ? "pareja" : "parejas"} (${teamsWithoutAvail.map((t: { name: string }) => t.name).join(", ")}).`,
     );
   },
 );
@@ -190,11 +258,9 @@ export const bulkImportTeams = createAction(
     for (const block of blocks) {
       let targetCategoryId = block.categoryId ?? null;
 
-      // Si no viene ID de categoría, buscar por nombre o crearla
+      // Si no viene ID de categoría, buscar por nombre o coincidencia inteligente
       if (!targetCategoryId) {
-        const found = currentCats.find(
-          (c) => c.name.trim().toLowerCase() === block.categoryName.trim().toLowerCase(),
-        );
+        const found = findMatchingCategory(currentCats, block.categoryName);
 
         if (found) {
           targetCategoryId = found.id;

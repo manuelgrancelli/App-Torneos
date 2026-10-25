@@ -147,4 +147,23 @@ describe("roster-parser", () => {
     expect(result.ignoredLines).toContain("13-");
     expect(result.ignoredLines).toContain("*22/23/24 y 25*");
   });
+
+  it("reconoce '5TA Caballeros' como la misma categoría que '5ta caballreos' existente", () => {
+    const rawText = `*➡️ 5TA Caballeros*
+
+1- López Martín / Díaz Franco
+2- Herrera Tomás / Ruiz Mateo`;
+
+    const existingCategories = [
+      { id: "cat-5ta", name: "5ta caballreos" },
+    ];
+
+    const result = parseBulkRoster(rawText, existingCategories);
+
+    expect(result.categories).toHaveLength(1);
+    const cat = result.categories[0]!;
+    expect(cat.matchedCategoryId).toBe("cat-5ta");
+    expect(cat.teams).toHaveLength(2);
+  });
 });
+

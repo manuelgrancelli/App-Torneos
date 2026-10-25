@@ -76,6 +76,7 @@ export function MemberEmailsField({ value, onChange, count, errors = [], general
               placeholder={count === 1 ? "pareja@ejemplo.com" : `compañero${index + 1}@ejemplo.com`}
               value={email}
               aria-invalid={Boolean(errors[index])}
+              className="h-9 text-base sm:text-xs"
               onChange={(e) => {
                 const next = [...emails];
                 next[index] = e.target.value;

@@ -74,34 +74,36 @@ export function SwapTeamsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="w-full max-w-[calc(100%-1.5rem)] sm:max-w-md max-h-[85vh] p-0 flex flex-col gap-0 overflow-hidden shadow-xl border">
+        {/* Encabezado fijo superior */}
+        <DialogHeader className="p-3.5 pr-10 sm:p-4 sm:pr-12 border-b shrink-0 text-left bg-card">
           <div className="flex items-center gap-2">
-            <ArrowLeftRight className="size-5 text-primary shrink-0" />
-            <DialogTitle className="text-base sm:text-lg">
+            <ArrowLeftRight className="size-4 text-primary shrink-0" />
+            <DialogTitle className="text-sm sm:text-base font-semibold truncate">
               Intercambiar pareja
             </DialogTitle>
           </div>
-          <DialogDescription>
-            Intercambiar a <strong>{sourceTeam.name}</strong> ({groupName(sourceGroupIndex)}) con una pareja de otro grupo mantendrá equilibrada la cantidad de integrantes de cada zona.
+          <DialogDescription className="text-xs text-muted-foreground mt-1 leading-snug">
+            Intercambiar a <strong className="text-foreground">{sourceTeam.name}</strong> ({groupName(sourceGroupIndex)}) con una pareja de otro grupo mantiene equilibradas las zonas.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        {/* Lista scrollable vertical únicamente */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-3.5 space-y-3 min-w-0">
           {candidateGroups.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+            <div className="rounded-lg border border-dashed p-6 text-center text-xs text-muted-foreground">
               No hay otras zonas disponibles para realizar un intercambio.
             </div>
           ) : (
             candidateGroups.map((group) => (
-              <div key={group.gIndex} className="space-y-2 rounded-xl border p-3 bg-muted/20">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div key={group.gIndex} className="space-y-1.5 rounded-lg border p-2 sm:p-2.5 bg-muted/20 min-w-0">
+                <div className="flex items-center justify-between px-0.5">
+                  <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     {group.name} ({group.teams.length} {group.teams.length === 1 ? "pareja" : "parejas"})
                   </h4>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1 min-w-0">
                   {group.teams.map((targetTeam) => {
                     // Evaluar compatibilidad del swap:
                     // 1. ¿TargetTeam tiene conflicto en SourceGroup?
@@ -117,20 +119,28 @@ export function SwapTeamsModal({
                     return (
                       <div
                         key={targetTeam.id}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border bg-background p-2.5 shadow-2xs hover:border-primary/40 transition-colors"
+                        className="flex items-center justify-between gap-2 rounded-md border bg-background p-2 hover:border-primary/40 hover:bg-muted/30 transition-colors min-w-0"
                       >
-                        <div className="min-w-0 space-y-0.5">
-                          <p className="font-medium text-sm truncate">{targetTeam.name}</p>
-                          <div className="flex items-center gap-1.5 text-[11px]">
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <p className="font-medium text-xs sm:text-sm truncate text-foreground">
+                            {targetTeam.name}
+                          </p>
+                          <div className="flex items-center gap-1 text-[11px]">
                             {hasAnyConflict ? (
-                              <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300">
-                                <TriangleAlert className="size-3 text-amber-600 dark:text-amber-400" />
-                                Posible incompatibilidad horaria
+                              <span
+                                className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 font-medium truncate"
+                                title="Posible incompatibilidad horaria con los rivales del grupo"
+                              >
+                                <TriangleAlert className="size-3 shrink-0 text-amber-600 dark:text-amber-400" />
+                                Incompatible
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-medium">
-                                <CheckCircle2 className="size-3 text-emerald-600 dark:text-emerald-400" />
-                                Compatible con los rivales
+                              <span
+                                className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-medium truncate"
+                                title="Horarios compatibles con los rivales del grupo"
+                              >
+                                <CheckCircle2 className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                Compatible
                               </span>
                             )}
                           </div>
@@ -144,10 +154,10 @@ export function SwapTeamsModal({
                             onConfirmSwap(sourceTeam.id, targetTeam.id);
                             onClose();
                           }}
-                          className="shrink-0 gap-1.5 text-xs hover:bg-primary hover:text-primary-foreground transition-colors"
+                          className="h-7 px-2.5 text-xs shrink-0 gap-1 font-medium hover:bg-primary hover:text-primary-foreground transition-colors"
                         >
-                          <ArrowLeftRight className="size-3.5" />
-                          Intercambiar
+                          <ArrowLeftRight className="size-3" />
+                          <span>Intercambiar</span>
                         </Button>
                       </div>
                     );
@@ -158,8 +168,9 @@ export function SwapTeamsModal({
           )}
         </div>
 
-        <DialogFooter>
-          <Button type="button" variant="outline" size="sm" onClick={onClose} className="text-xs">
+        {/* Pie fijo inferior */}
+        <DialogFooter className="p-2.5 sm:p-3 border-t bg-muted/10 shrink-0 flex flex-row items-center justify-end">
+          <Button type="button" variant="outline" size="sm" onClick={onClose} className="h-7.5 px-3 text-xs">
             Cancelar
           </Button>
         </DialogFooter>

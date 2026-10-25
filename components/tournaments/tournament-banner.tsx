@@ -55,20 +55,20 @@ export function TournamentBanner({
         />
 
         {/* Imagen principal adaptada sin recorte */}
-        <div className="relative flex items-center justify-center p-2 sm:p-3 min-h-48 sm:min-h-56 md:min-h-64 max-h-72 sm:max-h-80 md:max-h-96">
+        <div className="relative flex items-center justify-center p-1.5 sm:p-3 min-h-32 sm:min-h-56 max-h-48 sm:max-h-80 md:max-h-96">
           <img
             src={src}
             alt={alt}
-            className="max-h-64 sm:max-h-72 md:max-h-88 w-auto max-w-full rounded-xl object-contain drop-shadow-sm transition-transform duration-300 group-hover:scale-[1.01]"
+            className="max-h-44 sm:max-h-72 md:max-h-88 w-auto max-w-full rounded-xl object-contain drop-shadow-sm transition-transform duration-300 group-hover:scale-[1.01]"
             loading="lazy"
             decoding="async"
           />
         </div>
 
         {/* Indicador flotante para ampliar */}
-        <div className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-background/85 px-3 py-1.5 text-xs font-medium text-foreground backdrop-blur-md shadow-xs border border-border/60 transition-transform duration-200 group-hover:scale-105">
-          <Maximize2 className="size-3.5 text-primary" aria-hidden="true" />
-          <span>Ver afiche completo</span>
+        <div className="absolute bottom-2.5 right-2.5 sm:bottom-3 sm:right-3 flex items-center gap-1.5 rounded-full bg-background/85 px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-medium text-foreground backdrop-blur-md shadow-xs border border-border/60 transition-transform duration-200 group-hover:scale-105">
+          <Maximize2 className="size-3 sm:size-3.5 text-primary" aria-hidden="true" />
+          <span>Ver afiche</span>
         </div>
       </div>
 

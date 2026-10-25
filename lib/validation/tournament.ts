@@ -190,7 +190,15 @@ export const setCategoryStatusSchema = z.object({
   championTeamId: z.uuid().optional(),
 });
 
+export const mergeCategoriesSchema = z.object({
+  tournamentId: z.uuid(),
+  sourceCategoryId: z.uuid(),
+  targetCategoryId: z.uuid(),
+});
+
 export type GenerateSlotsInput = z.input<typeof generateSlotsSchema>;
 export type CreateSlotInput = z.input<typeof createSlotSchema>;
 export type CreateCategoryInput = z.input<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.input<typeof updateCategorySchema>;
+export type MergeCategoriesInput = z.input<typeof mergeCategoriesSchema>;
+

@@ -228,4 +228,13 @@
   .animate-confetti-particle {
     animation: none;
   }
+}
+
+/* Previene el auto-zoom de iOS Safari en inputs de mobile asegurando font-size mínimo de 16px */
+@media (max-width: 639px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }

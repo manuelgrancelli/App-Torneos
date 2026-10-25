@@ -147,6 +147,8 @@ export function parsePairLine(line: string): { playerNames: string[]; teamName: 
   return { playerNames, teamName };
 }
 
+import { findMatchingCategory } from "./category-matcher";
+
 /**
  * Analiza un texto completo con múltiples categorías e inscriptos.
  */
@@ -165,9 +167,7 @@ export function parseBulkRoster(
   function commitCurrentCategory() {
     if (currentTeams.length > 0) {
       const catName = currentCategoryName || defaultCategoryName;
-      const matched = existingCategories.find(
-        (c) => c.name.trim().toLowerCase() === catName.trim().toLowerCase(),
-      );
+      const matched = findMatchingCategory(existingCategories, catName);
 
       categories.push({
         categoryName: catName,

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CalendarClock, Check, ChevronRight, Crown, UserPen, UserRoundX, X, ClipboardList } from "lucide-react";
+import { AlertCircle, CalendarClock, Check, ChevronRight, Crown, Sparkles, UserPen, UserRoundX, X, ClipboardList } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
@@ -11,6 +11,8 @@ import {
   fillTestTeamSlots,
   reviewRegistration,
 } from "@/app/(app)/torneos/[id]/inscripciones/actions";
+import { mergeCategories } from "@/app/(app)/torneos/[id]/categorias/actions";
+import { findDuplicateCategoryPairs } from "@/lib/domain/category-matcher";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TeamStatusBadge } from "@/components/tournaments/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -498,6 +500,31 @@ export function RegistrationsList({
     setOpenCategories(next);
   }
 
+  const duplicatePairs = useMemo(() => {
+    if (!categories || categories.length < 2) return [];
+    return findDuplicateCategoryPairs(categories);
+  }, [categories]);
+
+  const [isMerging, startMergeTransition] = useTransition();
+
+  function handleMerge(sourceId: string, targetId: string) {
+    startMergeTransition(async () => {
+      const res = await mergeCategories({
+        tournamentId,
+        sourceCategoryId: sourceId,
+        targetCategoryId: targetId,
+      });
+
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+
+      toast.success(res.message);
+      router.refresh();
+    });
+  }
+
   function runRegistrationTool() {
     startToolTransition(async () => {
       const result = await fillTestTeamSlots({ tournamentId });
@@ -593,6 +620,45 @@ export function RegistrationsList({
         />
       ) : displayedGroups.length > 0 ? (
         <div className="space-y-4">
+          {/* Alerta interactiva de categorías duplicadas / equivalentes */}
+          {duplicatePairs.length > 0 ? (
+            <div className="space-y-2">
+              {duplicatePairs.map(({ primary, duplicate }) => {
+                const dupTeamsCount = teams.filter((t) => t.categoryId === duplicate.id).length;
+                const primTeamsCount = teams.filter((t) => t.categoryId === primary.id).length;
+
+                return (
+                  <div
+                    key={`${primary.id}-${duplicate.id}`}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs shadow-xs"
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <AlertCircle className="size-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" aria-hidden="true" />
+                      <div>
+                        <p className="font-semibold text-foreground text-sm">
+                          Categorías equivalentes detectadas: &quot;{duplicate.name}&quot; y &quot;{primary.name}&quot;
+                        </p>
+                        <p className="text-muted-foreground mt-0.5 leading-relaxed">
+                          Identificamos que estas dos categorías refieren a la misma. Podés unificarlas en{" "}
+                          <strong className="text-foreground font-semibold">&quot;{primary.name}&quot;</strong> ({primTeamsCount} {primTeamsCount === 1 ? "pareja" : "parejas"}) para trasladar las {dupTeamsCount} {dupTeamsCount === 1 ? "pareja" : "parejas"} de &quot;{duplicate.name}&quot; y eliminar la categoría duplicada.
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => handleMerge(duplicate.id, primary.id)}
+                      disabled={isMerging}
+                      className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white font-medium"
+                    >
+                      {isMerging ? <Spinner className="size-3" /> : <Sparkles className="size-3.5" aria-hidden="true" />}
+                      <span>Unificar en &quot;{primary.name}&quot;</span>
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+
           {displayedGroups.length > 1 ? (
             <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
               <span>

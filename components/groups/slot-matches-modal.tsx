@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar, CalendarClock, CheckCircle2, Clock, MapPin, TriangleAlert } from "lucide-react";
+import { AlertCircle, ArrowLeftRight, Calendar, CalendarClock, CheckCircle2, Clock, MapPin, Sparkles, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Spinner } from "@/components/ui/spinner";
 import { DEFAULT_TIMEZONE, formatInTimeZone, formatTimeRange } from "@/lib/dates";
 import { groupName } from "@/lib/domain/groups";
 
@@ -38,6 +39,8 @@ export type SlotMatchesModalProps = {
   courts?: Court[];
   timezone?: string;
   onOpenSwap?: (teamId: string) => void;
+  onAssignAllSlots?: (teamId: string) => void;
+  isAssigningSlots?: boolean;
 };
 
 export function SlotMatchesModal({
@@ -51,6 +54,8 @@ export function SlotMatchesModal({
   courts = [],
   timezone = DEFAULT_TIMEZONE,
   onOpenSwap,
+  onAssignAllSlots,
+  isAssigningSlots = false,
 }: SlotMatchesModalProps) {
   if (!team) return null;
 
@@ -90,19 +95,20 @@ export function SlotMatchesModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xl max-h-[88vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="w-full max-w-[calc(100%-1.5rem)] sm:max-w-lg max-h-[85vh] p-0 flex flex-col gap-0 overflow-hidden shadow-xl border">
+        {/* Encabezado fijo superior */}
+        <DialogHeader className="p-3.5 pr-10 sm:p-4 sm:pr-12 border-b shrink-0 text-left bg-card">
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="font-semibold">
+            <Badge variant="outline" className="font-semibold text-xs">
               {groupName(groupIndex)}
             </Badge>
-            <DialogTitle className="text-base sm:text-lg truncate">
+            <DialogTitle className="text-sm sm:text-base font-semibold truncate">
               {team.name}
             </DialogTitle>
           </div>
-          <DialogDescription>
+          <DialogDescription className="text-xs text-muted-foreground mt-1 leading-snug">
             {teamSlotList.length === 0 ? (
-              "Esta pareja no tiene franjas horarias específicas cargadas (está disponible en cualquier horario)."
+              "Esta pareja no tiene franjas horarias cargadas todavía (inscripción online o sin franjas asignadas)."
             ) : (
               <span>
                 Tiene <strong>{teamSlotList.length}</strong> {teamSlotList.length === 1 ? "franja horaria declarada" : "franjas horarias declaradas"}.
@@ -112,7 +118,38 @@ export function SlotMatchesModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        {/* Contenido con scroll vertical únicamente */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 space-y-3.5 min-w-0">
+          {/* Aviso para asignar horarios si la pareja tiene 0 franjas */}
+          {teamSlotList.length === 0 ? (
+            <div className="rounded-lg border border-amber-300/80 bg-amber-50/70 p-3 text-xs text-amber-950 dark:border-amber-800/80 dark:bg-amber-950/20 dark:text-amber-200 space-y-2">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="size-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-foreground">Sin horarios asignados todavía</p>
+                  <p className="text-muted-foreground dark:text-amber-300/90 leading-relaxed">
+                    Esta pareja se inscribió sin horarios cargados. Para que el sistema cruce automáticamente sus coincidencias con los demás rivales de la zona, podés habilitarle todos los horarios del torneo con un solo clic.
+                  </p>
+                </div>
+              </div>
+              {onAssignAllSlots ? (
+                <div className="pt-1 pl-6">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="default"
+                    onClick={() => onAssignAllSlots(team.id)}
+                    disabled={isAssigningSlots}
+                    className="gap-1.5 text-xs font-medium shadow-sm"
+                  >
+                    {isAssigningSlots ? <Spinner className="size-3.5" /> : <Sparkles className="size-3.5" />}
+                    Habilitar todos los horarios del torneo
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           {/* Comparación con cada rival del grupo */}
           <div className="space-y-3">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -197,9 +234,11 @@ export function SlotMatchesModal({
                       </div>
                     ) : (
                       <p className="text-xs text-muted-foreground">
-                        {rivalSlotCount === 0
-                          ? `"${rival.name}" no cargó restricciones: pueden jugar en cualquier momento disponible.`
-                          : `Pueden programarse en cualquiera de las franjas cargadas.`}
+                        {teamSlotIds.length === 0 && rivalSlotCount > 0
+                          ? `"${team.name}" aún no tiene horarios asignados. Habilitale los horarios arriba para calcular cruces con "${rival.name}".`
+                          : rivalSlotCount === 0
+                            ? `"${rival.name}" no cargó restricciones: pueden jugar en cualquier momento disponible.`
+                            : `Pueden programarse en cualquiera de las franjas cargadas.`}
                       </p>
                     )}
                   </div>
@@ -241,7 +280,8 @@ export function SlotMatchesModal({
           ) : null}
         </div>
 
-        <DialogFooter className="flex flex-row items-center justify-between gap-2 sm:justify-between">
+        {/* Pie fijo inferior */}
+        <DialogFooter className="p-2.5 sm:p-3 border-t bg-muted/10 shrink-0 flex flex-row items-center justify-between gap-2 sm:justify-between">
           {onOpenSwap ? (
             <Button
               type="button"
@@ -251,13 +291,14 @@ export function SlotMatchesModal({
                 onClose();
                 onOpenSwap(team.id);
               }}
-              className="text-xs"
+              className="h-7.5 px-3 text-xs gap-1.5"
             >
-              Intercambiar con otra pareja
+              <ArrowLeftRight className="size-3" />
+              <span>Intercambiar pareja</span>
             </Button>
           ) : <div />}
 
-          <Button type="button" variant="default" size="sm" onClick={onClose} className="text-xs">
+          <Button type="button" variant="default" size="sm" onClick={onClose} className="h-7.5 px-3 text-xs">
             Cerrar
           </Button>
         </DialogFooter>

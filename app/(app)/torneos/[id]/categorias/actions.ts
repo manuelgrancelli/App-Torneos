@@ -5,9 +5,11 @@ import { actionError, actionOk, createAction } from "@/lib/actions/safe-action";
 import { dbErrorMessage } from "@/lib/supabase/errors";
 import { refreshPublicTournament } from "@/lib/public-cache";
 import { ensurePlayoffBracket } from "../cuadro/actions";
+import { findMatchingCategory } from "@/lib/domain/category-matcher";
 import {
   createCategorySchema,
   deleteCategorySchema,
+  mergeCategoriesSchema,
   setCategoryStatusSchema,
   updateCategorySchema,
 } from "@/lib/validation/tournament";
@@ -20,7 +22,7 @@ function revalidate(tournamentId: string) {
 
 /** Agrega una categoría al torneo integrado (ej. "6ta Caballeros", "4ta Femenino"). */
 export const createCategory = createAction(createCategorySchema, async (input, { supabase }) => {
-  const [{ data: existing, error: countError }, { data: tourney }] = await Promise.all([
+  const [{ data: existing, error: countError }, { data: tourney }, { data: currentCategories }] = await Promise.all([
     (supabase as any)
       .from("tournament_categories")
       .select("position")
@@ -32,12 +34,26 @@ export const createCategory = createAction(createCategorySchema, async (input, {
       .select("scoring_config, standings_config, playoff_config")
       .eq("id", input.tournamentId)
       .single(),
+    (supabase as any)
+      .from("tournament_categories")
+      .select("id, name")
+      .eq("tournament_id", input.tournamentId),
   ]);
 
   if (countError) {
     console.error("[createCategory] countError:", countError);
     return actionError(dbErrorMessage(countError));
   }
+
+  // Prevenir creación de categorías equivalentes o duplicadas
+  const match = findMatchingCategory(currentCategories ?? [], input.name);
+  if (match) {
+    return actionError(
+      `Ya existe la categoría "${match.name}", que es equivalente a "${input.name}". Podés usar esa o editarla.`,
+      { name: [`Equivalente a "${match.name}" ya existente.`] },
+    );
+  }
+
   const nextPos = (existing?.[0]?.position ?? -1) + 1;
 
   const insertPayload: Record<string, unknown> = {
@@ -74,6 +90,21 @@ export const createCategory = createAction(createCategorySchema, async (input, {
 
 /** Edita nombre o cupo de la categoría. */
 export const updateCategory = createAction(updateCategorySchema, async (input, { supabase }) => {
+  // Verificar que no coincida con otra categoría existente
+  const { data: currentCategories } = await (supabase as any)
+    .from("tournament_categories")
+    .select("id, name")
+    .eq("tournament_id", input.tournamentId)
+    .neq("id", input.categoryId);
+
+  const match = findMatchingCategory(currentCategories ?? [], input.name);
+  if (match) {
+    return actionError(
+      `Ya existe la categoría "${match.name}", que es equivalente a "${input.name}".`,
+      { name: [`Equivalente a "${match.name}".`] },
+    );
+  }
+
   const { error } = await (supabase as any)
     .from("tournament_categories")
     .update({
@@ -138,3 +169,81 @@ export const changeCategoryStatus = createAction(setCategoryStatusSchema, async 
   revalidate(input.tournamentId);
   return actionOk(undefined, `Estado de categoría actualizado a ${input.status}.`);
 });
+
+/** Unifica dos categorías: mueve todas las parejas a la categoría de destino y elimina la categoría origen. */
+export const mergeCategories = createAction(mergeCategoriesSchema, async (input, { supabase }) => {
+  if (input.sourceCategoryId === input.targetCategoryId) {
+    return actionError("No se puede unificar una categoría consigo misma.");
+  }
+
+  const [{ data: sourceCat }, { data: targetCat }] = await Promise.all([
+    (supabase as any)
+      .from("tournament_categories")
+      .select("id, name, tournament_id")
+      .eq("id", input.sourceCategoryId)
+      .eq("tournament_id", input.tournamentId)
+      .maybeSingle(),
+    (supabase as any)
+      .from("tournament_categories")
+      .select("id, name, tournament_id")
+      .eq("id", input.targetCategoryId)
+      .eq("tournament_id", input.tournamentId)
+      .maybeSingle(),
+  ]);
+
+  if (!sourceCat || !targetCat) {
+    return actionError("No encontramos una o ambas categorías para unificar.");
+  }
+
+  // 1. Reasignar todos los equipos de sourceCategoryId a targetCategoryId
+  const { data: teamsToMove, error: teamsError } = await (supabase as any)
+    .from("teams")
+    .select("id")
+    .eq("tournament_id", input.tournamentId)
+    .eq("category_id", input.sourceCategoryId);
+
+  if (teamsError) {
+    return actionError(dbErrorMessage(teamsError));
+  }
+
+  const count = teamsToMove?.length ?? 0;
+
+  if (count > 0) {
+    const { error: updateError } = await (supabase as any)
+      .from("teams")
+      .update({ category_id: input.targetCategoryId })
+      .eq("tournament_id", input.tournamentId)
+      .eq("category_id", input.sourceCategoryId);
+
+    if (updateError) {
+      return actionError(dbErrorMessage(updateError));
+    }
+  }
+
+  // 2. Eliminar la categoría origen si no tiene partidos con resultados jugados
+  const { data: matches } = await (supabase as any)
+    .from("matches")
+    .select("id, result_status")
+    .eq("category_id", input.sourceCategoryId)
+    .not("result_status", "is", null);
+
+  let categoryDeleted = false;
+  if (!matches || matches.length === 0) {
+    const { error: delError } = await (supabase as any)
+      .from("tournament_categories")
+      .delete()
+      .eq("id", input.sourceCategoryId)
+      .eq("tournament_id", input.tournamentId);
+
+    if (!delError) categoryDeleted = true;
+  }
+
+  revalidate(input.tournamentId);
+  revalidatePath(`/torneos/${input.tournamentId}/inscripciones`);
+
+  return actionOk(
+    { movedCount: count, categoryDeleted },
+    `Categorías unificadas: se ${count === 1 ? "movió 1 pareja" : `movieron ${count} parejas`} a "${targetCat.name}"${categoryDeleted ? ` y se eliminó "${sourceCat.name}"` : ""}.`,
+  );
+});
+

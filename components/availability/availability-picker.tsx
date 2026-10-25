@@ -39,6 +39,11 @@ export function AvailabilityPicker({ teamId, timezone, slots, courts: _courts, s
   const [current, setCurrent] = useState<Set<string>>(() => new Set(selected));
   const dirty = selectionChanged(saved, current);
 
+  // Sincronizar el estado interno si cambia la selección guardada que viene del servidor
+  useEffect(() => {
+    setCurrent(new Set(selected));
+  }, [selected]);
+
   // Agrupa turnos continuos en franjas completas por día
   const dayWindows = useMemo(
     () => groupSlotsIntoDayWindows(slots, (s) => localDateKey(s.startsAt, timezone)),

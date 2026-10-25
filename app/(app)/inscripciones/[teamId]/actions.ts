@@ -105,12 +105,19 @@ export const leaveTeam = createAction(teamIdSchema, async ({ teamId }, { supabas
 
 /** Reemplaza la disponibilidad del equipo por la selección actual. */
 export const saveAvailability = createAction(availabilitySchema, async (input, { supabase }) => {
+  const tournamentId = await teamTournamentId(supabase, input.teamId);
   const { data, error } = await supabase.rpc("set_team_availability", {
     p_team_id: input.teamId,
     p_slot_ids: input.slotIds,
   });
   if (error) return actionError(dbErrorMessage(error));
   revalidateTeam(input.teamId);
+  if (tournamentId) {
+    revalidatePath(`/torneos/${tournamentId}/grupos`);
+    revalidatePath(`/torneos/${tournamentId}/inscripciones`);
+    revalidatePath(`/torneos/${tournamentId}/partidos`);
+    refreshPublicTournament(tournamentId);
+  }
   return actionOk({ count: data }, data === 1 ? "Guardamos 1 franja." : `Guardamos ${data} franjas.`);
 });
 

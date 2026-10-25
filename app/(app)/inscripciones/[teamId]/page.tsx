@@ -73,7 +73,7 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
     : [];
 
   return (
-    <div className="space-y-6">
+    <div className="w-full min-w-0 max-w-full overflow-x-hidden space-y-6">
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-foreground">{tournament.name}</span>

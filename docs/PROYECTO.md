@@ -2066,11 +2066,95 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** responder al reporte del usuario ("yo habia hecho 3 franjas una vie,1 sab 1 dom, pero la del dom no me deja seleccionar y me da la opcion de guardar pero la del dom esta mal, y probe como se veia desde el organizador y se ve bien").
 - **Cómo aplicar:** `components/availability/availability-picker.tsx`.
 
+### D-149 — Reconocimiento inteligente, tolerancia a errores tipográficos y unificación de categorías (2026-10-24)
+- **Decisión:**
+  - **Diagnóstico del problema:** Al importar o crear categorías (ej. importar parejas por WhatsApp con "5TA Caballeros" habiendo creado previamente la categoría con mayúsculas/minúsculas distintas o con errores tipográficos sutiles como "5ta caballreos" con transposición 're'/'er'), la comparación previa era estricta por texto plano `c.name.trim().toLowerCase() === catName.trim().toLowerCase()`. Esto provocaba que no se reconocieran como la misma categoría y se crearan categorías duplicadas en el torneo (ej. "5ta caballreos" con 1 pareja y "5TA Caballeros" con 17 parejas).
+  - **Módulo de coincidencia inteligente (`lib/domain/category-matcher.ts` con tests en `lib/domain/category-matcher.test.ts`):**
+    - Se implementó `damerauLevenshteinDistance` para tolerar transposiciones de caracteres adyacentes y pequeñas variaciones ortográficas (ej. `caballreos` vs `caballeros` distancia 1, `dmas` vs `damas` distancia 1).
+    - Se implementó `normalizeCategory`, que descompone y extrae la clave canónica de nivel y género:
+      - Niveles ordinales y numéricos: `5ta`, `5TA`, `5to`, `5ª`, `5°`, `5ta.`, `quinta` → canónico `"5"`.
+      - Categorías de suma/hándicap: `Suma 10`, `+10`, `suma10`, `SUMA 10` → canónico `"suma_10"`.
+      - Géneros y divisiones con tolerancia ortográfica: `caballeros`, `caballreos`, `masculino`, `masc`, `varones`, `hombres` → canónico `"caballeros"`; `damas`, `femenino`, `fem`, `mujeres` → canónico `"damas"`; `mixto`, `mix` → canónico `"mixto"`.
+    - `areCategoriesEquivalent`: valida equivalencia impidiendo estrictamente cruces no compatibles (niveles distintos como 5 vs 6, o géneros opuestos como Damas vs Caballeros nunca coinciden).
+    - `findMatchingCategory`: encuentra la categoría correspondiente de una lista existente, dando prioridad a coincidencias exactas, canónicas y difusas.
+    - `findDuplicateCategoryPairs`: detecta automáticamente pares de categorías existentes en un torneo que representan la misma división.
+  - **Integración en importación y CRUD de categorías:**
+    - En el parser de inscriptos (`lib/domain/roster-parser.ts`) y en la importación masiva (`bulkImportTeams` en `inscripciones/actions.ts`), se usa `findMatchingCategory` para asociar las listas pegadas a la categoría existente correcta sin duplicar.
+    - En el diálogo de importación (`bulk-registration-dialog.tsx`), se añade un badge visible `✓ Asociada a "..."` para dar certeza inmediata al organizador.
+    - En `createCategory` y `updateCategory` (`categorias/actions.ts`), se previene la creación accidental de categorías equivalentes redundantes.
+  - **Acción y alerta interactiva de unificación de categorías existentes (`mergeCategories`):**
+    - En `categorias/actions.ts`, se implementó `mergeCategories`: reasigna todas las parejas de la categoría origen a la categoría de destino (`update teams set category_id = targetCategoryId`) y elimina de forma segura la categoría origen si no tiene partidos con resultados jugados.
+    - En la lista de inscripciones (`registrations-list.tsx`) y en la gestión de categorías (`categories-manager.tsx`), si se detectan categorías equivalentes (como "5ta caballreos" y "5TA Caballeros"), se despliega un banner informativo destacado con el botón de un clic *"Unificar en [Categoría]"*, permitiendo resolver al instante los duplicados ya existentes en el torneo.
+### D-150 — Inicialización y asignación rápida de franjas horarias para parejas autoinscriptas (2026-10-24)
+- **Decisión:**
+  - **Diagnóstico del problema:** Al importar parejas masivamente por WhatsApp o texto (`bulkImportTeams`), el sistema les asignaba por defecto todas las franjas horarias del torneo (`time_slots`). Sin embargo, cuando una pareja se inscribía online mediante enlace o código de invitación (`registerTeam` en `app/(app)/unirse/[code]/actions.ts`), no se ejecutaba `set_team_availability`, dejando al equipo con 0 registros en `team_availability`.
+    En consecuencia:
+    1. En `GroupBuilder` (`components/groups/group-builder.tsx`), el chip de la pareja evaluaba `{hasConflict ? ... : hasAvailability ? ... : null}`, ocultando por completo el botón `[📅 Horarios]` para parejas autoinscriptas (ej. `martinez / M...`).
+    2. En el modal de coincidencias de horarios (`SlotMatchesModal`), no se podían calcular cruces con las parejas rivales del grupo que sí tenían disponibilidad cargada.
+  - **Auto-asignación en registro online (`registerTeam` en `unirse/[code]/actions.ts`):**
+    - Al autoinscribirse un equipo mediante el link/código de invitación, se consultan las franjas horarias existentes del torneo (`time_slots`) y se llama a `set_team_availability` para habilitarle todas las franjas horarias por defecto.
+  - **Acción del organizador para inicialización masiva (`initializeTournamentTeamsAvailability`):**
+    - En `app/(app)/torneos/[id]/inscripciones/actions.ts`, se incorporó `initializeTournamentTeamsAvailability`, que detecta todas las parejas aprobadas sin disponibilidad cargada y les asigna todas las franjas horarias del torneo en un solo lote, revalidando tanto inscripciones como grupos y partidos.
+  - **UI transparente en armado de grupos (`GroupBuilder` y `SlotMatchesModal`):**
+    - En `TeamChip`: si una pareja aún no tiene disponibilidad cargada (`hasAvailability === false`), en vez de ocultar el botón (`null`), se renderiza un botón con borde punteado `[📅 Sin horarios]`, que abre directamente el modal informativo.
+    - En `SlotMatchesModal`: si la pareja tiene 0 horarios asignados, se muestra una tarjeta explicativa con el botón de acción *"Habilitar todos los horarios del torneo"*, además de clarificar en cada cruce con los rivales que aún no se han asignado horarios a dicha pareja.
+    - En `GroupBuilder`: si existen parejas aprobadas sin horarios asignados y el torneo tiene franjas cargadas, se muestra un banner superior contextual con el botón de 1 clic *"Habilitar horarios a todos"*, permitiendo sincronizar a todos los inscriptos de inmediato.
+- **Motivo:** responder al reporte del usuario ("hay un problema con los horarios con la gente que se inscribe como que no se relaciona con los horarios de las persona que importo lista, ves la foto aparecen todos horarios en la gente que importo y en la que se inscribio no aparece la opcion").
+- **Cómo aplicar:** `app/(app)/unirse/[code]/actions.ts`, `app/(app)/torneos/[id]/inscripciones/actions.ts`, `components/groups/group-builder.tsx`, `components/groups/slot-matches-modal.tsx`.
 
+### D-151 — Rediseño compacto y contenedor fijo sin desplazamiento horizontal para intercambio de parejas (2026-10-24)
+- **Decisión:**
+  - **Diagnóstico del problema:** En el modal de intercambio de parejas (`SwapTeamsModal` en `components/groups/swap-teams-modal.tsx`), la combinación de `DialogContent` con `sm:max-w-sm` predeterminado y `overflow-y-auto` sin restricción horizontal provocaba que textos extensos (como "Compatible con los rivales" y "Posible incompatibilidad horaria") junto al botón "Intercambiar" desbordaran el contenedor en anchos menores o medianos. Esto generaba una barra de desplazamiento horizontal en el fondo del modal, cortaba el botón como "Intercan..." y obligaba al usuario a deslizar hacia los costados ("hay que mover para el costado y queda mal").
+  - **Reestructuración de contenedor fijo ("que quede fijo"):**
+    - `DialogContent` adopta `w-full max-w-[calc(100%-1.5rem)] sm:max-w-md max-h-[85vh] p-0 flex flex-col gap-0 overflow-hidden shadow-xl border`.
+    - Encabezado (`DialogHeader`): fijo en la parte superior (`shrink-0 border-b p-3.5 pr-10 sm:p-4 sm:pr-12 bg-card`), con botón de cierre siempre accesible.
+    - Pie (`DialogFooter`): fijo en la parte inferior (`shrink-0 border-t bg-muted/10 p-2.5 sm:p-3`), con el botón "Cancelar" siempre a la vista sin requerir scrollear hasta el final.
+    - Área de lista de zonas y parejas: contenedor intermedio con scroll vertical estricto (`flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-3.5 space-y-3 min-w-0`), eliminando de raíz cualquier barra o desplazamiento horizontal.
+  - **Diseño compacto ("achicalo un poco"):**
+    - Filas de parejas con padding ágil `p-2 rounded-md`, tipografía nítida `text-xs sm:text-sm truncate`, y etiquetas de compatibilidad concisas (`CheckCircle2 Compatible` en verde o `TriangleAlert Incompatible` en ámbar con tooltip explicativo).
+    - Botón de acción compacto `h-7 px-2.5 text-xs shrink-0 gap-1` con icono de intercambio.
+    - Se aplicó el mismo patrón estructural de encabezado/pie fijo y scroll vertical estricto a `SlotMatchesModal` (`components/groups/slot-matches-modal.tsx`).
+- **Motivo:** responder al pedido directo del usuario ("este menu achicalo un poco y que quede fijo, porque sino hay que mover para el costado y queda mal").
+- **Cómo aplicar:** `components/groups/swap-teams-modal.tsx`, `components/groups/slot-matches-modal.tsx`.
 
+### D-152 — Prevención de auto-zoom y optimización compacta fija de la pantalla de inscripción móvil (2026-10-24)
+- **Decisión:**
+  - **Diagnóstico del problema:** Al ingresar un código de inscripción en dispositivos móviles (o al acceder a la pantalla `/unirse/[code]`), los navegadores móviles (especialmente iOS Safari) ejecutaban un auto-zoom abrupto sobre los campos de texto (`input` y `select` con `text-xs` o `text-sm` menor a 16px). Este zoom escalaba el viewport y generaba desbordamiento horizontal, haciendo que la pantalla se volviera móvil hacia los lados ("se hace una especie de zoom en la inscripcion y tambien es movible hacia los lados, quiero que eso sea fijo y mas chico asi no hay que moverse al costado y se pueda leer la info de una"). Además, el afiche (`TournamentBanner`) y los espacios de cabecera eran excesivamente altos, empujando el formulario fuera del campo visual inicial.
+  - **Bloqueo de auto-zoom y desplazamiento lateral:**
+    - En `app/layout.tsx`, se configuró `viewport: { width: "device-width", initialScale: 1, maximumScale: 1, userScalable: false, viewportFit: "cover" }`.
+    - En `app/globals.css`, se definió `@media (max-width: 639px) { input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px !important; } }`, impidiendo que iOS Safari dispare el auto-zoom nativo al hacer foco en cualquier campo de texto o selector de la aplicación.
+    - En `components/registration/join-code-form.tsx`, el input del código se calibró a `text-base sm:text-xs font-mono`.
+  - **Diseño compacto y lectura directa ("de una"):**
+    - En `app/(app)/unirse/[code]/page.tsx`, se reestructuró la pantalla con contenedor `w-full max-w-md sm:max-w-lg space-y-3.5 min-w-0 overflow-x-hidden`.
+    - Cabecera del torneo: agrupada en tarjeta estilizada compacta (`rounded-xl border bg-card p-3 sm:p-4 shadow-2xs`), con badges, fechas, cupos y descripción delimitada (`max-h-36 overflow-y-auto break-words`), permitiendo leer toda la información de inmediato sin desplazamientos laterales.
+    - `TournamentBanner` (`components/tournaments/tournament-banner.tsx`): redujo su altura en mobile (`min-h-32 max-h-48` frente a los `min-h-48 max-h-72` previos) e integró badge compacto *"Ver afiche"*.
+    - Formulario de equipo (`TeamForm` en `components/registration/team-form.tsx` y `MemberEmailsField`): tarjeta de capitán compacta (`p-2.5 sm:p-3`), campos reducidos a `h-9` y botón de inscripción directo `h-9 text-xs font-semibold`.
+    - En `app/(app)/inscripciones/[teamId]/page.tsx`, se añadió `w-full min-w-0 max-w-full overflow-x-hidden`.
+- **Motivo:** responder al pedido directo del usuario ("y cuando pones un codigo de inscripcion en el celu, se hace una especie de zoom en la inscripcion y tambien es movible hacia los lados, quiero que eso sea fijo y mas chico asi no hay que moverse al costado y se pueda leer la info de una").
+- **Cómo aplicar:** `app/layout.tsx`, `app/globals.css`, `components/registration/join-code-form.tsx`, `components/tournaments/tournament-banner.tsx`, `components/registration/team-form.tsx`, `components/registration/member-emails-field.tsx`, `app/(app)/unirse/[code]/page.tsx`, `app/(app)/inscripciones/[teamId]/page.tsx`.
 
-
-
-
+### D-153 — Disponibilidad horaria automática en la inscripción y sincronización interactiva de franjas (2026-10-24)
+- **Decisión:**
+  - **Diagnóstico del problema:**
+    1. En `app/(app)/unirse/[code]/actions.ts`, la consulta para obtener el `tournament_id` consultaba `tournament_invites` con el código. Como la tabla `tournament_invites` tiene RLS restrictiva que solo permite lectura a organizadores (`private.is_tournament_organizer(tournament_id)`), la consulta retornaba `null` para los participantes que se autoinscribían. Esto impedía que se ejecutara la inicialización de disponibilidad y dejaba a las parejas inscritas por código con 0 franjas en `team_availability`.
+    2. Cuando el organizador asignaba franjas desde `TeamAvailabilityDialog`, el diálogo se abría con 0 franjas seleccionadas (mostrando "No disponible" en todas las franjas) en lugar de preseleccionar todas por defecto para facilitar la asignación.
+    3. En `GroupBuilder`, `availability` no tenía estado reactivo local, por lo que al ejecutar `handleAssignAllSlots` o `handleInitializeAllSlots`, la interfaz no reflejaba el cambio inmediatamente sino hasta recargas manuales completas del RSC.
+    4. En `app/(app)/inscripciones/[teamId]/actions.ts`, `saveAvailability` no invalidaba las rutas de torneo (`/torneos/[id]/grupos`, `/inscripciones`, `/partidos`), por lo que los cambios de franjas realizados por los propios jugadores no se reflejaban de inmediato en el panel del organizador.
+    5. En PostgreSQL, la función `set_team_availability` solo verificaba `tour.organizer_id = v_uid` sin considerar a los co-administradores de la tabla `tournament_admins`.
+  - **Resolución implementada:**
+    - **Activación automática garantizada en BD y servidor:**
+      - En la migración `20261025000000_auto_team_availability_and_admin_support.sql`, se actualizó la RPC `register_team` para insertar automáticamente todas las franjas horarias existentes de `time_slots` en `team_availability` al crear el equipo.
+      - En `app/(app)/unirse/[code]/actions.ts`, se consulta directamente la tabla `teams` por el ID del equipo recién creado (`data`) para obtener el `tournament_id` de forma infalible (el capitán tiene permiso RLS sobre su propio equipo) y asignar todas las franjas del torneo.
+      - Se revalidan las rutas `/inscripciones/[teamId]` y las páginas de torneo correspondientes.
+    - **Modificación y visualización de franjas por la pareja:**
+      - En `/inscripciones/[teamId]`, la pareja ve todas las franjas horarias habilitadas en `AvailabilityPicker`.
+      - En `components/availability/availability-picker.tsx`, se añadió sincronización reactiva de `selected` con `current` vía `useEffect`.
+      - En `app/(app)/inscripciones/[teamId]/actions.ts`, `saveAvailability` recupera `teamTournamentId` e invalida `/torneos/${tournamentId}/grupos`, `/inscripciones` y `/partidos`, permitiendo que el organizador vea de inmediato cualquier cambio de franja hecho por la pareja.
+    - **Soporte de co-administradores y preselección en panel de organizador:**
+      - En `set_team_availability`, se reemplazó la validación estricta por `private.is_tournament_organizer(v_tournament_id)`, integrando soporte para co-administradores de `tournament_admins`.
+      - En `TeamAvailabilityDialog` (`components/registration/team-availability-dialog.tsx`), si una pareja cuenta con 0 franjas, se preseleccionan todas las franjas del torneo por defecto al abrir el diálogo y se informa mediante banner contextual.
+      - En `GroupBuilder` (`components/groups/group-builder.tsx`), se introdujo el estado `localAvailability` sincronizado, actualizando instantáneamente los badges, la detección de conflictos y los cruces de `SlotMatchesModal` al asignar horarios sin esperas de red.
+- **Motivo:** responder a la solicitud del usuario ("lo que pasa respecto a los horarios de la persona que se inscribio al torneo es que se inscribio sin pner franjas pero despues desde la parte de organizador yo le asigne franjas y es como que no las toma porque dice que no tiene horarios disponibles, lo que te voy a pedir es que cuando se inscriba una pareja las franjas esten todas activadas y que la pareja inscripta pueda modificarlas").
+- **Cómo aplicar:** `supabase/migrations/20261025000000_auto_team_availability_and_admin_support.sql`, `app/(app)/unirse/[code]/actions.ts`, `app/(app)/inscripciones/[teamId]/actions.ts`, `components/availability/availability-picker.tsx`, `components/registration/team-availability-dialog.tsx`, `components/groups/group-builder.tsx`, `app/(app)/torneos/[id]/inscripciones/actions.ts`.
 
 

@@ -58,15 +58,24 @@ export function TeamAvailabilityDialog({
   const initialSlotIds = useMemo(() => team?.availabilitySlotIds ?? [], [team]);
   const savedSet = useMemo(() => new Set(initialSlotIds), [initialSlotIds]);
 
-  // Selección actual en edición
-  const [currentSelected, setCurrentSelected] = useState<Set<string>>(() => new Set(initialSlotIds));
+  // Selección actual en edición (si no tiene ninguna, se preseleccionan todas las del torneo por defecto)
+  const [currentSelected, setCurrentSelected] = useState<Set<string>>(() => {
+    if (team && team.availabilitySlotIds.length === 0 && slots.length > 0) {
+      return new Set(slots.map((s) => s.id));
+    }
+    return new Set(initialSlotIds);
+  });
 
   // Resetear la selección al abrir el diálogo o cambiar de equipo
   useEffect(() => {
     if (open && team) {
-      setCurrentSelected(new Set(team.availabilitySlotIds));
+      if (team.availabilitySlotIds.length === 0 && slots.length > 0) {
+        setCurrentSelected(new Set(slots.map((s) => s.id)));
+      } else {
+        setCurrentSelected(new Set(team.availabilitySlotIds));
+      }
     }
-  }, [open, team]);
+  }, [open, team, slots]);
 
   // Agrupación de turnos por día y franjas continuas
   const dayWindows = useMemo(
@@ -209,6 +218,12 @@ export function TeamAvailabilityDialog({
                     {i < team.members.length - 1 ? <span className="text-border">·</span> : null}
                   </span>
                 ))}
+              </div>
+            ) : null}
+
+            {team.availabilitySlotIds.length === 0 && slots.length > 0 ? (
+              <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-200">
+                <span className="font-medium">Horarios preseleccionados:</span> Para facilitarte la programación, marcamos todas las franjas horarias del torneo. Podés desmarcar las que no correspondan o guardar directamente.
               </div>
             ) : null}
           </div>

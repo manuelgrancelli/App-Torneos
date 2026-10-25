@@ -183,13 +183,25 @@ export function BulkRegistrationDialog({
                   return (
                     <div key={idx} className="rounded-lg border border-border/60 bg-card p-3 space-y-2 text-xs">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold text-foreground text-sm">
                             {cat.categoryName}
                           </span>
                           <Badge variant="secondary" className="text-[11px] font-medium">
                             {cat.teams.length} {cat.teams.length === 1 ? "pareja" : "parejas"}
                           </Badge>
+                          {cat.matchedCategoryId ? (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] sm:text-[11px] border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-medium"
+                            >
+                              ✓ Asociada a &quot;{categories.find((c) => c.id === cat.matchedCategoryId)?.name ?? "existente"}&quot;
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[11px] text-muted-foreground">
+                              Nueva categoría
+                            </Badge>
+                          )}
                         </div>
 
                         {/* Selector de asignación de categoría */}

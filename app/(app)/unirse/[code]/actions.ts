@@ -20,6 +20,33 @@ export const registerTeam = createAction(registerTeamSchema, async (input, { sup
   });
   if (error) return actionError(dbErrorMessage(error));
 
+  // Inicializar disponibilidad completa para la pareja si el torneo ya tiene franjas cargadas
+  let registeredTournamentId: string | null = null;
+  try {
+    const { data: teamRow } = await supabase
+      .from("teams")
+      .select("id, tournament_id")
+      .eq("id", data)
+      .maybeSingle();
+
+    if (teamRow?.tournament_id) {
+      registeredTournamentId = teamRow.tournament_id;
+      const { data: slots } = await supabase
+        .from("time_slots")
+        .select("id")
+        .eq("tournament_id", teamRow.tournament_id);
+
+      if (slots && slots.length > 0) {
+        await (supabase.rpc as any)("set_team_availability", {
+          p_team_id: data,
+          p_slot_ids: slots.map((s) => s.id),
+        });
+      }
+    }
+  } catch (availErr) {
+    console.error("[registerTeam] Error al inicializar disponibilidad:", availErr);
+  }
+
   const { data: members, error: membersError } = await supabase
     .from("team_members")
     .select("id, role, user_id")
@@ -57,6 +84,12 @@ export const registerTeam = createAction(registerTeamSchema, async (input, { sup
   const isApproved = teamData?.status === "approved";
 
   revalidatePath("/torneos");
+  revalidatePath(`/inscripciones/${data}`);
+  if (registeredTournamentId) {
+    revalidatePath(`/torneos/${registeredTournamentId}/grupos`);
+    revalidatePath(`/torneos/${registeredTournamentId}/inscripciones`);
+    revalidatePath(`/torneos/${registeredTournamentId}/partidos`);
+  }
   return actionOk(
     { teamId: data },
     isApproved

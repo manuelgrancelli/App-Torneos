@@ -1,11 +1,15 @@
 "use client";
 
 import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
-import { ArrowLeftRight, CalendarClock, GripVertical, Shuffle, TriangleAlert } from "lucide-react";
+import { ArrowLeftRight, CalendarClock, GripVertical, Shuffle, Sparkles, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { saveGroups } from "@/app/(app)/torneos/[id]/grupos/actions";
+import {
+  initializeTournamentTeamsAvailability,
+  setTeamAvailabilityByOrganizer,
+} from "@/app/(app)/torneos/[id]/inscripciones/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -118,7 +122,18 @@ function TeamChip({
           <CalendarClock className="size-3 shrink-0 text-primary" aria-hidden="true" />
           <span className="hidden sm:inline">Horarios</span>
         </button>
-      ) : null}
+      ) : (
+        <button
+          type="button"
+          onClick={() => onOpenDetails?.(team.id)}
+          className="inline-flex items-center gap-1 rounded border border-dashed border-muted-foreground/40 bg-muted/20 hover:bg-muted/50 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
+          title="No tiene horarios asignados. Clic para ver o habilitar todos los horarios del torneo."
+        >
+          <CalendarClock className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span className="hidden sm:inline">Sin horarios</span>
+          <span className="sm:hidden">Sin hor.</span>
+        </button>
+      )}
 
       {/* Botón de Intercambio directo (Swap) */}
       {groupCount > 1 && onSwap ? (
@@ -240,6 +255,72 @@ export function GroupBuilder({
   // Modales de swap y detalle de horarios
   const [swapTeamId, setSwapTeamId] = useState<string | null>(null);
   const [detailsTeamId, setDetailsTeamId] = useState<string | null>(null);
+  const [isAssigningSlots, setIsAssigningSlots] = useState(false);
+
+  // Disponibilidad local sincronizada para actualización inmediata en UI
+  const [localAvailability, setLocalAvailability] = useState(availability);
+
+  useEffect(() => {
+    setLocalAvailability(availability);
+  }, [availability]);
+
+  const teamsWithoutAvailability = useMemo(() => {
+    return teams.filter((t) => !localAvailability?.[t.id] || localAvailability[t.id]!.length === 0);
+  }, [teams, localAvailability]);
+
+  async function handleAssignAllSlots(teamId: string) {
+    if (slots.length === 0) {
+      toast.error("El torneo aún no tiene franjas horarias configuradas.");
+      return;
+    }
+    setIsAssigningSlots(true);
+    try {
+      const allSlotIds = slots.map((s) => s.id);
+      const res = await setTeamAvailabilityByOrganizer({
+        tournamentId,
+        teamId,
+        slotIds: allSlotIds,
+      });
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      setLocalAvailability((prev) => ({
+        ...(prev ?? {}),
+        [teamId]: allSlotIds,
+      }));
+      toast.success(res.message ?? "Se asignaron todos los horarios a la pareja.");
+      router.refresh();
+    } finally {
+      setIsAssigningSlots(false);
+    }
+  }
+
+  async function handleInitializeAllSlots() {
+    setIsAssigningSlots(true);
+    try {
+      const res = await initializeTournamentTeamsAvailability({ tournamentId });
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      const allSlotIds = slots.map((s) => s.id);
+      setLocalAvailability((prev) => {
+        const next = { ...(prev ?? {}) };
+        for (const t of teams) {
+          const existing = next[t.id];
+          if (!existing || existing.length === 0) {
+            next[t.id] = allSlotIds;
+          }
+        }
+        return next;
+      });
+      toast.success(res.message);
+      router.refresh();
+    } finally {
+      setIsAssigningSlots(false);
+    }
+  }
 
   const safeGroupCount = options.includes(groupCount) ? groupCount : suggested;
 
@@ -252,7 +333,7 @@ export function GroupBuilder({
   const draw = (count?: number) => {
     if (!hasEnoughTeams || options.length === 0) return;
     const targetCount = count !== undefined && options.includes(count) ? count : safeGroupCount;
-    setGroups(drawGroups(teams.map((t) => t.id), targetCount, randomSeed(), availability));
+    setGroups(drawGroups(teams.map((t) => t.id), targetCount, randomSeed(), localAvailability));
   };
 
   function move(teamId: string, toGroup: number) {
@@ -296,8 +377,8 @@ export function GroupBuilder({
   const validation = groups.length > 0 ? validateGroups(teams.map((t) => t.id), groups) : null;
 
   const conflicts = useMemo(
-    () => (availability && groups.length > 0 ? getGroupAvailabilityConflicts(groups, availability) : []),
-    [groups, availability],
+    () => (localAvailability && groups.length > 0 ? getGroupAvailabilityConflicts(groups, localAvailability) : []),
+    [groups, localAvailability],
   );
 
   const groupConflicts = useMemo(() => {
@@ -372,6 +453,35 @@ export function GroupBuilder({
           </div>
         ) : null}
 
+        {teamsWithoutAvailability.length > 0 && slots.length > 0 ? (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-sky-300/80 bg-sky-50/70 p-3 text-xs text-sky-950 dark:border-sky-800/80 dark:bg-sky-950/30 dark:text-sky-200">
+            <div className="flex items-start gap-2">
+              <CalendarClock className="size-4 shrink-0 text-sky-600 dark:text-sky-400 mt-0.5" />
+              <div>
+                <p className="font-semibold text-foreground">
+                  {teamsWithoutAvailability.length === 1
+                    ? `Hay 1 pareja sin horarios asignados (${teamsWithoutAvailability[0]?.name})`
+                    : `Hay ${teamsWithoutAvailability.length} parejas sin horarios asignados`}
+                </p>
+                <p className="text-muted-foreground dark:text-sky-300/80">
+                  Las parejas inscriptas online se registraron sin horarios por defecto. Podés habilitarles todas las franjas horarias del torneo para que se calculen los cruces con las parejas importadas.
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              disabled={isAssigningSlots}
+              onClick={handleInitializeAllSlots}
+              className="shrink-0 text-xs gap-1.5 font-medium shadow-sm"
+            >
+              {isAssigningSlots ? <Spinner className="size-3.5" /> : <Sparkles className="size-3.5" />}
+              Habilitar horarios a todos
+            </Button>
+          </div>
+        ) : null}
+
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <Field className="sm:w-48">
@@ -427,7 +537,7 @@ export function GroupBuilder({
                   onOpenDetails={(id) => setDetailsTeamId(id)}
                   teams={group.map((id) => byId.get(id)).filter((t): t is Team => Boolean(t))}
                   conflicts={groupConflicts.get(index) ?? new Set()}
-                  availability={availability}
+                  availability={localAvailability}
                 />
               ))}
             </div>
@@ -494,7 +604,7 @@ export function GroupBuilder({
         sourceGroupIndex={swapSourceGroupIndex}
         groups={groups}
         byId={byId}
-        availability={availability}
+        availability={localAvailability}
         onConfirmSwap={swap}
       />
 
@@ -505,11 +615,13 @@ export function GroupBuilder({
         team={detailsTeam}
         groupIndex={detailsGroupIndex}
         rivals={detailsRivals}
-        availability={availability}
+        availability={localAvailability}
         slots={slots}
         courts={courts}
         timezone={timezone}
         onOpenSwap={(tId) => setSwapTeamId(tId)}
+        onAssignAllSlots={handleAssignAllSlots}
+        isAssigningSlots={isAssigningSlots}
       />
     </Card>
   );

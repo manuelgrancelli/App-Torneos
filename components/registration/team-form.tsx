@@ -109,12 +109,12 @@ export function TeamForm(props: TeamFormProps) {
   });
 
   return (
-    <form onSubmit={onSubmit} noValidate>
-      <FieldGroup>
-        <div className="flex items-start gap-3 rounded-xl border border-primary/25 bg-primary/5 p-3.5 text-sm">
-          <Crown className="size-5 text-amber-500 shrink-0 mt-0.5" aria-hidden="true" />
+    <form onSubmit={onSubmit} noValidate className="space-y-3.5">
+      <FieldGroup className="space-y-3">
+        <div className="flex items-start gap-2.5 rounded-lg border border-primary/20 bg-primary/5 p-2.5 sm:p-3 text-xs sm:text-sm">
+          <Crown className="size-4 text-amber-500 shrink-0 mt-0.5" aria-hidden="true" />
           <div className="space-y-0.5 min-w-0">
-            <p className="font-semibold text-foreground">
+            <p className="font-semibold text-foreground text-xs sm:text-sm">
               {props.mode === "register" ? "Vos sos el Capitán" : "Capitán de la pareja"}
               {props.captainName || props.captainEmail ? (
                 <span className="font-normal text-muted-foreground ml-1">
@@ -122,10 +122,10 @@ export function TeamForm(props: TeamFormProps) {
                 </span>
               ) : null}
             </p>
-            <p className="text-xs text-muted-foreground leading-relaxed">
+            <p className="text-[11px] sm:text-xs text-muted-foreground leading-snug">
               {props.teamSize === 2
-                ? "El pádel se juega en parejas (2 personas). Vos ya quedás registrado como capitán; abajo tenés que ingresar el email de tu pareja para invitarla."
-                : `Vos ya quedás registrado como capitán del equipo; abajo tenés que ingresar los emails de tus ${companions} compañeros.`}
+                ? "El pádel se juega en parejas (2 personas). Vos ya quedás registrado como capitán; abajo ingresás el email de tu pareja para invitarla."
+                : `Vos ya quedás como capitán; abajo ingresá los emails de tus ${companions} compañeros.`}
             </p>
           </div>
         </div>
@@ -135,11 +135,11 @@ export function TeamForm(props: TeamFormProps) {
             name="categoryId"
             control={form.control}
             render={({ field, fieldState }) => (
-              <Field data-invalid={fieldState.invalid}>
-                <FieldLabel htmlFor="category-select">Categoría en la que te inscribís</FieldLabel>
+              <Field data-invalid={fieldState.invalid} className="space-y-1">
+                <FieldLabel htmlFor="category-select" className="text-xs font-medium">Categoría en la que te inscribís</FieldLabel>
                 <select
                   id="category-select"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-base sm:text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 truncate"
                   value={field.value ?? ""}
                   onChange={(e) => field.onChange(e.target.value || undefined)}
                 >
@@ -160,7 +160,7 @@ export function TeamForm(props: TeamFormProps) {
                     );
                   })}
                 </select>
-                <FieldDescription>
+                <FieldDescription className="text-[11px]">
                   Este torneo integra múltiples categorías. Seleccioná en cuál va a jugar tu {noun}.
                 </FieldDescription>
                 {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
@@ -173,10 +173,15 @@ export function TeamForm(props: TeamFormProps) {
           name="teamName"
           control={form.control}
           render={({ field, fieldState }) => (
-            <Field data-invalid={fieldState.invalid}>
-              <FieldLabel htmlFor={`${props.mode}-team-name`}>Nombre de la {noun === "pareja" ? "pareja" : "inscripción"}</FieldLabel>
-              <Input {...field} id={`${props.mode}-team-name`} aria-invalid={fieldState.invalid} />
-              <FieldDescription>
+            <Field data-invalid={fieldState.invalid} className="space-y-1">
+              <FieldLabel htmlFor={`${props.mode}-team-name`} className="text-xs font-medium">Nombre de la {noun === "pareja" ? "pareja" : "inscripción"}</FieldLabel>
+              <Input
+                {...field}
+                id={`${props.mode}-team-name`}
+                aria-invalid={fieldState.invalid}
+                className="h-9 text-base sm:text-xs"
+              />
+              <FieldDescription className="text-[11px]">
                 {props.teamSize === 2 ? 'Por ejemplo "Pérez / Gómez". Es lo que se ve en el fixture.' : "Es lo que se ve en el fixture."}
               </FieldDescription>
               {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
@@ -202,10 +207,12 @@ export function TeamForm(props: TeamFormProps) {
             );
           }}
         />
-        <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
-          {isPending ? <Spinner /> : null}
-          {props.mode === "register" ? "Inscribirme" : "Guardar equipo"}
-        </Button>
+        <div className="pt-1">
+          <Button type="submit" disabled={isPending} className="w-full sm:w-auto h-9 text-xs font-semibold shadow-xs">
+            {isPending ? <Spinner /> : null}
+            {props.mode === "register" ? "Inscribirme al torneo" : "Guardar equipo"}
+          </Button>
+        </div>
       </FieldGroup>
     </form>
   );

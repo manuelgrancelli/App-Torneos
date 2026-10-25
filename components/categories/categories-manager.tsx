@@ -1,15 +1,17 @@
 "use client";
 
-import { Check, Layers, Pencil, Plus, Trash2, ArrowRight, Trophy } from "lucide-react";
+import { AlertCircle, Check, Layers, Pencil, Plus, Sparkles, Trash2, ArrowRight, Trophy } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   changeCategoryStatus,
   createCategory,
   deleteCategory,
+  mergeCategories,
 } from "@/app/(app)/torneos/[id]/categorias/actions";
+import { findDuplicateCategoryPairs } from "@/lib/domain/category-matcher";
 import { EditCategoryDialog } from "@/components/categories/edit-category-dialog";
 import { ConfirmActionButton } from "@/components/shared/confirm-action-button";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -37,6 +39,31 @@ export function CategoriesManager({ tournamentId, categories, inSetup = false }:
   const [maxTeams, setMaxTeams] = useState<number | null>(16);
   const [editingCategory, setEditingCategory] = useState<TournamentCategory | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
+
+  const duplicatePairs = useMemo(() => {
+    if (categories.length < 2) return [];
+    return findDuplicateCategoryPairs(categories);
+  }, [categories]);
+
+  const [isMerging, startMergeTransition] = useTransition();
+
+  function handleMerge(sourceId: string, targetId: string) {
+    startMergeTransition(async () => {
+      const res = await mergeCategories({
+        tournamentId,
+        sourceCategoryId: sourceId,
+        targetCategoryId: targetId,
+      });
+
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+
+      toast.success(res.message);
+      router.refresh();
+    });
+  }
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -101,6 +128,40 @@ export function CategoriesManager({ tournamentId, categories, inSetup = false }:
 
   return (
     <div className="space-y-6">
+      {/* Alerta interactiva de categorías duplicadas / equivalentes */}
+      {duplicatePairs.length > 0 ? (
+        <div className="space-y-2">
+          {duplicatePairs.map(({ primary, duplicate }) => (
+            <div
+              key={`${primary.id}-${duplicate.id}`}
+              className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs shadow-xs"
+            >
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="size-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" aria-hidden="true" />
+                <div>
+                  <p className="font-semibold text-foreground text-sm">
+                    Categorías equivalentes detectadas: &quot;{duplicate.name}&quot; y &quot;{primary.name}&quot;
+                  </p>
+                  <p className="text-muted-foreground mt-0.5 leading-relaxed">
+                    Identificamos que estas dos categorías refieren a la misma. Podés unificarlas en{" "}
+                    <strong className="text-foreground font-semibold">&quot;{primary.name}&quot;</strong> para trasladar automáticamente todas sus parejas y eliminar la categoría sobrante.
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => handleMerge(duplicate.id, primary.id)}
+                disabled={isMerging}
+                className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white font-medium"
+              >
+                {isMerging ? <Spinner className="size-3" /> : <Sparkles className="size-3.5" aria-hidden="true" />}
+                <span>Unificar en &quot;{primary.name}&quot;</span>
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {/* Formulario para agregar nueva categoría */}
       <Card>
         <CardHeader>

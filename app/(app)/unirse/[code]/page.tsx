@@ -75,7 +75,7 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
     : tournament.approved_teams >= tournament.max_teams;
 
   return (
-    <div className="mx-auto max-w-lg space-y-6">
+    <div className="mx-auto w-full max-w-md sm:max-w-lg space-y-3.5 min-w-0 overflow-x-hidden">
       {/* Afiche / Portada informativa subida por el organizador */}
       {bannerUrl ? (
         <section aria-label="Afiche oficial del torneo">
@@ -89,21 +89,23 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
       ) : null}
 
       {/* Cabecera con datos del torneo */}
-      <header className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
+      <header className="space-y-2 rounded-xl border bg-card p-3 sm:p-4 shadow-2xs min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
           <SportBadge sport={tournament.sport_name} />
           <StatusBadge status={tournament.status} />
         </div>
 
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{tournament.name}</h1>
+        <h1 className="text-lg sm:text-xl font-bold tracking-tight break-words text-foreground">
+          {tournament.name}
+        </h1>
 
-        <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
-          <li className="inline-flex items-center gap-1.5">
-            <CalendarDays className="size-4 shrink-0" aria-hidden="true" />
+        <ul className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-muted-foreground">
+          <li className="inline-flex items-center gap-1">
+            <CalendarDays className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
             <span>{formatDateRange(tournament.starts_on, tournament.ends_on)}</span>
           </li>
-          <li className="inline-flex items-center gap-1.5">
-            <Users className="size-4 shrink-0" aria-hidden="true" />
+          <li className="inline-flex items-center gap-1">
+            <Users className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
             <span>
               {hasCategories
                 ? `${tournament.approved_teams} ${approvedTeamsLabel(tournament.min_team_size)} inscriptas`
@@ -113,17 +115,17 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
         </ul>
 
         {description ? (
-          <div className="rounded-xl border bg-muted/30 p-3.5 text-sm text-muted-foreground whitespace-pre-line">
+          <div className="rounded-lg border bg-muted/30 p-2.5 text-xs text-muted-foreground whitespace-pre-line break-words max-h-36 overflow-y-auto">
             {description}
           </div>
         ) : null}
 
-        <p className="text-xs text-muted-foreground">
+        <p className="text-[11px] text-muted-foreground pt-0.5">
           <Link
             href={`/t/${tournament.slug}`}
-            className="hover:underline text-primary inline-flex items-center gap-1"
+            className="hover:underline text-primary inline-flex items-center gap-1 font-medium"
           >
-            Ver página completa del torneo y fixture &rarr;
+            Ver página del torneo y fixture &rarr;
           </Link>
         </p>
       </header>
@@ -135,7 +137,7 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
           title="Ya estás inscripto en este torneo"
           description="Desde tu inscripción podés ver el estado, el equipo y marcar tu disponibilidad."
           action={
-            <Button asChild>
+            <Button asChild size="sm" className="h-8 text-xs font-medium">
               <Link href={`/inscripciones/${tournament.my_team_id}`}>Ver mi inscripción</Link>
             </Button>
           }
@@ -157,19 +159,19 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
           }
         />
       ) : (
-        <Card>
-          <CardHeader>
+        <Card size="sm" className="shadow-2xs min-w-0">
+          <CardHeader className="pb-2">
             <CardTitle>
-              <h2 className="text-base font-semibold">Inscribí tu {noun}</h2>
+              <h2 className="text-sm sm:text-base font-semibold">Inscribí tu {noun}</h2>
             </CardTitle>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground leading-snug">
               {tournament.min_team_size === 2
-                ? "Vos quedás como capitán. Cargá el email de tu pareja y le mandamos una invitación para que acepte."
-                : `Vos quedás como capitán. Cargá los emails de los otros ${tournament.min_team_size - 1} integrantes; les mandamos una invitación para que acepten.`}{" "}
+                ? "Vos quedás como capitán. Cargá el email de tu pareja para invitarla."
+                : `Vos quedás como capitán. Cargá los emails de tus compañeros.`}{" "}
               El organizador aprueba la inscripción cuando todos aceptan.
             </p>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0">
             <TeamForm
               mode="register"
               code={code}
