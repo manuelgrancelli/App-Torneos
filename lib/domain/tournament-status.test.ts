@@ -75,11 +75,14 @@ describe("helpers de estado", () => {
     expect(canDeleteTournament("finished")).toBe(false);
   });
 
-  it("pareja o equipo según el tamaño", () => {
+  it("jugador, pareja o equipo según el tamaño", () => {
+    expect(teamNoun(1)).toBe("jugador");
+    expect(teamNoun(1, true)).toBe("jugadores");
     expect(teamNoun(2)).toBe("pareja");
     expect(teamNoun(2, true)).toBe("parejas");
     expect(teamNoun(11)).toBe("equipo");
     expect(teamNoun(11, true)).toBe("equipos");
+    expect(approvedTeamsLabel(1)).toBe("jugadores inscriptos");
     expect(approvedTeamsLabel(2)).toBe("parejas aprobadas");
     expect(approvedTeamsLabel(11)).toBe("equipos aprobados");
   });

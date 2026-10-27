@@ -47,6 +47,9 @@ export const createTournament = createAction(createTournamentActionSchema, async
       ? await supabase.rpc("create_test_tournament", values)
       : await supabase.rpc("create_tournament", values);
     if (!error) {
+      if (input.bannerUrl) {
+        await supabase.from("tournaments").update({ banner_url: input.bannerUrl }).eq("id", data);
+      }
       revalidatePath("/torneos");
       return actionOk(
         { tournamentId: data },

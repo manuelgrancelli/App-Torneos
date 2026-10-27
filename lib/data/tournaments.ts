@@ -18,7 +18,51 @@ export const getSports = cache(async (): Promise<Sport[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase.from("sports").select("*").order("sort_order");
   if (error) throw error;
-  return data;
+  if (!data) return [];
+
+  // Garantizar opciones: Pádel, Tenis (Dobles y Singles) y Fútbol unificado
+  const hasUnifiedFutbol = data.some((s) => s.id === "futbol");
+  const filtered = data.filter((s) => {
+    if (s.id === "padel" || s.id === "tenis" || s.id === "tenis-single" || s.id === "futbol") return true;
+    if (!hasUnifiedFutbol && s.id === "futbol-11") return true;
+    return false;
+  });
+
+  const hasTenisSingle = filtered.some((s) => s.id === "tenis-single");
+  const tenisRow = filtered.find((s) => s.id === "tenis");
+
+  const result = filtered.map((s) => {
+    if (s.id === "futbol-11" && !hasUnifiedFutbol) {
+      return {
+        ...s,
+        id: "futbol",
+        name: "Fútbol",
+        min_team_size: 1,
+        max_team_size: 30,
+      };
+    }
+    if (s.id === "futbol") {
+      return {
+        ...s,
+        name: "Fútbol",
+        min_team_size: 1,
+        max_team_size: 30,
+      };
+    }
+    return s;
+  });
+
+  if (!hasTenisSingle && tenisRow) {
+    result.push({
+      ...tenisRow,
+      id: "tenis-single",
+      name: "Tenis Individual",
+      min_team_size: 1,
+      max_team_size: 1,
+    });
+  }
+
+  return result;
 });
 
 export type TournamentCategorySummary = {

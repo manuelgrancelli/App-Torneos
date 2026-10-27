@@ -22,24 +22,36 @@ export const logoUrlSchema = z
   .nullable()
   .optional();
 
+export const playerItemSchema = z.object({
+  name: z.string().trim().max(80).optional().default(""),
+  email: z.string().trim().toLowerCase().optional().default(""),
+});
+
 export const registerTeamSchema = z.object({
   code: z.string().trim().min(1).max(40),
   categoryId: z.string().uuid().optional(),
   teamName: teamNameSchema,
-  memberEmails: memberEmailsSchema,
+  memberEmails: z.array(z.string().trim().toLowerCase()).max(60).optional().default([]),
+  memberNames: z.array(z.string().trim().max(80)).max(60).optional().default([]),
+  players: z.array(playerItemSchema).max(60).optional(),
   logoUrl: logoUrlSchema,
 });
 
 export const updateRosterSchema = z.object({
   teamId: z.uuid(),
   teamName: teamNameSchema,
-  memberEmails: memberEmailsSchema,
+  memberEmails: z.array(z.string().trim().toLowerCase()).max(60).optional().default([]),
+  memberNames: z.array(z.string().trim().max(80)).max(60).optional().default([]),
+  players: z.array(playerItemSchema).max(60).optional(),
   logoUrl: logoUrlSchema,
 });
 
 export const addTeamMemberSchema = z.object({
   teamId: z.uuid(),
-  email: emailSchema,
+  email: z.string().trim().toLowerCase().optional().default(""),
+  name: z.string().trim().max(80).optional().default(""),
+}).refine((data) => Boolean(data.email || data.name), {
+  message: "Ingresá el nombre o el email del jugador.",
 });
 
 export const removeTeamMemberSchema = z.object({

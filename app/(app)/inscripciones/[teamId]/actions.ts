@@ -92,26 +92,32 @@ export const updateRoster = createAction(updateRosterSchema, async (input, { sup
   return actionOk(undefined, "Guardamos el equipo.");
 });
 
-/** Suma un integrante de a uno al equipo por su email. */
-export const addTeamMember = createAction(addTeamMemberSchema, async ({ teamId, email }, { supabase }) => {
+/** Suma un integrante de a uno al equipo por su email o nombre. */
+export const addTeamMember = createAction(addTeamMemberSchema, async ({ teamId, email, name }, { supabase }) => {
   const tournamentId = await teamTournamentId(supabase, teamId);
+  const normEmail = email ? email.trim().toLowerCase() : null;
+  const normName = name ? name.trim() : null;
+
   const { data: memberId, error } = await (supabase.rpc as any)("add_team_member", {
     p_team_id: teamId,
-    p_email: email,
+    p_email: normEmail,
+    p_name: normName,
   });
   if (error) return actionError(dbErrorMessage(error));
 
-  // Intentar enviar la invitación por email
-  try {
-    const origin = await getRequestOrigin();
-    await createAndSendTeamInvitation({ supabase, teamId, memberId, origin });
-  } catch (err) {
-    console.error("[addTeamMember] No se pudo enviar invitación automática por correo:", err);
+  // Intentar enviar la invitación por email si se ingresó
+  if (normEmail) {
+    try {
+      const origin = await getRequestOrigin();
+      await createAndSendTeamInvitation({ supabase, teamId, memberId, origin });
+    } catch (err) {
+      console.error("[addTeamMember] No se pudo enviar invitación automática por correo:", err);
+    }
   }
 
   revalidateTeam(teamId);
   if (tournamentId) refreshPublicTournament(tournamentId);
-  return actionOk({ memberId }, `Sumamos a ${email} al equipo.`);
+  return actionOk({ memberId }, `Sumamos a ${normName || normEmail} al equipo.`);
 });
 
 /** Remueve a un integrante del equipo. */

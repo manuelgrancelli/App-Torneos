@@ -97,13 +97,15 @@ export function canDeleteTournament(status: TournamentStatus): boolean {
   return status !== "finished";
 }
 
-/** "pareja"/"parejas" si el deporte es de a 2; "equipo"/"equipos" si no (D-004). */
+/** "jugador"/"pareja"/"equipo" según el tamaño del plantel (D-004, D-156). */
 export function teamNoun(teamSize: number, plural = false): string {
+  if (teamSize === 1) return plural ? "jugadores" : "jugador";
   if (teamSize === 2) return plural ? "parejas" : "pareja";
   return plural ? "equipos" : "equipo";
 }
 
-/** "parejas aprobadas" / "equipos aprobados" (concordancia de género). */
+/** "jugadores inscriptos" / "parejas aprobadas" / "equipos aprobados" (concordancia de género). */
 export function approvedTeamsLabel(teamSize: number): string {
+  if (teamSize === 1) return "jugadores inscriptos";
   return teamSize === 2 ? "parejas aprobadas" : "equipos aprobados";
 }

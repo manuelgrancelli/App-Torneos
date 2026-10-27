@@ -19,12 +19,12 @@ import { applyServerErrors } from "@/lib/forms";
 import { type CreateTournamentInput, createTournamentSchema } from "@/lib/validation/tournament";
 import { RulesSections } from "./rules-sections";
 import { SportSelector } from "./sport-selector";
+import { TournamentFlyerField } from "./tournament-flyer-field";
 import {
   ConfirmationField,
   CourtCountField,
   DateFields,
   DescriptionField,
-  MaxTeamsField,
   NameField,
 } from "./tournament-fields";
 import type { SportOption } from "./tournament-form";
@@ -47,7 +47,7 @@ const STEP_TITLES = [
 const STEP_FIELDS = [
   ["name", "sportId", "description"],
   ["startsOn", "endsOn", "courtCount"],
-  ["resultsRequireConfirmation", "scoringConfig", "standingsConfig", "playoffConfig"],
+  ["resultsRequireConfirmation", "scoringConfig", "standingsConfig", "playoffConfig", "bannerUrl"],
 ] as const satisfies readonly (readonly (keyof CreateTournamentInput)[])[];
 
 /** Primer paso que contiene alguno de los campos con error. */
@@ -88,6 +88,7 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
       scoringConfig: initialSport.defaultScoringConfig,
       standingsConfig: initialSport.defaultStandingsConfig,
       playoffConfig: { qualifiersPerGroup: 2, thirdPlace: false },
+      bannerUrl: null,
     },
   });
 
@@ -210,6 +211,17 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
 
           {step === 2 ? (
             <div className="space-y-4">
+              <Controller
+                name="bannerUrl"
+                control={form.control}
+                render={({ field }) => (
+                  <TournamentFlyerField
+                    value={field.value}
+                    onChange={field.onChange}
+                    disabled={isPending}
+                  />
+                )}
+              />
               <ConfirmationField form={form} />
               <div className="space-y-3">
                 <RulesSections form={form} />

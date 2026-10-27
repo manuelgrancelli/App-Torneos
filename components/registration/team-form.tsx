@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Crown } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { updateRoster } from "@/app/(app)/inscripciones/[teamId]/actions";
@@ -17,6 +17,7 @@ import { teamNoun } from "@/lib/domain/tournament-status";
 import { applyServerErrors, firstErrorMessage } from "@/lib/forms";
 import { registerTeamSchema } from "@/lib/validation/registration";
 import { MemberEmailsField } from "./member-emails-field";
+import { PlayerRosterBuilder, type PlayerEntry } from "./player-roster-builder";
 
 export type TeamCategoryOption = {
   id: string;
@@ -67,6 +68,18 @@ export function TeamForm(props: TeamFormProps) {
         ? []
         : Array.from({ length: companions }, () => "");
 
+  const [players, setPlayers] = useState<PlayerEntry[]>(() => {
+    if (props.defaultEmails && props.defaultEmails.length > 0) {
+      return props.defaultEmails.map((email, i) => ({
+        id: `p-${i}`,
+        name: "",
+        email,
+      }));
+    }
+    // Inicia con JUGADOR 1 listo para completar, como en el boceto
+    return [{ id: "p-1", name: "", email: "" }];
+  });
+
   const form = useForm({
     resolver: zodResolver(registerTeamSchema),
     defaultValues: {
@@ -81,27 +94,50 @@ export function TeamForm(props: TeamFormProps) {
   const watchedTeamName = useWatch({ control: form.control, name: "teamName" });
 
   const onSubmit = form.handleSubmit((values) => {
-    // Filtrar emails vacíos ingresados en modo flexible
-    const cleanedEmails = values.memberEmails.map((e) => e.trim().toLowerCase()).filter(Boolean);
+    let memberEmails: string[] = [];
+    let memberNames: string[] = [];
+    let playerPayload: { name: string; email: string }[] | undefined = undefined;
 
-    // Validar en el cliente que no ingrese su propio email como compañero
     const captainEmailNormalized = props.captainEmail?.toLowerCase().trim();
-    if (captainEmailNormalized) {
-      const hasSelf = cleanedEmails.some((e) => e === captainEmailNormalized);
-      if (hasSelf) {
-        form.setError("memberEmails", {
-          message: props.teamSize === 2
-            ? "No podés ingresar tu propio email: vos ya sos el capitán de la pareja."
-            : "No podés incluir tu propio email: vos ya sos el capitán del equipo.",
-        });
-        toast.error("No podés incluir tu propio email como compañero.");
-        return;
+
+    if (isFootball) {
+      const validPlayers = players
+        .map((p) => ({ name: p.name.trim(), email: p.email.trim().toLowerCase() }))
+        .filter((p) => Boolean(p.name || p.email));
+
+      if (captainEmailNormalized) {
+        const hasSelf = validPlayers.some((p) => p.email && p.email === captainEmailNormalized);
+        if (hasSelf) {
+          toast.error("No podés incluir tu propio email como compañero: vos ya sos el capitán.");
+          return;
+        }
       }
+
+      memberEmails = validPlayers.map((p) => p.email);
+      memberNames = validPlayers.map((p) => p.name);
+      playerPayload = validPlayers;
+    } else {
+      const cleanedEmails = values.memberEmails.map((e) => e.trim().toLowerCase()).filter(Boolean);
+      if (captainEmailNormalized) {
+        const hasSelf = cleanedEmails.some((e) => e === captainEmailNormalized);
+        if (hasSelf) {
+          form.setError("memberEmails", {
+            message: props.teamSize === 2
+              ? "No podés ingresar tu propio email: vos ya sos el capitán de la pareja."
+              : "No podés incluir tu propio email: vos ya sos el capitán del equipo.",
+          });
+          toast.error("No podés incluir tu propio email como compañero.");
+          return;
+        }
+      }
+      memberEmails = cleanedEmails;
     }
 
     const payload = {
       ...values,
-      memberEmails: cleanedEmails,
+      memberEmails,
+      memberNames,
+      players: playerPayload,
     };
 
     startTransition(async () => {
@@ -121,6 +157,8 @@ export function TeamForm(props: TeamFormProps) {
         teamId: props.teamId,
         teamName: payload.teamName,
         memberEmails: payload.memberEmails,
+        memberNames: payload.memberNames,
+        players: payload.players,
         logoUrl: payload.logoUrl,
       });
       if (!result.ok) {
@@ -137,12 +175,18 @@ export function TeamForm(props: TeamFormProps) {
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-4">
       <FieldGroup className="space-y-3.5">
-        {/* Cabecera del Capitán */}
+        {/* Cabecera del Capitán / Jugador */}
         <div className="flex items-start gap-2.5 rounded-lg border border-primary/20 bg-primary/5 p-2.5 sm:p-3 text-xs sm:text-sm">
           <Crown className="size-4 text-amber-500 shrink-0 mt-0.5" aria-hidden="true" />
           <div className="space-y-0.5 min-w-0">
             <p className="font-semibold text-foreground text-xs sm:text-sm">
-              {props.mode === "register" ? "Vos sos el Capitán" : "Capitán del equipo"}
+              {props.teamSize === 1
+                ? props.mode === "register"
+                  ? "Inscripción individual"
+                  : "Jugador"
+                : props.mode === "register"
+                  ? "Vos sos el Capitán"
+                  : "Capitán del equipo"}
               {props.captainName || props.captainEmail ? (
                 <span className="font-normal text-muted-foreground ml-1">
                   ({props.captainName ?? props.captainEmail})
@@ -150,11 +194,13 @@ export function TeamForm(props: TeamFormProps) {
               ) : null}
             </p>
             <p className="text-[11px] sm:text-xs text-muted-foreground leading-snug">
-              {props.teamSize === 2
-                ? "El pádel se juega en parejas (2 personas). Vos ya quedás registrado como capitán; abajo ingresás el email de tu pareja para invitarla."
-                : isFootball
-                  ? `Vos quedás registrado como capitán. Podés ingresar el escudo y nombre de tu equipo, y sumar o invitar compañeros con link.`
-                  : `Vos ya quedás como capitán; abajo ingresá los emails de tus ${companions} compañeros.`}
+              {props.teamSize === 1
+                ? "Participás de forma individual (1 vs 1). No tenés que sumar compañeros ni parejas."
+                : props.teamSize === 2
+                  ? "El torneo se juega en parejas (2 personas). Vos ya quedás registrado como capitán; abajo ingresás el email de tu pareja para invitarla."
+                  : isFootball
+                    ? "Vos quedás registrado como capitán. Podés ingresar el escudo y nombre de tu equipo, y sumar o invitar compañeros con link."
+                    : `Vos ya quedás como capitán; abajo ingresá los emails de tus ${companions} compañeros.`}
             </p>
           </div>
         </div>
@@ -193,7 +239,7 @@ export function TeamForm(props: TeamFormProps) {
                   })}
                 </select>
                 <FieldDescription className="text-[11px]">
-                  Este torneo integra múltiples categorías. Seleccioná en cuál va a jugar tu {noun}.
+                  Este torneo integra múltiples categorías. Seleccioná en cuál vas a competir.
                 </FieldDescription>
                 {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
               </Field>
@@ -201,26 +247,42 @@ export function TeamForm(props: TeamFormProps) {
           />
         ) : null}
 
-        {/* Nombre del equipo / pareja */}
+        {/* Nombre del jugador / equipo / pareja */}
         <Controller
           name="teamName"
           control={form.control}
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid} className="space-y-1">
               <FieldLabel htmlFor={`${props.mode}-team-name`} className="text-xs font-medium">
-                {isFootball ? "Nombre del equipo" : `Nombre de la ${noun === "pareja" ? "pareja" : "inscripción"}`}
+                {isFootball
+                  ? "Nombre del equipo"
+                  : props.teamSize === 1
+                    ? "Nombre del jugador"
+                    : props.teamSize === 2
+                      ? "Nombre de la pareja"
+                      : "Nombre de la inscripción"}
               </FieldLabel>
               <Input
                 {...field}
                 id={`${props.mode}-team-name`}
                 aria-invalid={fieldState.invalid}
-                placeholder={isFootball ? 'Ej: "Los Galácticos", "Deportivo Sur"' : undefined}
+                placeholder={
+                  isFootball
+                    ? 'Ej: "Los Galácticos", "Deportivo Sur"'
+                    : props.teamSize === 1
+                      ? "Ej: Carlos Alcaraz"
+                      : props.teamSize === 2
+                        ? "Ej: Pérez / Gómez"
+                        : undefined
+                }
                 className="h-9 text-base sm:text-xs"
               />
               <FieldDescription className="text-[11px]">
-                {props.teamSize === 2
-                  ? 'Por ejemplo "Pérez / Gómez". Es lo que se ve en el fixture.'
-                  : "Es el nombre oficial visible en grupos, partidos y tablas."}
+                {props.teamSize === 1
+                  ? "Es tu nombre como jugador para el fixture y los partidos."
+                  : props.teamSize === 2
+                    ? 'Por ejemplo "Pérez / Gómez". Es lo que se ve en el fixture.'
+                    : "Es el nombre oficial visible en grupos, partidos y tablas."}
               </FieldDescription>
               {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
             </Field>
@@ -246,32 +308,46 @@ export function TeamForm(props: TeamFormProps) {
           />
         ) : null}
 
-        {/* Plantel / Emails de integrantes */}
-        <Controller
-          name="memberEmails"
-          control={form.control}
-          render={({ field, fieldState }) => {
-            const perIndex = Array.isArray(fieldState.error)
-              ? (fieldState.error as ({ message?: string } | undefined)[]).map((e) => e?.message)
-              : [];
-            return (
-              <MemberEmailsField
-                idPrefix={`${props.mode}-email`}
-                count={companions}
-                isFlexible={isFootball}
-                value={field.value}
-                onChange={field.onChange}
-                errors={perIndex}
-                generalError={Array.isArray(fieldState.error) ? undefined : firstErrorMessage(fieldState.error)}
-              />
-            );
-          }}
-        />
+        {/* Plantel / Jugadores o emails de integrantes (sólo si companions > 0) */}
+        {isFootball ? (
+          <div className="space-y-2 pt-1">
+            <PlayerRosterBuilder
+              players={players}
+              onChange={setPlayers}
+              disabled={isPending}
+            />
+          </div>
+        ) : companions > 0 ? (
+          <Controller
+            name="memberEmails"
+            control={form.control}
+            render={({ field, fieldState }) => {
+              const perIndex = Array.isArray(fieldState.error)
+                ? (fieldState.error as ({ message?: string } | undefined)[]).map((e) => e?.message)
+                : [];
+              return (
+                <MemberEmailsField
+                  idPrefix={`${props.mode}-email`}
+                  count={companions}
+                  isFlexible={false}
+                  value={field.value ?? []}
+                  onChange={field.onChange}
+                  errors={perIndex}
+                  generalError={Array.isArray(fieldState.error) ? undefined : firstErrorMessage(fieldState.error)}
+                />
+              );
+            }}
+          />
+        ) : null}
 
         <div className="pt-1">
           <Button type="submit" disabled={isPending} className="w-full sm:w-auto h-9 text-xs font-semibold shadow-xs">
             {isPending ? <Spinner /> : null}
-            {props.mode === "register" ? "Inscribirme al torneo" : "Guardar cambios"}
+            {props.mode === "register"
+              ? props.teamSize === 1
+                ? "Inscribirme al torneo"
+                : "Inscribir equipo"
+              : "Guardar cambios"}
           </Button>
         </div>
       </FieldGroup>

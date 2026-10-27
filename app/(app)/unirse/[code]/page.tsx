@@ -17,8 +17,9 @@ import { getTournamentCategories } from "@/lib/data/categories";
 
 export const metadata: Metadata = { title: "Inscripción" };
 
-/** Sugerencia de nombre para parejas: "Apellido / ". */
+/** Sugerencia de nombre: para individual el nombre completo, para parejas "Apellido / ", para equipos vacío. */
 function suggestedName(fullName: string, teamSize: number): string {
+  if (teamSize === 1) return fullName.trim();
   if (teamSize !== 2) return "";
   const surname = fullName.trim().split(/\s+/).pop() ?? "";
   return surname ? `${surname} / ` : "";
@@ -76,12 +77,20 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
 
   return (
     <div className="mx-auto w-full max-w-md sm:max-w-lg space-y-3.5 min-w-0 overflow-x-hidden">
-      {/* Afiche / Portada informativa subida por el organizador */}
+      {/* Afiche / Flyer de reglas oficial del torneo */}
       {bannerUrl ? (
-        <section aria-label="Afiche oficial del torneo">
+        <section aria-label="Flyer oficial y reglas del torneo" className="space-y-1">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              📜 Flyer y reglas oficiales
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              Tocá para ampliar
+            </span>
+          </div>
           <TournamentBanner
             src={bannerUrl}
-            alt={`Afiche de ${tournament.name}`}
+            alt={`Flyer de ${tournament.name}`}
             tournamentName={tournament.name}
             priority
           />
@@ -162,13 +171,22 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
         <Card size="sm" className="shadow-2xs min-w-0">
           <CardHeader className="pb-2">
             <CardTitle>
-              <h2 className="text-sm sm:text-base font-semibold">Inscribí tu {noun}</h2>
+              <h2 className="text-sm sm:text-base font-bold uppercase tracking-wider text-foreground">
+                {tournament.sport_id.includes("futbol")
+                  ? "INSCRIBIRSE A TORNEO"
+                  : tournament.min_team_size === 1
+                    ? "Inscripción individual"
+                    : `Inscribí tu ${noun}`}
+              </h2>
             </CardTitle>
             <p className="text-xs text-muted-foreground leading-snug">
-              {tournament.min_team_size === 2
-                ? "Vos quedás como capitán. Cargá el email de tu pareja para invitarla."
-                : `Vos quedás como capitán. Cargá los emails de tus compañeros.`}{" "}
-              El organizador aprueba la inscripción cuando todos aceptan.
+              {tournament.sport_id.includes("futbol")
+                ? "Vos quedás como capitán. Podés ingresar tu equipo y sumar los jugadores de tu plantel."
+                : tournament.min_team_size === 1
+                  ? "Completá tu nombre y seleccioná tu categoría para inscribirte."
+                  : tournament.min_team_size === 2
+                    ? "Vos quedás como capitán. Cargá el email de tu pareja para invitarla."
+                    : "Vos quedás como capitán. Cargá los emails de tus compañeros."}
             </p>
           </CardHeader>
           <CardContent className="pt-0">

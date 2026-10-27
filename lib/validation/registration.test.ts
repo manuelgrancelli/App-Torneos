@@ -72,7 +72,7 @@ describe("replaceTeamPlayerSchema", () => {
   });
 
   it("acepta reemplazo sin especificar newTeamName", () => {
-    const { newTeamName, ...withoutTeamName } = validData;
+    const withoutTeamName = { ...validData, newTeamName: undefined };
     const res = replaceTeamPlayerSchema.safeParse(withoutTeamName);
     expect(res.success).toBe(true);
   });
@@ -113,6 +113,25 @@ describe("registerTeamSchema & joinTeamByInviteCodeSchema", () => {
       logoUrl: "https://example.com/escudo.png",
     });
     expect(res.success).toBe(true);
+  });
+
+  it("acepta inscripción con lista flexible de jugadores (memberNames y players)", () => {
+    const res = registerTeamSchema.safeParse({
+      code: "ABCDEF",
+      teamName: "Los Galácticos",
+      players: [
+        { name: "Lionel Martínez", email: "" },
+        { name: "Carlos Tevez", email: "carlos@mail.com" },
+      ],
+      memberNames: ["Lionel Martínez", "Carlos Tevez"],
+      memberEmails: ["", "carlos@mail.com"],
+      logoUrl: null,
+    });
+    expect(res.success).toBe(true);
+    if (res.success) {
+      expect(res.data.players).toHaveLength(2);
+      expect(res.data.memberNames).toContain("Lionel Martínez");
+    }
   });
 
   it("valida joinTeamByInviteCodeSchema con código válido", () => {

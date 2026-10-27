@@ -12,12 +12,20 @@ import { registerTeamSchema } from "@/lib/validation/registration";
  * tamaño del plantel y duplicados; quien inscribe queda como capitán (D-005).
  */
 export const registerTeam = createAction(registerTeamSchema, async (input, { supabase }) => {
+  const memberEmails = input.players
+    ? input.players.map((p) => p.email.trim().toLowerCase())
+    : (input.memberEmails ?? []);
+  const memberNames = input.players
+    ? input.players.map((p) => p.name.trim())
+    : (input.memberNames ?? []);
+
   const { data, error } = await (supabase.rpc as any)("register_team", {
     p_code: input.code,
     p_team_name: input.teamName,
-    p_member_emails: input.memberEmails,
+    p_member_emails: memberEmails,
     p_category_id: input.categoryId ?? null,
     p_logo_url: input.logoUrl ?? null,
+    p_member_names: memberNames,
   });
   if (error) return actionError(dbErrorMessage(error));
 

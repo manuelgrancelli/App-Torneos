@@ -2157,7 +2157,7 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** responder a la solicitud del usuario ("lo que pasa respecto a los horarios de la persona que se inscribio al torneo es que se inscribio sin pner franjas pero despues desde la parte de organizador yo le asigne franjas y es como que no las toma porque dice que no tiene horarios disponibles, lo que te voy a pedir es que cuando se inscriba una pareja las franjas esten todas activadas y que la pareja inscripta pueda modificarlas").
 - **Cómo aplicar:** `supabase/migrations/20261025000000_auto_team_availability_and_admin_support.sql`, `app/(app)/unirse/[code]/actions.ts`, `app/(app)/inscripciones/[teamId]/actions.ts`, `components/availability/availability-picker.tsx`, `components/registration/team-availability-dialog.tsx`, `components/groups/group-builder.tsx`, `app/(app)/torneos/[id]/inscripciones/actions.ts`.
 
-### D-154 — Soporte de formatos flexibles de fútbol (F5, F7, F8, F11), escudos de equipo y alta progresiva con link de invitación (2026-10-25)
+### D-154 — Soporte de formatos flexibles de fútbol (F5, F7, F8, F11), escudos de equipo y alta progresiva con link de invitación (2026-10-25) *(reemplazada parcialmente por D-155 en cuanto a la fragmentación de deportes)*
 - **Decisión:**
   - **Formatos de fútbol:** En la migración `20261025020000_football_formats_and_team_crests_invites.sql`, se incorporaron a `sports` los formatos `futbol-5` (5-15 jugadores), `futbol-7` (7-18 jugadores), `futbol-8` (8-20 jugadores) y `futbol` libre (5-25 jugadores), además de ampliar `futbol-11` (11-25 jugadores) para admitir planteles con suplentes.
   - **Inscripción flexible y armado progresivo:** En deportes con puntuación por goles (`scoring_type = 'goals'`), `register_team` y `MemberEmailsField` permiten inscribir el equipo a partir de 1 integrante (el capitán) sin obligar a cargar los 11 jugadores de entrada. El capitán puede luego agregar jugadores de a uno por email (`add_team_member` / `AddMemberInline`) o removerlos (`remove_team_member` / `RemoveMemberButton`). La aprobación del organizador (`review_registration`) sigue exigiendo cumplir `min_team_size`.
@@ -2167,4 +2167,45 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 - **Motivo:** responder a la solicitud del usuario ("en torneos de futbol solo permite futbol 11, me gustaria que el que inscribe pone el codigo, luego pueda ir poniendo los integrantes no necesariamente 11, ya que podria ser F5 F7 etc, entonces que vaya agregando de a uno o que tenga la opcion de invitar con link para que el otro jugador se meta automaticamente al equipo, ademas el que inscribe que es el capitan, en futbol tenga la opcion de poner un escudo de equipo y el nombre del mismo").
 - **Cómo aplicar:** `supabase/migrations/20261025020000_football_formats_and_team_crests_invites.sql`, `lib/supabase/database.types.ts`, `lib/validation/registration.ts`, `lib/data/teams.ts`, `lib/data/competition.ts`, `lib/data/public.ts`, `components/teams/team-shield.tsx`, `components/teams/team-shield-selector.tsx`, `components/registration/team-invite-card.tsx`, `components/registration/add-member-inline.tsx`, `components/registration/remove-member-button.tsx`, `components/registration/join-team-button.tsx`, `app/unirse-equipo/[inviteCode]/page.tsx`, `components/registration/team-form.tsx`, `components/registration/member-emails-field.tsx`, `app/(app)/inscripciones/[teamId]/page.tsx`, `app/(app)/unirse/[code]/page.tsx`, `components/registration/registrations-list.tsx`, `components/groups/standings-table.tsx`, `app/t/[slug]/page.tsx`.
 
-
+### D-155 — Unificación de Fútbol en una única opción, flyer con reglamento y alta dinámica de jugadores en inscripción (2026-10-26) *(reemplaza parcialmente a D-154)*
+- **Decisión:**
+  - **Unificación de deporte (opción única de Fútbol):**
+    En lugar de fragmentar el fútbol en opciones separadas (Fútbol 5, 7, 8, 11), se consolida como una **única opción deportiva ("Fútbol", id `futbol`)** tanto en el selector del asistente de creación (`SportSelector`) como en `getSports()` de `lib/data/tournaments.ts`. Las reglas específicas de cada torneo (si es F5, F7 u 11, minutos de juego, etc.) quedan delegadas al reglamento oficial que el organizador comunica mediante su flyer o descripción.
+  - **Flyer y reglamento del torneo (opcional):**
+    - En el asistente de creación de torneos (`TournamentWizard`), se incorporó el componente `TournamentFlyerField` en el paso de reglas para que el organizador pueda arrastrar o seleccionar el flyer oficial con el reglamento antes de crear el torneo, persistiendo `banner_url` de forma directa en `createTournament`.
+    - En la pantalla de inscripción (`/unirse/[code]`), el afiche oficial se presenta con destaque visual (*"📜 Flyer y reglas oficiales - Tocá para ampliar"*), permitiendo a los capitanes y jugadores inspeccionar las pautas y modalidad del torneo antes y durante la inscripción.
+  - **Constructor dinámico de jugadores (fiel al boceto):**
+    - En la inscripción de fútbol (`TeamForm`), se integró el componente `PlayerRosterBuilder` diseñado a partir del wireframe del usuario:
+      - Encabezado con título claro `INSCRIBIRSE A TORNEO`.
+      - Botón superior prominente `[ + ] AGREGAR JUGADOR` con icono cuadrado, tipografía en mayúsculas y feedback táctil.
+      - Tarjetas numeradas `JUGADOR 1`, `JUGADOR 2`, etc., con campos para Nombre y Apellido del jugador y Email opcional (para vincular cuenta o invitar), además de botón para remover jugador y contador de integrantes del plantel.
+  - **Base de datos y RPCs (`20261026000000_single_football_sport_and_player_names.sql`):**
+    - Se unificaron torneos existentes al ID `futbol` y se eliminaron las variantes fragmentadas de `public.sports`.
+    - `register_team`: ampliada para recibir `p_member_names text[]` junto a `p_member_emails text[]`, guardando `display_name` y/o `email` en `team_members`.
+    - `review_registration`: ajustada para que en deportes por goles (`scoring_type = 'goals'`), el organizador pueda aprobar equipos con cualquier cantidad válida de jugadores (mínimo 1, máximo 30), respetando la modalidad estipulada en su flyer.
+    - `add_team_member`: actualizada para admitir `p_name text` opcional.
+- **Motivo:** responder a la solicitud del usuario ("cuando sos organizador, creas torneo y en la parte que elegis el deporte no quiero que futbol sea 5 ,7 11 ,etc, quiero que solo sea una opcion, y que el organizador va a tener un flyer si es que quiere obviamente con las reglas, entonces quiero que las personas que se inscriben vayan agregando jugadores, te mando un boceto con muy pocos detalles para que se entienda mi idea").
+### D-156 — Tenis Individual (Singles) integrado en la misma tarjeta de Tenis y flujo de inscripción 1 vs 1 (2026-10-26)
+- **Decisión:**
+  - **Selector de Deportes con modalidad integrada (`SportSelector`):**
+    En lugar de crear un recuadro adicional en la grilla que fragmentara la interfaz visual de 3 tarjetas (Pádel, Tenis, Fútbol), la tarjeta de Tenis incorpora un selector interno de modalidad interactivo:
+    - Botón *"Individual (1 vs 1)"* -> selecciona `tenis-single` (`min_team_size = 1, max_team_size = 1`).
+    - Botón *"En parejas (Dobles)"* -> selecciona `tenis` (`min_team_size = 2, max_team_size = 2`).
+    - La tarjeta actualiza su etiqueta contextual: *"Individual (Singles · 1 vs 1)"* o *"Parejas (Dobles · 2 vs 2)"*.
+    - Al hacer clic general en la tarjeta se mantiene la modalidad activa.
+  - **Catálogo deportivo y base de datos (`20261026010000_tennis_singles_sport.sql`):**
+    - Se registra `tenis-single` en `public.sports` con `scoring_type = 'sets'`, sets a 6 games con tiebreak, y tamaños mínimo y máximo de equipo fijados en 1.
+    - `getSports()` en `lib/data/tournaments.ts` garantiza la disponibilidad de `tenis-single` con fallback de compatibilidad.
+  - **Dominio (`lib/domain/tournament-status.ts`):**
+    - `teamNoun(1)` retorna `"jugador"`.
+    - `approvedTeamsLabel(1)` retorna `"jugadores inscriptos"`.
+    - Pruebas unitarias añadidas en `lib/domain/tournament-status.test.ts`.
+  - **Flujo de inscripción individual (`/unirse/[code]` y `TeamForm`):**
+    - `suggestedName`: para torneos individuales asigna directamente el nombre completo del participante, sin agregar sufijos de parejas (`" / "`).
+    - Título y subtítulos claros: *"Inscripción individual - Participás de forma individual (1 vs 1)"*.
+    - En `TeamForm`, el campo de nombre pasa a *"Nombre del jugador"* (placeholder *"Ej: Carlos Alcaraz"*) y se omiten automáticamente los campos de emails de compañeros al no requerir integrantes adicionales.
+    - Botón de acción: *"Inscribirme al torneo"*.
+  - **Resumen en Asistente (`TournamentReview`):**
+    - Añade la fila *"Modalidad"* indicando con claridad *"Individual (1 vs 1)"* o *"En parejas (Dobles)"*.
+- **Motivo:** responder fielmente a la solicitud del usuario ("el tenis no es solo en pareja, pone que tambien este la opcion de torneo de tenis individual, pero no con otro recuadro aparte que se pueda elegir desde el mismo recuadro").
+- **Cómo aplicar:** `supabase/migrations/20261026010000_tennis_singles_sport.sql`, `components/tournaments/sport-selector.tsx`, `lib/domain/tournament-status.ts`, `lib/data/tournaments.ts`, `components/registration/team-form.tsx`, `app/(app)/unirse/[code]/page.tsx`, `components/tournaments/tournament-review.tsx`.

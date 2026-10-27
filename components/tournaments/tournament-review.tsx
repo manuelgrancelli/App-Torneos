@@ -1,7 +1,6 @@
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDateRange } from "@/lib/dates";
-import { teamNoun } from "@/lib/domain/tournament-status";
 import type { CreateTournamentInput } from "@/lib/validation/tournament";
 import { playoffSummary, scoringSummary, standingsSummary } from "./config-summary";
 
@@ -23,10 +22,17 @@ export function TournamentReview({
   onEdit: (step: number) => void;
 }) {
   const description = values.description.trim();
+  const modality =
+    teamSize === 1
+      ? "Individual (1 vs 1)"
+      : teamSize === 2
+        ? "En parejas (Dobles)"
+        : `Equipos (${teamSize} jugadores)`;
 
   const rows: ReviewRow[] = [
     { label: "Nombre", value: values.name, step: 0 },
     { label: "Deporte", value: sportName, step: 0 },
+    { label: "Modalidad", value: modality, step: 0 },
     ...(description ? [{ label: "Descripción", value: description, step: 0 }] : []),
     { label: "Fechas", value: formatDateRange(values.startsOn, values.endsOn), step: 1 },
     { label: "Canchas / sedes", value: String(values.courtCount), step: 1 },
@@ -38,6 +44,7 @@ export function TournamentReview({
     { label: "Puntuación", value: scoringSummary(values.scoringConfig), step: 2 },
     { label: "Tabla de posiciones", value: standingsSummary(values.standingsConfig, values.scoringConfig.type), step: 2 },
     { label: "Playoffs", value: playoffSummary(values.playoffConfig), step: 2 },
+    ...(values.bannerUrl ? [{ label: "Flyer con reglas", value: "Cargado", step: 2 }] : []),
   ];
 
   return (

@@ -38,6 +38,7 @@ const tournamentInfoShape = {
   scoringConfig: scoringConfigSchema,
   standingsConfig: standingsConfigSchema,
   playoffConfig: playoffConfigSchema,
+  bannerUrl: z.string().url({ error: "Ingresá una URL válida." }).max(2048).nullable().optional(),
 };
 
 type ConfigFields = {
