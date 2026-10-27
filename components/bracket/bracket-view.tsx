@@ -49,7 +49,7 @@ export function BracketView({
   const [viewMode, setViewMode] = useState<"vertical" | "diagram">("vertical");
   const [selectedRound, setSelectedRound] = useState<"all" | number>("all");
 
-  const canScheduleGeneral = Boolean(canEdit && tournamentId && slots && courts && slots.length > 0);
+  const canScheduleGeneral = Boolean(tournamentId && courts && courts.length > 0);
   const handleSchedule = canScheduleGeneral ? (c: BracketCard) => setSchedulingMatch(c) : undefined;
 
   const main = useMemo(() => cards.filter((c) => !c.isThirdPlace), [cards]);
@@ -379,7 +379,7 @@ function MatchCard({
 }) {
   const hasResult = Boolean(card.resultText);
   const canScore = Boolean(canEdit && card.canScore && onScore && card.matchId);
-  const canSchedule = Boolean(canEdit && onSchedule && card.matchId && !card.isBye && !hasResult);
+  const canSchedule = Boolean(onSchedule && card.matchId && !card.isBye && !hasResult);
   const isFinalMatch = final && !card.isThirdPlace;
 
   return (

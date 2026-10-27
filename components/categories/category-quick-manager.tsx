@@ -41,8 +41,8 @@ export function CategoryQuickManager({
   // Estado para crear categoría
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
-  const [isUnlimited, setIsUnlimited] = useState(false);
-  const [maxTeams, setMaxTeams] = useState<number | null>(16);
+  const [isUnlimited, setIsUnlimited] = useState(true);
+  const [maxTeams, setMaxTeams] = useState<number | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
 
   function handleCreate(e: React.FormEvent) {
@@ -68,8 +68,8 @@ export function CategoryQuickManager({
 
       toast.success(res.message);
       setName("");
-      setIsUnlimited(false);
-      setMaxTeams(16);
+      setIsUnlimited(true);
+      setMaxTeams(null);
       setIsAddOpen(false);
       router.refresh();
     });
@@ -209,7 +209,7 @@ export function CategoryQuickManager({
                     value={isUnlimited ? "" : (maxTeams ?? "")}
                     disabled={isUnlimited}
                     onChange={(e) => setMaxTeams(e.target.value ? Number(e.target.value) : null)}
-                    placeholder={isUnlimited ? "Sin límite" : "16"}
+                    placeholder={isUnlimited ? "Sin límite" : "ej. 16"}
                   />
                   <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
                     <input
@@ -218,7 +218,6 @@ export function CategoryQuickManager({
                       onChange={(e) => {
                         setIsUnlimited(e.target.checked);
                         if (e.target.checked) setMaxTeams(null);
-                        else setMaxTeams(16);
                       }}
                       className="size-4 rounded border-border text-emerald-600 focus:ring-emerald-500"
                     />

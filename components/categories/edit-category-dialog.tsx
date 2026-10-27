@@ -39,13 +39,13 @@ export function EditCategoryDialog({
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState(category.name);
   const [isUnlimited, setIsUnlimited] = useState(category.maxTeams === null);
-  const [maxTeams, setMaxTeams] = useState<number>(category.maxTeams ?? 16);
+  const [maxTeams, setMaxTeams] = useState<number | null>(category.maxTeams);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setName(category.name);
     setIsUnlimited(category.maxTeams === null);
-    setMaxTeams(category.maxTeams ?? 16);
+    setMaxTeams(category.maxTeams);
     setError(null);
   }, [category, open]);
 
@@ -58,7 +58,7 @@ export function EditCategoryDialog({
       setError("El nombre debe tener al menos 2 caracteres.");
       return;
     }
-    if (!isUnlimited && maxTeams < minAllowed) {
+    if (!isUnlimited && typeof maxTeams === "number" && maxTeams < minAllowed) {
       setError(`El cupo no puede ser menor a las ${category.approvedTeamsCount} parejas ya aprobadas.`);
       return;
     }
@@ -68,7 +68,7 @@ export function EditCategoryDialog({
         tournamentId,
         categoryId: category.id,
         name: trimmed,
-        maxTeams: isUnlimited ? null : maxTeams,
+        maxTeams: isUnlimited ? null : (maxTeams ? Number(maxTeams) : null),
       });
 
       if (!res.ok) {
@@ -127,11 +127,11 @@ export function EditCategoryDialog({
                     type="button"
                     onClick={() => {
                       setIsUnlimited(false);
-                      setMaxTeams(Math.max(16, minAllowed));
+                      setMaxTeams(category.maxTeams ?? null);
                     }}
-                    className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 underline hover:text-emerald-700 dark:hover:text-emerald-200 ml-1 shrink-0"
+                    className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 underline hover:text-emerald-700 dark:hover:text-emerald-200 ml-1 shrink-0 cursor-pointer"
                   >
-                    Fijar número
+                    Fijar cupo
                   </button>
                 </div>
               ) : (
@@ -140,22 +140,26 @@ export function EditCategoryDialog({
                     id="edit-cat-max-teams"
                     type="number"
                     min={minAllowed}
-                    max={64}
-                    value={maxTeams}
+                    max={128}
+                    placeholder="ej. 16"
+                    value={maxTeams ?? ""}
                     onChange={(e) => {
-                      setMaxTeams(Number(e.target.value));
+                      const val = e.target.value === "" ? null : Number(e.target.value);
+                      setMaxTeams(val);
                       if (error) setError(null);
                     }}
                     disabled={isPending}
-                    required
                   />
                   <button
                     type="button"
-                    onClick={() => setIsUnlimited(true)}
-                    className="h-9 shrink-0 rounded-md border border-border/80 bg-muted/40 px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors whitespace-nowrap"
+                    onClick={() => {
+                      setIsUnlimited(true);
+                      setMaxTeams(null);
+                    }}
+                    className="h-9 shrink-0 rounded-md border border-border/80 bg-muted/40 px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors whitespace-nowrap cursor-pointer"
                     title="Sin límite: la inscripción queda abierta hasta que decidas cerrarla"
                   >
-                    ♾️ Sin límite
+                    Sin límite
                   </button>
                 </div>
               )}

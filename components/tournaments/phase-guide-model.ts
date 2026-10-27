@@ -156,15 +156,12 @@ function progressFor(
 
   if (status === "finished") return { value: 1, max: 1, label: "Torneo finalizado", short: "" };
   if (status === "registration_open") {
-    if (counts.categories > 0) {
-      return {
-        value: counts.approvedTeams,
-        max: Math.max(counts.approvedTeams, 2),
-        label: `${counts.approvedTeams} ${approvedTeamsLabel(teamSize)} aprobadas`,
-        short: `${counts.approvedTeams}`,
-      };
-    }
-    return byCount(counts.approvedTeams, maxTeams, `${counts.approvedTeams} de ${maxTeams} ${approvedTeamsLabel(teamSize)}`);
+    return {
+      value: counts.approvedTeams,
+      max: Math.max(counts.approvedTeams, 2),
+      label: `${counts.approvedTeams} ${approvedTeamsLabel(teamSize)} aprobadas`,
+      short: `${counts.approvedTeams}`,
+    };
   }
   if (status === "group_stage" && counts.groupMatches > 0) {
     const played = counts.groupMatches - counts.pendingGroupMatches;

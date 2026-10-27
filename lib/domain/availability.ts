@@ -23,8 +23,8 @@ export type DayWindows<T = AvailabilitySlot> = {
 };
 
 /** Agrupa franjas por día respetando el orden cronológico. */
-export function groupSlotsByDay<T extends AvailabilitySlot>(slots: readonly T[], dayOf: (slot: T) => string): DayGroup<T>[] {
-  const sorted = [...slots].sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.id.localeCompare(b.id));
+export function groupSlotsByDay<T extends AvailabilitySlot>(slots: readonly T[] = [], dayOf: (slot: T) => string): DayGroup<T>[] {
+  const sorted = [...(slots ?? [])].sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.id.localeCompare(b.id));
   const groups: DayGroup<T>[] = [];
   for (const slot of sorted) {
     const day = dayOf(slot);

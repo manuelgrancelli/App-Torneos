@@ -51,20 +51,16 @@ export async function ensurePlayoffBracket(
     let totalMatches = 0;
     const allWarnings: string[] = [];
     for (const cat of competition.categories) {
-      const catGroupMatches = competition.matches.filter((m) => m.categoryId === cat.id && m.stage === "group");
-      const catAllDone = catGroupMatches.length > 0 && catGroupMatches.every((m) => m.resultStatus !== null);
-      if (cat.status === "playoffs" || tournament.status === "playoffs" || catAllDone) {
-        const res = await ensurePlayoffBracket(supabase, tournamentId, {
-          categoryId: cat.id,
-          qualifiersPerGroup: options?.qualifiersPerGroup,
-          thirdPlace: options?.thirdPlace,
-          force: options?.force,
-          revalidate: false,
-        });
-        if (res.ok) {
-          totalMatches += res.count ?? 0;
-          if (res.warnings) allWarnings.push(...res.warnings);
-        }
+      const res = await ensurePlayoffBracket(supabase, tournamentId, {
+        categoryId: cat.id,
+        qualifiersPerGroup: options?.qualifiersPerGroup,
+        thirdPlace: options?.thirdPlace,
+        force: options?.force,
+        revalidate: false,
+      });
+      if (res.ok) {
+        totalMatches += res.count ?? 0;
+        if (res.warnings) allWarnings.push(...res.warnings);
       }
     }
     if (options?.revalidate !== false) {
@@ -74,9 +70,16 @@ export async function ensurePlayoffBracket(
     return { ok: true, count: totalMatches, warnings: allWarnings };
   }
 
+  const groups = options?.categoryId
+    ? competition.groups.filter((g) => g.categoryId === options.categoryId)
+    : competition.groups;
+  if (groups.length === 0) {
+    return { ok: true, count: 0 };
+  }
+
   let existQuery = supabase
     .from("matches")
-    .select("id")
+    .select("id, round, position, is_third_place, home_team_id, away_team_id, starts_at, ends_at, court_id, slot_id")
     .eq("tournament_id", tournamentId)
     .eq("stage", "playoff");
 
@@ -84,18 +87,14 @@ export async function ensurePlayoffBracket(
     existQuery = (existQuery as any).eq("category_id", options.categoryId);
   }
 
-  const { data: existing, error: existError } = await existQuery.limit(1);
+  const { data: existing, error: existError } = await existQuery;
   if (existError) return { ok: false, error: dbErrorMessage(existError) };
-  if (existing && existing.length > 0 && !options?.force) {
-    return { ok: true, count: existing.length };
-  }
 
   let categoryPlayoffConfig = tournament.playoff_config;
   let categoryScoringConfig = tournament.scoring_config;
   let categoryStandingsConfig = tournament.standings_config;
-
-  let canBuildPlayoffs = tournament.status === "playoffs";
   let catStatus: string = tournament.status;
+
   if (options?.categoryId) {
     const { data: cat } = await (supabase as any)
       .from("tournament_categories")
@@ -104,18 +103,12 @@ export async function ensurePlayoffBracket(
       .maybeSingle();
     if (cat) {
       catStatus = cat.status;
-      if (cat.status === "playoffs" || tournament.status === "playoffs") {
-        canBuildPlayoffs = true;
-      }
       if (cat.playoff_config) categoryPlayoffConfig = cat.playoff_config;
       if (cat.scoring_config) categoryScoringConfig = cat.scoring_config;
       if (cat.standings_config) categoryStandingsConfig = cat.standings_config;
     }
   }
 
-  const groups = options?.categoryId
-    ? competition.groups.filter((g) => g.categoryId === options.categoryId)
-    : competition.groups;
   const matches = options?.categoryId
     ? competition.matches.filter((m) => m.categoryId === options.categoryId)
     : competition.matches;
@@ -124,32 +117,11 @@ export async function ensurePlayoffBracket(
   const allGroupMatchesFinished =
     groupMatches.length > 0 && groupMatches.every((m) => m.resultStatus !== null);
 
-  // Se permite generar playoffs si ya está en playoffs, si terminaron todos los partidos de grupo,
-  // o si el organizador solicitó explícitamente armar el cuadro
-  if (allGroupMatchesFinished || options?.qualifiersPerGroup !== undefined) {
-    canBuildPlayoffs = true;
-    if (options?.categoryId && catStatus !== "playoffs") {
-      await (supabase as any)
-        .from("tournament_categories")
-        .update({ status: "playoffs" })
-        .eq("id", options.categoryId);
-    }
-    if (!options?.categoryId && tournament.status === "group_stage") {
-      await (supabase as any)
-        .from("tournaments")
-        .update({ status: "playoffs" })
-        .eq("id", tournamentId);
-    }
-  }
-
-  if (!canBuildPlayoffs) return { ok: false, error: "La fase de grupos todavía tiene partidos pendientes de resultado." };
-
   const scoring = normalizeScoringConfig(categoryScoringConfig);
   const standingsConfig = normalizeStandingsConfig(categoryStandingsConfig);
   const defaultPlayoffConfig = normalizePlayoffConfig(categoryPlayoffConfig);
 
   let qualifiersPerGroup = options?.qualifiersPerGroup ?? defaultPlayoffConfig.qualifiersPerGroup;
-  // Si la categoría tiene un único grupo (zona única), deben clasificar al menos 2 parejas para poder jugar la final
   if (groups.length === 1 && qualifiersPerGroup < 2) {
     qualifiersPerGroup = 2;
   }
@@ -158,32 +130,133 @@ export async function ensurePlayoffBracket(
   const standings = groupStandings(groups, matches, scoring, standingsConfig);
   const qualifiers = qualifiersFromStandings(standings, qualifiersPerGroup, scoring.type);
 
-  if (qualifiers.length < 2) return { ok: false, error: "Tienen que clasificar al menos 2 equipos." };
-  if (qualifiers.length > 64) return { ok: false, error: "El cuadro admite hasta 64 clasificados." };
+  if (qualifiers.length < 2 || qualifiers.length > 64) {
+    return { ok: true, count: 0 };
+  }
 
   const plan = buildBracket(qualifiers, { thirdPlace });
-  const payload = plan.matches.map((m) => ({
-    key: m.key,
-    round: m.round,
-    position: m.position,
-    home: m.home,
-    away: m.away,
-    isBye: m.isBye,
-    isThirdPlace: m.isThirdPlace,
-    winner: m.winnerTeamId,
-    next: m.next,
-    loserNext: m.loserNext,
-  }));
 
-  const { error: rpcError } = await (supabase.rpc as any)("apply_bracket", {
-    p_tournament_id: tournamentId,
-    p_matches: payload,
-    p_category_id: options?.categoryId ?? null,
+  // Si los partidos ya existen y no se fuerza rearmar:
+  if (existing && existing.length > 0 && !options?.force) {
+    // Si concluyó la fase de grupos, actualizamos las parejas clasificadas en los cruces
+    // preservando los horarios y canchas ya programados por el organizador (D-168).
+    if (allGroupMatchesFinished) {
+      for (const m of plan.matches) {
+        const existingMatch = existing.find(
+          (em) => em.round === m.round && em.position === m.position && em.is_third_place === m.isThirdPlace,
+        );
+        if (existingMatch) {
+          const homeId = m.home && m.home.length === 36 ? m.home : null;
+          const awayId = m.away && m.away.length === 36 ? m.away : null;
+          const winnerId =
+            m.isBye && m.winnerTeamId && m.winnerTeamId.length === 36 ? m.winnerTeamId : null;
+          await supabase
+            .from("matches")
+            .update({
+              home_team_id: homeId,
+              away_team_id: awayId,
+              is_bye: m.isBye,
+              winner_team_id: winnerId,
+              result_status: m.isBye ? "confirmed" : null,
+            })
+            .eq("id", existingMatch.id);
+        }
+      }
+
+      if (options?.categoryId && catStatus !== "playoffs") {
+        await (supabase as any)
+          .from("tournament_categories")
+          .update({ status: "playoffs", updated_at: new Date().toISOString() })
+          .eq("id", options.categoryId);
+      }
+      if (!options?.categoryId && tournament.status === "group_stage") {
+        await (supabase as any)
+          .from("tournaments")
+          .update({ status: "playoffs", updated_at: new Date().toISOString() })
+          .eq("id", tournamentId);
+      }
+    }
+
+    return { ok: true, count: existing.length, warnings: plan.warnings };
+  }
+
+  // Si no existen o se fuerza rearmar:
+  if (options?.force && existing && existing.length > 0) {
+    let delQuery = supabase.from("matches").delete().eq("tournament_id", tournamentId).eq("stage", "playoff");
+    if (options.categoryId) {
+      delQuery = (delQuery as any).eq("category_id", options.categoryId);
+    }
+    await delQuery;
+  }
+
+  const keyToId = new Map<string, string>();
+  for (const m of plan.matches) {
+    keyToId.set(m.key, crypto.randomUUID());
+  }
+
+  // Paso 1: Insertar partidos del cuadro
+  const rowsToInsert = plan.matches.map((m) => {
+    const id = keyToId.get(m.key)!;
+    const homeId = allGroupMatchesFinished && m.home && m.home.length === 36 ? m.home : null;
+    const awayId = allGroupMatchesFinished && m.away && m.away.length === 36 ? m.away : null;
+    const winnerId =
+      allGroupMatchesFinished && m.isBye && m.winnerTeamId && m.winnerTeamId.length === 36
+        ? m.winnerTeamId
+        : null;
+
+    return {
+      id,
+      tournament_id: tournamentId,
+      category_id: options?.categoryId ?? null,
+      stage: "playoff" as const,
+      round: m.round,
+      position: m.position,
+      is_bye: m.isBye,
+      is_third_place: m.isThirdPlace,
+      home_team_id: homeId,
+      away_team_id: awayId,
+      winner_team_id: winnerId,
+      result_status: m.isBye && allGroupMatchesFinished ? ("confirmed" as const) : null,
+    };
   });
-  if (rpcError) return { ok: false, error: dbErrorMessage(rpcError) };
 
-  // D-078: En playoffs los horarios y resultados los define el organizador directamente;
-  // no se fuerza la auto-programación a franjas horarias arbitrarias.
+  const { error: insertError } = await supabase.from("matches").insert(rowsToInsert);
+  if (insertError) return { ok: false, error: dbErrorMessage(insertError) };
+
+  // Paso 2: Vincular llaves next_match_id y loser_next_match_id
+  for (const m of plan.matches) {
+    const id = keyToId.get(m.key)!;
+    const nextId = m.next ? keyToId.get(m.next.key) ?? null : null;
+    const loserNextId = m.loserNext ? keyToId.get(m.loserNext.key) ?? null : null;
+
+    if (nextId || loserNextId) {
+      await supabase
+        .from("matches")
+        .update({
+          next_match_id: nextId,
+          next_match_side: m.next?.side ?? null,
+          loser_next_match_id: loserNextId,
+          loser_next_match_side: m.loserNext?.side ?? null,
+        })
+        .eq("id", id);
+    }
+  }
+
+  // Paso 3: Actualizar estado solo si todos los grupos concluyeron
+  if (allGroupMatchesFinished) {
+    if (options?.categoryId && catStatus !== "playoffs") {
+      await (supabase as any)
+        .from("tournament_categories")
+        .update({ status: "playoffs", updated_at: new Date().toISOString() })
+        .eq("id", options.categoryId);
+    }
+    if (!options?.categoryId && tournament.status === "group_stage") {
+      await (supabase as any)
+        .from("tournaments")
+        .update({ status: "playoffs", updated_at: new Date().toISOString() })
+        .eq("id", tournamentId);
+    }
+  }
 
   if (options?.revalidate !== false) {
     revalidatePath(`/torneos/${tournamentId}`, "layout");

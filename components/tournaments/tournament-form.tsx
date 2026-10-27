@@ -20,7 +20,6 @@ import {
   ConfirmationField,
   DateFields,
   DescriptionField,
-  MaxTeamsField,
   NameField,
   TimezoneField,
 } from "./tournament-fields";
@@ -100,7 +99,6 @@ export function TournamentForm({ tournamentId, sport, defaults, locks }: Tournam
             <DescriptionField form={form} />
             <DateFields form={form} />
             <TimezoneField form={form} lockReason={locks.timezone} />
-            <MaxTeamsField form={form} teamSize={sport.minTeamSize} />
             <ConfirmationField form={form} />
           </FieldGroup>
         </CardContent>

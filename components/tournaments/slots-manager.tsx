@@ -1,34 +1,25 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarPlus, Check, ChevronDown, ChevronUp, Clock, Plus, Trash2 } from "lucide-react";
+import { CalendarPlus, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useTransition } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
-import {
-  createTimeSlot,
-  deleteTimeSlots,
-  generateTimeSlots,
-} from "@/app/(app)/torneos/[id]/canchas-franjas/actions";
-import { ConfirmActionButton } from "@/components/shared/confirm-action-button";
-import { EmptyState } from "@/components/shared/empty-state";
-import { Badge } from "@/components/ui/badge";
+import { generateTimeSlots } from "@/app/(app)/torneos/[id]/canchas-franjas/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { CourtRow, SlotRow } from "@/lib/data/tournaments";
-import { formatDayHeading, formatInTimeZone, formatTimeRange, localDateKey } from "@/lib/dates";
-import { groupSlotsIntoDayWindows, type AvailabilityWindow } from "@/lib/domain/availability";
+import { formatInTimeZone } from "@/lib/dates";
 import { generateSlots } from "@/lib/domain/slots";
 import { applyServerErrors } from "@/lib/forms";
 import { cn } from "@/lib/utils";
-import { createSlotSchema, generateSlotsSchema } from "@/lib/validation/tournament";
+import { generateSlotsSchema } from "@/lib/validation/tournament";
 
 type SlotsManagerProps = {
   tournamentId: string;
@@ -36,7 +27,7 @@ type SlotsManagerProps = {
   /** Días del torneo ("YYYY-MM-DD"). */
   days: string[];
   courts: CourtRow[];
-  slots: SlotRow[];
+  slots?: SlotRow[];
 };
 
 const ANY_COURT = "any";
@@ -59,7 +50,9 @@ function CourtSelect({
       value={value ?? ANY_COURT}
       onChange={(e) => onChange(e.target.value === ANY_COURT ? null : e.target.value)}
     >
-      <NativeSelectOption value={ANY_COURT}>Cualquier cancha</NativeSelectOption>
+      <NativeSelectOption value={ANY_COURT}>
+        {courts.length > 0 ? `Todas las canchas (${courts.length})` : "Cualquier cancha"}
+      </NativeSelectOption>
       {courts.map((court) => (
         <NativeSelectOption key={court.id} value={court.id}>
           Solo {court.name}
@@ -75,7 +68,12 @@ function dayChipLabel(date: string): string {
   return formatInTimeZone(new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, day ?? 1, 12)), "UTC", "EEE d/M");
 }
 
-function SlotGenerator({ tournamentId, days, courts }: Omit<SlotsManagerProps, "slots" | "timezone">) {
+/** Formulario directo para generar franjas horarias para el torneo. */
+export function SlotsManager({
+  tournamentId,
+  days,
+  courts,
+}: SlotsManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const form = useForm({
@@ -118,602 +116,149 @@ function SlotGenerator({ tournamentId, days, courts }: Omit<SlotsManagerProps, "
   });
 
   return (
-    <form onSubmit={onSubmit} noValidate>
-      <FieldGroup>
-        <Controller
-          name="dates"
-          control={form.control}
-          render={({ field, fieldState }) => (
-            <FieldSet data-invalid={fieldState.invalid}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <FieldLegend variant="label">Días</FieldLegend>
-                {days.length > 1 ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const allSelected = (field.value ?? []).length === days.length;
-                      field.onChange(allSelected ? [] : [...days]);
-                    }}
-                    className="text-xs font-medium text-muted-foreground hover:text-foreground underline-offset-2 hover:underline transition-colors cursor-pointer"
-                  >
-                    {(field.value ?? []).length === days.length ? "Deseleccionar todos" : "Seleccionar todos"}
-                  </button>
-                ) : null}
-              </div>
-              <ToggleGroup
-                type="multiple"
-                variant="outline"
-                value={field.value}
-                onValueChange={field.onChange}
-                className="flex w-full flex-wrap items-center justify-start gap-2"
-                aria-label="Días del torneo"
-              >
-                {days.map((day) => {
-                  const isSelected = field.value?.includes(day);
-                  return (
-                    <ToggleGroupItem
-                      key={day}
-                      value={day}
-                      className={cn(
-                        "capitalize font-medium transition-all duration-150 border px-3 py-1.5 h-9 rounded-lg text-sm",
-                        "data-[state=on]:bg-emerald-600 data-[state=on]:text-white data-[state=on]:border-emerald-600",
-                        "data-[state=on]:hover:bg-emerald-700 data-[state=on]:hover:text-white data-[state=on]:shadow-xs",
-                        "dark:data-[state=on]:bg-emerald-600 dark:data-[state=on]:text-white dark:data-[state=on]:border-emerald-600 dark:data-[state=on]:hover:bg-emerald-700",
-                        !isSelected && "border-input bg-background/70 text-muted-foreground hover:bg-muted hover:text-foreground",
-                      )}
-                    >
-                      {isSelected ? (
-                        <Check className="mr-1.5 size-3.5 shrink-0 stroke-[2.5]" aria-hidden="true" />
-                      ) : null}
-                      <span>{dayChipLabel(day)}</span>
-                    </ToggleGroupItem>
-                  );
-                })}
-              </ToggleGroup>
-              {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
-            </FieldSet>
-          )}
-        />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {(["from", "to"] as const).map((name) => (
-            <Controller
-              key={name}
-              name={name}
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid} className="min-w-0">
-                  <FieldLabel htmlFor={`gen-${name}`}>{name === "from" ? "Desde" : "Hasta"}</FieldLabel>
-                  <Input {...field} id={`gen-${name}`} type="time" step={300} aria-invalid={fieldState.invalid} className="w-full" />
-                  {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
-                </Field>
-              )}
-            />
-          ))}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Controller
-            name="durationMinutes"
-            control={form.control}
-            render={({ field }) => (
-              <Field className="min-w-0">
-                <FieldLabel htmlFor="gen-duration" className="truncate">Duración de cada partido</FieldLabel>
-                <NativeSelect
-                  id="gen-duration"
-                  className="w-full"
-                  value={String(field.value)}
-                  onChange={(e) => field.onChange(Number(e.target.value))}
-                >
-                  {[45, 60, 75, 90, 105, 120].map((minutes) => (
-                    <NativeSelectOption key={minutes} value={String(minutes)}>
-                      {minutes} min
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-              </Field>
-            )}
-          />
-          <Controller
-            name="breakMinutes"
-            control={form.control}
-            render={({ field }) => (
-              <Field className="min-w-0">
-                <FieldLabel htmlFor="gen-break" className="truncate">Pausa entre partidos</FieldLabel>
-                <NativeSelect
-                  id="gen-break"
-                  className="w-full"
-                  value={String(field.value)}
-                  onChange={(e) => field.onChange(Number(e.target.value))}
-                >
-                  {[0, 5, 10, 15, 30].map((minutes) => (
-                    <NativeSelectOption key={minutes} value={String(minutes)}>
-                      {minutes === 0 ? "Sin pausa" : `${minutes} min`}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-              </Field>
-            )}
-          />
-        </div>
-        <Controller
-          name="courtId"
-          control={form.control}
-          render={({ field }) => (
-            <Field className="min-w-0">
-              <FieldLabel htmlFor="gen-court">Cancha</FieldLabel>
-              <CourtSelect id="gen-court" courts={courts} value={field.value} onChange={field.onChange} />
-              <FieldDescription>
-                &quot;Cualquier cancha&quot; permite jugar en todas a la vez en ese horario.
-              </FieldDescription>
-            </Field>
-          )}
-        />
-        <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground leading-relaxed">
-          Definí el horario de la franja (ej. <strong>09:00 a 15:00</strong>) y la duración de cada partido. Las parejas elegirán la franja completa para indicar su disponibilidad, y el sistema dividirá el intervalo en turnos para programar los partidos.
-        </div>
-        <Button type="submit" disabled={isPending || preview === 0} className="w-full sm:w-auto">
-          {isPending ? <Spinner /> : <CalendarPlus aria-hidden="true" />}
-          {preview === 0 ? "Revisá el horario" : `Generar franja (${preview} ${preview === 1 ? "turno" : "turnos"})`}
-        </Button>
-      </FieldGroup>
-    </form>
-  );
-}
-
-function SingleSlotForm({ tournamentId, days, courts }: Omit<SlotsManagerProps, "slots" | "timezone">) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const form = useForm({
-    resolver: zodResolver(createSlotSchema),
-    defaultValues: { tournamentId, date: days[0] ?? "", start: "18:00", end: "19:00", courtId: null as string | null },
-  });
-
-  const onSubmit = form.handleSubmit((input) => {
-    startTransition(async () => {
-      const result = await createTimeSlot(input);
-      if (!result.ok) {
-        applyServerErrors(form.setError, result.fieldErrors);
-        toast.error(result.error);
-        return;
-      }
-      toast.success(result.message ?? "Agregamos la franja.");
-      router.refresh();
-    });
-  });
-
-  return (
-    <form onSubmit={onSubmit} noValidate>
-      <FieldGroup>
-        <Controller
-          name="date"
-          control={form.control}
-          render={({ field, fieldState }) => (
-            <Field data-invalid={fieldState.invalid}>
-              <FieldLabel htmlFor="slot-date">Día</FieldLabel>
-              {days.length > 0 ? (
-                <div className="flex w-full flex-wrap items-center gap-2">
-                  {days.map((day) => {
-                    const isSelected = field.value === day;
-                    return (
-                      <button
-                        key={day}
-                        type="button"
-                        onClick={() => field.onChange(day)}
-                        className={cn(
-                          "inline-flex items-center capitalize font-medium transition-all duration-150 border px-3 py-1.5 h-9 rounded-lg text-sm cursor-pointer",
-                          isSelected
-                            ? "bg-emerald-600 text-white border-emerald-600 shadow-xs hover:bg-emerald-700"
-                            : "border-input bg-background/70 text-muted-foreground hover:bg-muted hover:text-foreground",
-                        )}
-                      >
-                        {isSelected ? (
-                          <Check className="mr-1.5 size-3.5 shrink-0 stroke-[2.5]" aria-hidden="true" />
-                        ) : null}
-                        <span>{dayChipLabel(day)}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
-              <Input
-                {...field}
-                id="slot-date"
-                type="date"
-                aria-invalid={fieldState.invalid}
-                className={days.length > 0 ? "sr-only" : "w-full"}
-              />
-              {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
-            </Field>
-          )}
-        />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {(["start", "end"] as const).map((name) => (
-            <Controller
-              key={name}
-              name={name}
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid} className="min-w-0">
-                  <FieldLabel htmlFor={`slot-${name}`}>{name === "start" ? "Empieza" : "Termina"}</FieldLabel>
-                  <Input {...field} id={`slot-${name}`} type="time" step={300} aria-invalid={fieldState.invalid} className="w-full" />
-                  {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
-                </Field>
-              )}
-            />
-          ))}
-        </div>
-        <Controller
-          name="courtId"
-          control={form.control}
-          render={({ field }) => (
-            <Field className="min-w-0">
-              <FieldLabel htmlFor="slot-court">Cancha</FieldLabel>
-              <CourtSelect id="slot-court" courts={courts} value={field.value} onChange={field.onChange} />
-            </Field>
-          )}
-        />
-        <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
-          {isPending ? <Spinner /> : <Plus aria-hidden="true" />}
-          Agregar franja
-        </Button>
-      </FieldGroup>
-    </form>
-  );
-}
-
-function SlotList({ tournamentId, timezone, courts, slots }: Omit<SlotsManagerProps, "days">) {
-  const router = useRouter();
-  const [expandedWindows, setExpandedWindows] = useState<Set<string>>(new Set());
-  const courtName = useMemo(() => new Map(courts.map((court) => [court.id, court.name])), [courts]);
-
-  const dayWindows = useMemo(
-    () => groupSlotsIntoDayWindows(slots, (slot) => localDateKey(slot.startsAt, timezone)),
-    [slots, timezone],
-  );
-
-  function toggleExpand(windowId: string) {
-    setExpandedWindows((prev) => {
-      const next = new Set(prev);
-      if (next.has(windowId)) next.delete(windowId);
-      else next.add(windowId);
-      return next;
-    });
-  }
-
-  async function removeWindow(window: AvailabilityWindow<SlotRow>) {
-    const result = await deleteTimeSlots({ tournamentId, slotIds: window.slotIds });
-    if (!result.ok) {
-      toast.error(result.error);
-      return false;
-    }
-    toast.success(result.message ?? "Borramos la franja.");
-    router.refresh();
-  }
-
-  async function removeSingleSlot(slot: SlotRow) {
-    const result = await deleteTimeSlots({ tournamentId, slotIds: [slot.id] });
-    if (!result.ok) {
-      toast.error(result.error);
-      return false;
-    }
-    toast.success(result.message ?? "Borramos el turno.");
-    router.refresh();
-  }
-
-  async function removeDaySlots(daySlots: SlotRow[]) {
-    const result = await deleteTimeSlots({ tournamentId, slotIds: daySlots.map((s) => s.id) });
-    if (!result.ok) {
-      toast.error(result.error);
-      return false;
-    }
-    toast.success(result.message ?? "Borramos las franjas del día.");
-    router.refresh();
-  }
-
-  async function removeAllSlots() {
-    const result = await deleteTimeSlots({ tournamentId, slotIds: slots.map((s) => s.id) });
-    if (!result.ok) {
-      toast.error(result.error);
-      return false;
-    }
-    toast.success(result.message ?? "Borramos todas las franjas.");
-    router.refresh();
-  }
-
-  if (slots.length === 0) {
-    return (
-      <EmptyState
-        icon={Clock}
-        title="Todavía no hay franjas"
-        description="Generalas en lote indicando el horario (ej. 09:00 a 15:00). Las parejas eligen la franja completa en la que pueden jugar."
-      />
-    );
-  }
-
-  const totalAssignedMatches = slots.reduce((acc, s) => acc + s.assignedMatches, 0);
-  const totalGameHours = Math.round(
-    slots.reduce((acc, s) => acc + (Date.parse(s.endsAt) - Date.parse(s.startsAt)) / 3600000, 0),
-  );
-
-  return (
-    <div className="space-y-6">
-      {/* Resumen de capacidad horaria y acción masiva */}
-      <div className="rounded-xl border bg-muted/30 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-bold text-sm sm:text-base text-foreground">
-              {slots.length} {slots.length === 1 ? "turno disponible" : "turnos disponibles"}
-            </span>
-            <span className="text-xs text-muted-foreground">·</span>
-            <span className="text-xs font-semibold text-muted-foreground">
-              ~{totalGameHours} hs de juego
-            </span>
-            {totalAssignedMatches > 0 ? (
-              <Badge variant="secondary" className="text-xs font-semibold">
-                {totalAssignedMatches} {totalAssignedMatches === 1 ? "partido asignado" : "partidos asignados"}
-              </Badge>
-            ) : null}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {dayWindows.length} {dayWindows.length === 1 ? "día con horarios" : "días con horarios"} · {courts.length} {courts.length === 1 ? "cancha" : "canchas"}
-          </p>
-        </div>
-
-        <ConfirmActionButton
-          variant="outline"
-          size="sm"
-          destructive
-          className="h-8 px-3 text-xs text-muted-foreground hover:text-destructive border-border/80 self-start sm:self-auto shrink-0"
-          aria-label="Borrar todas las franjas del torneo"
-          title="¿Borrar todas las franjas del torneo?"
-          description={
-            totalAssignedMatches > 0 ? (
-              <>
-                <p>Hay {totalAssignedMatches} partidos asignados que quedarán sin horario.</p>
-                <p>Las parejas inscriptas perderán toda su disponibilidad horaria.</p>
-              </>
-            ) : (
-              <p>Se eliminarán los {slots.length} turnos configurados en el torneo.</p>
-            )
-          }
-          confirmLabel="Borrar todas las franjas"
-          onConfirm={removeAllSlots}
-        >
-          <Trash2 className="mr-1.5 size-3.5" aria-hidden="true" />
-          <span>Borrar todas las franjas</span>
-        </ConfirmActionButton>
-      </div>
-
-      {dayWindows.map(({ day, windows }) => {
-        const dayAllSlots = windows.flatMap((w) => w.slots);
-        const dayAssignedMatches = dayAllSlots.reduce((acc, s) => acc + s.assignedMatches, 0);
-        const dayAvailableTeams = Math.max(...dayAllSlots.map((s) => s.availableTeams), 0);
-        const dayInUse = dayAssignedMatches > 0 || dayAvailableTeams > 0;
-
-        return (
-          <section key={day} aria-labelledby={`day-${day}`} className="space-y-3">
-            <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-1.5">
-              <h3 id={`day-${day}`} className="text-sm font-semibold first-letter:uppercase">
-                {formatDayHeading(day)}{" "}
-                <span className="font-normal text-muted-foreground">
-                  · {windows.length} {windows.length === 1 ? "franja" : "franjas"} ({dayAllSlots.length} turnos)
-                </span>
-              </h3>
-
-              <ConfirmActionButton
-                variant="ghost"
-                size="sm"
-                destructive
-                className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive shrink-0"
-                aria-label={`Borrar franjas del ${formatDayHeading(day)}`}
-                title={`¿Borrar todas las franjas del ${formatDayHeading(day)}?`}
-                description={
-                  dayInUse ? (
-                    <>
-                      <p>Hay inscripciones o partidos asignados en este día.</p>
-                      <p>Los partidos quedarán sin horario y las parejas perderán esa disponibilidad.</p>
-                    </>
-                  ) : (
-                    <p>Se borrarán los {dayAllSlots.length} turnos de este día.</p>
-                  )
-                }
-                confirmLabel="Borrar franjas del día"
-                onConfirm={() => removeDaySlots(dayAllSlots)}
-              >
-                <Trash2 className="mr-1 size-3.5" aria-hidden="true" />
-                <span>Borrar día</span>
-              </ConfirmActionButton>
-            </div>
-            <div className="space-y-2">
-            {windows.map((window, index) => {
-              const time = formatTimeRange(window.startsAt, window.endsAt, timezone);
-              const label = windows.length > 1 ? `Franja ${index + 1}` : "Franja completa";
-              const isExpanded = expandedWindows.has(window.id);
-
-              const availableTeams = Math.max(...window.slots.map((s) => s.availableTeams), 0);
-              const assignedMatches = window.slots.reduce((acc, s) => acc + s.assignedMatches, 0);
-              const inUse = availableTeams > 0 || assignedMatches > 0;
-
-              const courtIds = new Set(window.slots.map((s) => s.courtId));
-              const courtLabel =
-                courtIds.size === 1
-                  ? [...courtIds][0]
-                    ? (courtName.get([...courtIds][0]!) ?? "Cancha")
-                    : "Cualquier cancha"
-                  : "Múltiples canchas";
-
-              return (
-                <div key={window.id} className="rounded-lg border bg-card text-card-foreground shadow-xs">
-                  <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline" className="text-xs font-medium">
-                          {label}
-                        </Badge>
-                        <span className="text-base font-semibold tabular-nums tracking-tight">{time}</span>
-                        {availableTeams > 0 ? (
-                          <Badge variant="secondary" className="sm:hidden text-[11px] px-1.5 py-0">
-                            {availableTeams} {availableTeams === 1 ? "disp." : "disp."}
-                          </Badge>
-                        ) : null}
-                        {assignedMatches > 0 ? (
-                          <Badge variant="secondary" className="sm:hidden text-[11px] px-1.5 py-0">
-                            {assignedMatches} {assignedMatches === 1 ? "part." : "part."}
-                          </Badge>
-                        ) : null}
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground truncate">
-                        {courtLabel} · {window.slots.length} {window.slots.length === 1 ? "turno de partido" : "turnos de partido"}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between sm:justify-end gap-2 border-t pt-2.5 sm:border-0 sm:pt-0 shrink-0">
-                      <div className="hidden flex-wrap justify-end gap-1.5 sm:flex">
-                        {availableTeams > 0 ? (
-                          <Badge variant="secondary">
-                            {availableTeams} {availableTeams === 1 ? "disponible" : "disponibles"}
-                          </Badge>
-                        ) : null}
-                        {assignedMatches > 0 ? (
-                          <Badge variant="secondary">
-                            {assignedMatches} {assignedMatches === 1 ? "partido" : "partidos"}
-                          </Badge>
-                        ) : null}
-                      </div>
-
-                      <div className="flex items-center gap-2 ml-auto sm:ml-0">
-                        {window.slots.length > 1 ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => toggleExpand(window.id)}
-                            className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-                            aria-label={isExpanded ? "Ocultar turnos individuales" : "Ver turnos individuales"}
-                          >
-                            {isExpanded ? "Ocultar turnos" : `Ver turnos (${window.slots.length})`}
-                            {isExpanded ? (
-                              <ChevronUp className="ml-1 size-3.5" aria-hidden="true" />
-                            ) : (
-                              <ChevronDown className="ml-1 size-3.5" aria-hidden="true" />
-                            )}
-                          </Button>
-                        ) : null}
-
-                        <ConfirmActionButton
-                          variant="ghost"
-                          size="icon"
-                          destructive
-                          className="size-8 shrink-0"
-                          aria-label={`Borrar franja ${time}`}
-                          title="¿Borrar esta franja completa?"
-                          description={
-                            inUse ? (
-                              <>
-                                <p>
-                                  {availableTeams > 0
-                                    ? `${availableTeams} inscripciones la marcaron como disponible y perderán esa marca.`
-                                    : null}
-                                </p>
-                                <p>{assignedMatches > 0 ? "Los partidos asignados quedan sin horario." : null}</p>
-                              </>
-                            ) : (
-                              <p>Se borrarán los {window.slots.length} turnos de este intervalo.</p>
-                            )
-                          }
-                          confirmLabel="Borrar franja completa"
-                          onConfirm={() => removeWindow(window)}
-                        >
-                          <Trash2 className="size-4" aria-hidden="true" />
-                        </ConfirmActionButton>
-                      </div>
-                    </div>
-                  </div>
-
-                  {isExpanded && window.slots.length > 1 ? (
-                    <div className="border-t bg-muted/30 px-3 py-2.5 sm:px-4">
-                      <p className="mb-2 text-xs font-medium text-muted-foreground">
-                        Turnos de partido generados dentro de la franja:
-                      </p>
-                      <ul className="divide-y rounded-md border bg-background text-xs">
-                        {window.slots.map((slot) => {
-                          const slotTime = formatTimeRange(slot.startsAt, slot.endsAt, timezone);
-                          const slotInUse = slot.availableTeams > 0 || slot.assignedMatches > 0;
-                          return (
-                            <li key={slot.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 py-2.5">
-                              <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                                <span className="font-medium tabular-nums shrink-0">{slotTime}</span>
-                                <span className="text-muted-foreground truncate">
-                                  {slot.courtId ? (courtName.get(slot.courtId) ?? "Cancha") : "Cualquier cancha"}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-end gap-2 shrink-0 border-t pt-1.5 sm:border-0 sm:pt-0">
-                                {slot.assignedMatches > 0 ? (
-                                  <Badge variant="outline" className="text-[10px]">
-                                    {slot.assignedMatches} {slot.assignedMatches === 1 ? "partido" : "partidos"}
-                                  </Badge>
-                                ) : null}
-                                <ConfirmActionButton
-                                  variant="ghost"
-                                  size="icon"
-                                  destructive
-                                  className="size-7"
-                                  aria-label={`Borrar turno ${slotTime}`}
-                                  title="¿Borrar este turno individual?"
-                                  description={
-                                    slotInUse
-                                      ? "Puede afectar partidos asignados en este horario específico."
-                                      : "Se eliminará únicamente este turno."
-                                  }
-                                  confirmLabel="Borrar turno"
-                                  onConfirm={() => removeSingleSlot(slot)}
-                                >
-                                  <Trash2 className="size-3.5" aria-hidden="true" />
-                                </ConfirmActionButton>
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      );
-    })}
-    </div>
-  );
-}
-
-/** Alta (en lote o individual) y listado por día de las franjas horarias. */
-export function SlotsManager(props: SlotsManagerProps) {
-  const [tab, setTab] = useState("lote");
-  return (
-    <Card className="overflow-hidden">
-      <CardHeader>
-        <CardTitle>
-          <h2 className="text-base font-semibold">Franjas horarias</h2>
-        </CardTitle>
-        <CardDescription>
-          Horarios posibles para jugar. Todo se muestra en la zona horaria del torneo.
+    <Card className="overflow-hidden border-border/80 shadow-xs">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-semibold">Generar franjas horarias</CardTitle>
+        <CardDescription className="text-xs">
+          Definí los días, horarios y duración de los partidos para armar la grilla de juego.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="w-full grid grid-cols-2 sm:w-fit sm:inline-flex">
-            <TabsTrigger value="lote" className="text-xs sm:text-sm">Generar en lote</TabsTrigger>
-            <TabsTrigger value="una" className="text-xs sm:text-sm">Agregar una</TabsTrigger>
-          </TabsList>
-          <TabsContent value="lote" className="pt-4">
-            <SlotGenerator tournamentId={props.tournamentId} days={props.days} courts={props.courts} />
-          </TabsContent>
-          <TabsContent value="una" className="pt-4">
-            <SingleSlotForm tournamentId={props.tournamentId} days={props.days} courts={props.courts} />
-          </TabsContent>
-        </Tabs>
-        <SlotList tournamentId={props.tournamentId} timezone={props.timezone} courts={props.courts} slots={props.slots} />
+      <CardContent className="pt-1">
+        <form onSubmit={onSubmit} noValidate>
+          <FieldGroup>
+            <Controller
+              name="dates"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <FieldSet data-invalid={fieldState.invalid}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <FieldLegend variant="label">Días</FieldLegend>
+                    {days.length > 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allSelected = (field.value ?? []).length === days.length;
+                          field.onChange(allSelected ? [] : [...days]);
+                        }}
+                        className="text-xs font-medium text-muted-foreground hover:text-foreground underline-offset-2 hover:underline transition-colors cursor-pointer"
+                      >
+                        {(field.value ?? []).length === days.length ? "Deseleccionar todos" : "Seleccionar todos"}
+                      </button>
+                    ) : null}
+                  </div>
+                  <ToggleGroup
+                    type="multiple"
+                    variant="outline"
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    className="flex w-full flex-wrap items-center justify-start gap-2"
+                    aria-label="Días del torneo"
+                  >
+                    {days.map((day) => {
+                      const isSelected = field.value?.includes(day);
+                      return (
+                        <ToggleGroupItem
+                          key={day}
+                          value={day}
+                          className={cn(
+                            "capitalize font-medium transition-all duration-150 border px-3 py-1.5 h-9 rounded-lg text-sm",
+                            "data-[state=on]:bg-emerald-600 data-[state=on]:text-white data-[state=on]:border-emerald-600",
+                            "data-[state=on]:hover:bg-emerald-700 data-[state=on]:hover:text-white data-[state=on]:shadow-xs",
+                            "dark:data-[state=on]:bg-emerald-600 dark:data-[state=on]:text-white dark:data-[state=on]:border-emerald-600 dark:data-[state=on]:hover:bg-emerald-700",
+                            !isSelected && "border-input bg-background/70 text-muted-foreground hover:bg-muted hover:text-foreground",
+                          )}
+                        >
+                          {isSelected ? (
+                            <Check className="mr-1.5 size-3.5 shrink-0 stroke-[2.5]" aria-hidden="true" />
+                          ) : null}
+                          <span>{dayChipLabel(day)}</span>
+                        </ToggleGroupItem>
+                      );
+                    })}
+                  </ToggleGroup>
+                  {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                </FieldSet>
+              )}
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {(["from", "to"] as const).map((name) => (
+                <Controller
+                  key={name}
+                  name={name}
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid} className="min-w-0">
+                      <FieldLabel htmlFor={`gen-${name}`}>{name === "from" ? "Desde" : "Hasta"}</FieldLabel>
+                      <Input {...field} id={`gen-${name}`} type="time" step={300} aria-invalid={fieldState.invalid} className="w-full" />
+                      {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                    </Field>
+                  )}
+                />
+              ))}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Controller
+                name="durationMinutes"
+                control={form.control}
+                render={({ field }) => (
+                  <Field className="min-w-0">
+                    <FieldLabel htmlFor="gen-duration" className="truncate">Duración de cada partido</FieldLabel>
+                    <NativeSelect
+                      id="gen-duration"
+                      className="w-full"
+                      value={String(field.value)}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                    >
+                      {[45, 60, 75, 90, 105, 120].map((minutes) => (
+                        <NativeSelectOption key={minutes} value={String(minutes)}>
+                          {minutes} min
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </Field>
+                )}
+              />
+              <Controller
+                name="breakMinutes"
+                control={form.control}
+                render={({ field }) => (
+                  <Field className="min-w-0">
+                    <FieldLabel htmlFor="gen-break" className="truncate">Pausa entre partidos</FieldLabel>
+                    <NativeSelect
+                      id="gen-break"
+                      className="w-full"
+                      value={String(field.value)}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                    >
+                      {[0, 5, 10, 15, 30].map((minutes) => (
+                        <NativeSelectOption key={minutes} value={String(minutes)}>
+                          {minutes === 0 ? "Sin pausa" : `${minutes} min`}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </Field>
+                )}
+              />
+            </div>
+            <Controller
+              name="courtId"
+              control={form.control}
+              render={({ field }) => (
+                <Field className="min-w-0">
+                  <FieldLabel htmlFor="gen-court">Cancha</FieldLabel>
+                  <CourtSelect id="gen-court" courts={courts} value={field.value} onChange={field.onChange} />
+                  <FieldDescription>
+                    &quot;Todas las canchas&quot; habilita todas las canchas confirmadas del torneo en este horario.
+                  </FieldDescription>
+                </Field>
+              )}
+            />
+            <Button type="submit" disabled={isPending || preview === 0} className="w-full sm:w-auto">
+              {isPending ? <Spinner /> : <CalendarPlus aria-hidden="true" />}
+              {preview === 0 ? "Revisá el horario" : `Generar franja (${preview} ${preview === 1 ? "turno" : "turnos"})`}
+            </Button>
+          </FieldGroup>
+        </form>
       </CardContent>
     </Card>
   );

@@ -35,8 +35,8 @@ export function CategoriesManager({ tournamentId, categories, inSetup = false }:
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
-  const [isUnlimited, setIsUnlimited] = useState(false);
-  const [maxTeams, setMaxTeams] = useState<number | null>(16);
+  const [isUnlimited, setIsUnlimited] = useState(true);
+  const [maxTeams, setMaxTeams] = useState<number | null>(null);
   const [editingCategory, setEditingCategory] = useState<TournamentCategory | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
 
@@ -87,8 +87,8 @@ export function CategoriesManager({ tournamentId, categories, inSetup = false }:
 
       toast.success(res.message);
       setName("");
-      setIsUnlimited(false);
-      setMaxTeams(16);
+      setIsUnlimited(true);
+      setMaxTeams(null);
       router.refresh();
     });
   }
@@ -194,17 +194,17 @@ export function CategoriesManager({ tournamentId, categories, inSetup = false }:
               <Field>
                 <FieldLabel htmlFor="category-max-teams">Cupo de parejas</FieldLabel>
                 {isUnlimited ? (
-                  <div className="flex h-9 w-full items-center justify-between rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-700 dark:text-emerald-300">
-                    <span className="font-semibold truncate">♾️ Hasta cerrar</span>
+                  <div className="flex h-9 w-full items-center justify-between rounded-md border border-border/70 bg-muted/30 px-2.5 py-1 text-xs text-muted-foreground">
+                    <span className="font-medium truncate">Sin límite (hasta cerrar)</span>
                     <button
                       type="button"
                       onClick={() => {
                         setIsUnlimited(false);
-                        setMaxTeams(16);
+                        setMaxTeams(null);
                       }}
-                      className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 underline hover:text-emerald-700 dark:hover:text-emerald-200 ml-1 shrink-0"
+                      className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 underline hover:text-emerald-700 dark:hover:text-emerald-300 ml-1 shrink-0 cursor-pointer"
                     >
-                      Fijar número
+                      Fijar cupo
                     </button>
                   </div>
                 ) : (
@@ -213,22 +213,25 @@ export function CategoriesManager({ tournamentId, categories, inSetup = false }:
                       id="category-max-teams"
                       type="number"
                       min={2}
-                      max={64}
-                      value={maxTeams ?? 16}
+                      max={128}
+                      placeholder="ej. 16"
+                      value={maxTeams ?? ""}
                       onChange={(e) => {
-                        const val = Number(e.target.value);
-                        setMaxTeams(val > 0 ? val : 2);
-                        setIsUnlimited(false);
+                        const val = e.target.value === "" ? null : Number(e.target.value);
+                        setMaxTeams(val);
                       }}
                       disabled={isPending}
                     />
                     <button
                       type="button"
-                      onClick={() => setIsUnlimited(true)}
-                      className="h-9 shrink-0 rounded-md border border-border/80 bg-muted/40 px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors whitespace-nowrap"
+                      onClick={() => {
+                        setIsUnlimited(true);
+                        setMaxTeams(null);
+                      }}
+                      className="h-9 shrink-0 rounded-md border border-border/80 bg-muted/40 px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors whitespace-nowrap cursor-pointer"
                       title="Sin límite: la inscripción queda abierta hasta que decidas cerrarla"
                     >
-                      ♾️ Sin límite
+                      Sin límite
                     </button>
                   </div>
                 )}

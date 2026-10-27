@@ -6,6 +6,7 @@ export type CategoryTabItem = {
   name: string;
   count?: number;
   status?: string;
+  dotColor?: string;
 };
 
 export function CategoryTabs({
@@ -69,6 +70,9 @@ export function CategoryTabs({
                 : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >
+            {cat.dotColor ? (
+              <span className={cn("size-2 rounded-full shrink-0", cat.dotColor)} aria-hidden="true" />
+            ) : null}
             <span>{cat.name}</span>
             {cat.count !== undefined && (
               <span

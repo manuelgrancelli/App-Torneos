@@ -2209,3 +2209,180 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
     - Añade la fila *"Modalidad"* indicando con claridad *"Individual (1 vs 1)"* o *"En parejas (Dobles)"*.
 - **Motivo:** responder fielmente a la solicitud del usuario ("el tenis no es solo en pareja, pone que tambien este la opcion de torneo de tenis individual, pero no con otro recuadro aparte que se pueda elegir desde el mismo recuadro").
 - **Cómo aplicar:** `supabase/migrations/20261026010000_tennis_singles_sport.sql`, `components/tournaments/sport-selector.tsx`, `lib/domain/tournament-status.ts`, `lib/data/tournaments.ts`, `components/registration/team-form.tsx`, `app/(app)/unirse/[code]/page.tsx`, `components/tournaments/tournament-review.tsx`.
+
+### D-157 — Confirmación previa de canchas en creación, reemplazo de carga manual por listado de franjas y diseño compacto (2026-10-27)
+- **Decisión:**
+  - **Confirmación de canchas en el asistente de creación:**
+    - En el paso 1 del asistente (`TournamentWizard`), `CourtCountField` explicita con claridad la confirmación del total de canchas disponibles: *"Cantidad total de canchas"*, aclarando que el sistema creará automáticamente Cancha 1, Cancha 2, etc., para armar el fixture y las franjas horarias.
+    - En el paso 3 de revisión (`TournamentReview`), se exhibe claramente la fila *"Canchas disponibles"*.
+  - **Supresión de la carga manual de canchas en la sección de franjas:**
+    - Al confirmarse el total de canchas en la creación del torneo, se elimina de `/torneos/[id]/canchas-franjas` la tarjeta `CourtsManager` (formulario manual de nombres y sedes individuales).
+  - **Reemplazo visual por el listado de franjas seleccionadas (`ConfiguredSlotsList`):**
+    - En el lugar que ocupaba `CourtsManager` (panel izquierdo de la grilla), se coloca directamente la lista de franjas horarias configuradas (`ConfiguredSlotsList`), mostrando las canchas confirmadas del torneo y las franjas añadidas.
+    - Al lado (panel derecho), se ubica el generador de franjas (`SlotsManager`), el cual ahora se concentra exclusivamente en el formulario de alta (en lote o individual), sin duplicar la lista debajo.
+  - **Diseño compacto con datos esenciales de cada franja elegida:**
+    - En `ConfiguredSlotsList`, las tarjetas de franjas reducen su volumen a un formato condensado y elegante:
+      - Horario de inicio a fin destacado en tipografía tabular (`09:00 - 15:00`).
+      - Identificador de cancha claro (`Todas las canchas` o cancha puntual).
+      - Cantidad y duración de turnos contenidos (`6 turnos (60 min c/u)`).
+      - Badges compactos de demanda (`🔥 X disp.`) y partidos asignados (`🎾 X part.`).
+      - Botón discreto de eliminar con confirmación y desplegable compacto para inspeccionar los turnos individuales en chips si se desea.
+- **Motivo:** responder fielmente a la solicitud del usuario ("me gustaria que primero el organizador confirme el total de canchas cuando crea el torneo, entonces despues en la parte de franjas horarias no es necesario tener eso de agregar canchas etc, y ahi pondruia en reemplazo de lo que esta en la foto, las franjas que va seleccionando, asi lo que aparecia abajo, ahora estaria reemplazando eso, ademas el diseño de lo que te dice que franjas eligio hacelo mas chico pero que tenga los datos mas importantes").
+- **Cómo aplicar:** `components/tournaments/tournament-fields.tsx`, `components/tournaments/tournament-review.tsx`, `components/tournaments/configured-slots-list.tsx`, `components/tournaments/slots-manager.tsx`, `app/(app)/torneos/[id]/canchas-franjas/page.tsx`, `docs/PROYECTO.md`.
+
+### D-158 — Simplificación a generador directo de franjas, tipografía ampliada, distinción por color y remoción de "Borrar día" redundante (2026-10-27)
+- **Decisión:**
+  - **Generador directo sin pestañas ni etiquetas superfluas:**
+    - En `SlotsManager` (`slots-manager.tsx`), se eliminan las pestañas `Tabs` ("Generar en lote" / "Agregar una") y el formulario individual secundario. La generación en lote pasa a ser la única opción directa y fluida, renderizando directamente el formulario de generación sin encabezados o botones de modo innecesarios.
+  - **Tipografía mejorada y tamaño ampliado en franjas configuradas:**
+    - En `ConfiguredSlotsList`, el rango horario pasa a `text-base sm:text-lg font-bold font-mono tracking-tight`, haciéndolo más prominente y fácil de leer rápidamente.
+    - La línea de detalle (turnos y duración de partidos) amplía su legibilidad a `text-xs sm:text-[13px]`.
+  - **Diferenciación visual por colores entre franjas:**
+    - Se introduce un sistema de acento visual rotativo (`FRANGE_PALETTES`) con bordes izquierdos coloreados (`border-l-4`) y badges con tinte suave coordinado (esmeralda, cielo, violeta, ámbar, rosa, cerceta), permitiendo distinguir de inmediato dónde empieza y termina cada intervalo dentro de la jornada.
+  - **Remoción del botón redundante "Borrar día":**
+    - En la cabecera de cada día del listado de franjas se retira el botón "Borrar día", dejando un título de jornada limpio y minimalista, dado que cada tarjeta ya cuenta con su propio botón de papelera con diálogo de confirmación.
+- **Motivo:** responder a la solicitud del usuario ("saques de la foto que te paso, la opcion de agregar una o generar por lotes, deja la de generar por lotes, sin que aparezca 'generar por lotes' ya que sera la unica opcion, ademas mejora un poco el diseño, es decir la letra un poco mas grande y algun color mas para distinguir entre franjas, y por ultimo saca, borrar dia, ya que aparece la misma opcion con un tachito que ya es suficiente").
+- **Cómo aplicar:** implementado en `components/tournaments/slots-manager.tsx`, `components/tournaments/configured-slots-list.tsx` y `docs/PROYECTO.md`.
+
+### D-159 — Eliminación de cupo por defecto de 16 parejas e inscripción libre por omisión (2026-10-27)
+- **Decisión:**
+  - **Eliminación del límite forzado de 16 parejas:**
+    - Al crear o editar categorías (`CategoriesManager`, `CategoryQuickManager`, `EditCategoryDialog`), el estado por omisión pasa a ser **Sin límite (hasta cerrar inscripción)** con `isUnlimited: true` y `maxTeams: null`.
+    - Se elimina el valor predefinido de 16; únicamente si el organizador decide explícitamente fijar un número de cupo para esa categoría, se le permite ingresar el tope numérico deseado.
+    - En el asistente de creación de torneos (`TournamentWizard`), se retira el default forzado de 16 parejas.
+  - **Visualización limpia de inscriptos sin barra de cupo general innecesaria:**
+    - En la guía de fases (`phase-guide-model.ts`), se muestra la cantidad neta de parejas/jugadores aprobados sin imponer una barra `X de 16 parejas`.
+    - En el listado de inscripciones (`RegistrationsList`), solo se valida cupo lleno (`isFull`) y se muestra el badge de cupo en la cabecera si la categoría tiene un límite explícito fijado por el organizador.
+- **Motivo:** responder fielmente a la solicitud del usuario ("lo del cupo de parejas que aparezca en 16 sacalo, no me sirve. solo quiero que haya limite cuando creas una categoria si es que el organizador pione ese limite").
+- **Cómo aplicar:** implementado en `components/categories/categories-manager.tsx`, `components/categories/category-quick-manager.tsx`, `components/categories/edit-category-dialog.tsx`, `components/tournaments/tournament-wizard.tsx`, `components/tournaments/phase-guide-model.ts`, `components/registration/registrations-list.tsx` y `docs/PROYECTO.md`.
+
+### D-160 — Rediseño deportivo de Mis próximos partidos: jerarquía visual, colores para rivales y fechas destacadas (2026-10-27)
+- **Decisión:**
+  - **Tarjetas deportivas de enfrentamiento (Match Cards):**
+    - En `/proximos` (`app/(app)/proximos/page.tsx`), se sustituye la lista dividida en texto plano por tarjetas deportivas modernas con bordes redondeados (`rounded-2xl`), elevación suave y hover responsivo.
+  - **Identidad de color para los contendientes:**
+    - **Tu equipo:** destacado en verde esmeralda (`text-emerald-400`, fondo translúcido `bg-emerald-500/15`, icono de grupo `Users` y etiqueta *"Tu equipo"*).
+    - **VS:** pill circular centralizado estilo marcador deportivo.
+    - **Rival:** distinguido en azul cielo (`text-sky-400`, fondo translúcido `bg-sky-500/15`, icono `Swords` y etiqueta *"Rival"*).
+  - **Horario y Fecha con alto impacto visual:**
+    - La cabecera de la jornada integra un icono de calendario y tipografía grande en negrita con badge de cantidad de partidos.
+    - El horario se presenta en una píldora prominente con tipografía monospace tabular, icono `Clock` y tinte verde esmeralda (o ámbar si el horario está por confirmarse).
+  - **Cancha y torneo:**
+    - Badge con icono `MapPin` para la cancha y sede, indicación del deporte, y link rápido *"Ver torneo →"* para acceder directamente al cuadro y fixture.
+- **Motivo:** responder a la solicitud del usuario ("los proximos partidos hacele un mejor diseño y ponele por ejemplo colores oa lgo asi a datos importantes como los rivales, horario fecha").
+- **Cómo aplicar:** implementado en `app/(app)/proximos/page.tsx` y `docs/PROYECTO.md`.
+
+### D-161 — Remoción del campo de cupo general en la pantalla de Configuración del torneo (2026-10-27)
+- **Decisión:**
+  - En `TournamentForm` (`components/tournaments/tournament-form.tsx`), se elimina el control `MaxTeamsField` ("Cupo de parejas").
+  - La pantalla `/torneos/[id]/configuracion` ya no muestra el input numérico con selector incremental de 16 parejas en "Datos del torneo", alineándose con el principio de que los límites de cupo solo se gestionan y aplican a nivel de categorías cuando el organizador así lo determine.
+- **Motivo:** responder a la solicitud del usuario ("EN CONFIGURACION SIGUE APARECIENDO LO DE 16 PAREJAS SACALO POR FAVOR").
+- **Cómo aplicar:** implementado en `components/tournaments/tournament-form.tsx` y `docs/PROYECTO.md`.
+
+### D-162 — Rediseño deportivo de fixture público / vista de jugador (2026-10-27)
+- **Decisión:**
+  - En `PublicFixture` (`components/public/public-fixture.tsx`), se reemplaza la tabla plana de filas divididas por tarjetas deportivas independientes (`rounded-2xl`) de alta jerarquía visual:
+    - **Cabeceras de fecha:** con icono de calendario destacado en verde esmeralda, tipografía grande en negrita y badge de total de partidos del día.
+    - **Horarios con alto contraste:** cápsula con icono de reloj (`Clock`), tipografía monospace tabular y verde esmeralda (o ámbar para horario a confirmar).
+    - **Enfrentamiento deportivo (Matchup):** contenedor central con los dos equipos enfrentados, separador deportivo central `VS` (o resultado del partido si finalizó), nombres legibles y trofeo dorado para los ganadores.
+    - **Canchas y categoría:** badge con icono de ubicación (`MapPin`), badge de categoría resaltado en primary y badge de estado (`Por jugar` / `Finalizado`).
+- **Motivo:** responder a la solicitud del usuario ("aca en fixture por el lado de jugador, tambien esta muy basico todo, si podes hacele un mejor diseño como te dije hoy, que los datos importaqntes resalten").
+- **Cómo aplicar:** implementado en `components/public/public-fixture.tsx` y `docs/PROYECTO.md`.
+
+### D-163 — Fixture público compacto, vista por defecto "Todas las categorías" y remoción de descarga para jugadores (2026-10-27)
+- **Decisión:**
+  - **Tarjetas de fixture más compactas y eficientes en espacio (`PublicFixtureCard` en `components/public/public-fixture.tsx`):**
+    - Se redujo la altura y padding vertical de las tarjetas (`p-2.5 sm:p-3`, `space-y-2`, `gap-2`) para que ocupen mucho menos espacio en pantalla y permitan ver múltiples partidos sin desplazamientos excesivos.
+    - El enfrentamiento central se mantiene horizontal en todos los dispositivos (`grid-cols-[1fr_auto_1fr]`) con truncado elegante de texto, badge de resultado/VS compacto y fila inferior limpia con cancha y estado del partido.
+  - **Fixture unificado por defecto con todas las categorías mezcladas (`app/t/[slug]/page.tsx`):**
+    - Al acceder a la pestaña de Fixture, por defecto se activa la opción "Todas" (`activeCategory = null`), desplegando todos los partidos del torneo combinados y ordenados cronológicamente por día y horario.
+    - En `CategoryTabs`, se habilita la opción `allOption={true}` con etiqueta `"Todas"`.
+    - Cada tarjeta conserva su badge distintivo de categoría para identificarla de un vistazo.
+    - Si el usuario desea filtrar por una categoría específica, puede hacer clic en cualquiera de las pestañas individuales de categoría y volver a "Todas" en cualquier momento.
+  - **Remoción del botón de descarga de imagen en la vista del jugador:**
+    - Se removió la modal y botón de descarga (`ExportMatchesImageModal`) en `PublicFixture`. Dicha funcionalidad queda reservada exclusivamente para el panel del organizador (`/torneos/[id]/partidos`).
+- **Motivo:** responder a la solicitud del usuario ("respecto los cambios que hiciste recien estan buenos, pero necesito que la tarjeta no sea tan grande porque son muchos partidos y ocupan mucho espacio, achica un poco, despues me gustaria que el fixture por predeterminado este con todas las categorias mezcladas, que se pueda poner por categoria como esta, pero agregale que se puedan ver todas juntas, y ademas te pido que saques la opcion de descargar pel fixture para el jugador esa opcion solo es para organizadores").
+- **Cómo aplicar:** implementado en `components/public/public-fixture.tsx`, `app/t/[slug]/page.tsx` y `docs/PROYECTO.md`.
+
+### D-164 — Código de color por categoría en fixture y selector de pestañas (2026-10-27)
+- **Decisión:**
+  - **Paleta cromática armónica por categoría (`lib/category-colors.ts`):**
+    - Se creó un sistema de paletas de colores (`CategoryColorTheme`) con 10 combinaciones de alto contraste (Sky, Violet, Amber, Rose, Emerald, Fuchsia, Orange, Indigo, Teal, Cyan), aptas para modos oscuro y claro.
+    - Se asocian ordenadamente según el índice de las categorías del torneo (`getCategoryColorByIndex`), garantizando que cada categoría de un mismo torneo tenga un color único y sin colisiones. Con fallback determinista por hash de nombre (`getCategoryColorByName`).
+  - **Identificación visual en las tarjetas de partidos (`PublicFixtureCard` en `components/public/public-fixture.tsx`):**
+    - El badge de categoría lleva el color distintivo de su categoría (borde, fondo translúcido y texto coloreado).
+    - La tarjeta incorpora un acento lateral izquierdo (`border-l-4`) en el mismo color de la categoría, permitiendo escanear visualmente tandas completas de partidos de una categoría al instante en el fixture unificado.
+  - **Indicador de color en la barra de pestañas (`CategoryTabs` en `components/categories/category-tabs.tsx`):**
+    - Cada pestaña de categoría incluye un pequeño indicador circular (`dotColor`) que coincide con el color de su categoría en el fixture, facilitando la correspondencia visual inmediata para el jugador.
+- **Motivo:** responder a la solicitud del usuario ("me gustaria que cada categoria se diferencie con un color para identificar mejor, es decir en la tarjeta de cada partido dice la categoria, ahi me gustaria que tengo un colo por categoria").
+- **Cómo aplicar:** implementado en `lib/category-colors.ts`, `lib/category-colors.test.ts`, `components/public/public-fixture.tsx`, `components/categories/category-tabs.tsx`, `app/t/[slug]/page.tsx` y `docs/PROYECTO.md`.
+
+### D-165 — Disposición en dos filas (Scoreboard) para nombres completos de parejas en fixture móvil (2026-10-27)
+- **Decisión:**
+  - En `PublicFixtureCard` (`components/public/public-fixture.tsx`), se reemplaza la división horizontal estrecha de 1 sola fila dividida al 50% (`grid-cols-[1fr_auto_1fr]`) por una disposición apilada estilo marcador deportivo oficial (Scoreboard) de dos filas:
+    - **Fila superior:** Equipo/Pareja 1 ocupando el ancho completo de la tarjeta, con indicador de ganador/trofeo o punto de estado.
+    - **Separador sutil central:** línea divisoria con insignia compacta `vs` centrada.
+    - **Fila inferior:** Equipo/Pareja 2 ocupando el ancho completo de la tarjeta.
+    - **Fila inferior de metadata:** cancha asignada a la izquierda y resultado en badge monospace esmeralda junto con el estado a la derecha.
+  - **Beneficio:** el espacio horizontal útil para los nombres pasa de ~135px a ~290px en teléfonos móviles (más del doble), permitiendo que los nombres completos de las parejas de pádel (ej. *"Schaab Cristina / González María"*, *"Moreyra Silvano / Duarte Roberto"*) se lean completos sin truncamiento con puntos suspensivos (`...`), manteniendo al mismo tiempo una altura de tarjeta compacta (~115px).
+- **Motivo:** responder a la consulta del usuario con foto ("fijate que los nombres no se pueden ver completos, ves alguna solucion?").
+- **Cómo aplicar:** implementado en `components/public/public-fixture.tsx` y `docs/PROYECTO.md`.
+
+### D-166 — Rediseño visual de partidos del organizador y programación libre de playoffs en cuadro (2026-10-27)
+- **Decisión:**
+  - **Rediseño visual de la vista de partidos del organizador (`components/matches/matches-board.tsx`):**
+    - Se jerarquizaron visualmente los datos clave de cada partido en `MatchRow`:
+      - **Borde de categoría y badge cromático:** acento izquierdo (`border-l-4`) y badge distintivo con la paleta de color de cada categoría (`lib/category-colors.ts`).
+      - **Horario destacado:** badge esmeralda brillante (`bg-emerald-500/15 text-emerald-400 border border-emerald-500/30`) con ícono de reloj y tipografía tabular destacada (`font-bold font-mono`).
+      - **Cancha destacada:** badge celeste/sky (`bg-sky-500/15 text-sky-400 border border-sky-500/30`) con ícono de ubicación (`MapPin`).
+      - **Nombres de equipos y resultado:** texto en negrita, ícono de trofeo dorado para los ganadores, y marcador destacado.
+      - **Encabezados por día:** barra con ícono de calendario en esmeralda y contador de partidos tipo pill.
+  - **Programación libre de horarios de cuadro/playoffs (`components/bracket/schedule-bracket-modal.tsx` y `assign-slot-dialog.tsx`):**
+    - Se agregó el botón **"Programar horarios de cuadro"** en la vista de playoffs del organizador (`/torneos/[id]/cuadro`), abriendo una modal dedicada.
+    - Permite al organizador seleccionar fecha, hora de inicio, hora de fin y cancha para cualquier cruce o partido de playoffs, **incluso fuera de las franjas horarias configuradas previamente** para la fase de grupos.
+    - La acción `scheduleCustomMatch` (`app/(app)/torneos/[id]/partidos/actions.ts`) busca o crea dinámicamente un `time_slots` para el rango y cancha seleccionados y lo asocia al partido con `is_locked = true`, garantizando la integridad con los triggers de base de datos (`matches_sync_schedule`) y evitando solapamientos gracias a las exclusiones nativas de Postgres.
+    - También se extendió `AssignSlotDialog` con pestañas para alternar entre "Franjas de torneo" y "Horario libre / personalizado".
+- **Motivo:** responder a la solicitud del usuario ("desde la vista de organizador partidos se ve asi, haeclo un poco mas llamativo, resécto a el horario y eso, es decir datos importantes hacelos notar, ademas me gustaria que agregues que en cuadro el organizador pueda definir el horario de los partidos con una opcion que sea programar horarios de cuadro, donde elija horarios que quiera puede ser fuera de la franja que creo anteriromente para hacer los enfrentamientos de grupos").
+- **Cómo aplicar:** implementado en `components/matches/matches-board.tsx`, `components/matches/assign-slot-dialog.tsx`, `components/bracket/schedule-bracket-modal.tsx`, `app/(app)/torneos/[id]/partidos/actions.ts`, `app/(app)/torneos/[id]/cuadro/page.tsx` y `docs/PROYECTO.md`.
+
+### D-167 — Nombres centrados respecto al versus e insignia circular destacada para VS en fixture (2026-10-27)
+- **Decisión:**
+  - En `PublicFixtureCard` (`components/public/public-fixture.tsx`), se perfecciona la sección de enfrentamiento de doble fila:
+    - **Alineación centrada de nombres:** los nombres de las parejas (equipo local y visitante) se alinean horizontalmente en el centro (`text-center` y `justify-center`), alineándose de forma simétrica con el indicador de versus en el medio. Si hay ganador, el ícono de trofeo se ubica junto al nombre con compensación invisible para mantener el centrado matemático exacto.
+    - **Insignia circular prominente para "VS":** se reemplazó la etiqueta plana por un círculo flotante (`size-6 rounded-full bg-card border-2 border-border shadow-xs ring-4 ring-card text-[10px] font-black uppercase tracking-wider text-muted-foreground`), cortando limpiamente la línea divisoria a los costados y destacando con gran presencia el cruce deportivo.
+- **Motivo:** responder a la solicitud del usuario ("me gusto la solucion de la doble linea, pero hacelo que los nombres queden centrados respecto al versus,y al vs podrias hacerle un circulo alrededor o algo para que sea mas notorio").
+- **Cómo aplicar:** implementado en `components/public/public-fixture.tsx` y `docs/PROYECTO.md`.
+
+### D-168 — Disponibilidad permanente de programación de cuadro y preservación de horarios de playoffs (2026-10-27)
+- **Decisión:**
+  - **Disponibilidad permanente del botón "Programar horarios de cuadro":**
+    - Se eliminó la restricción que ocultaba la opción hasta la finalización de los grupos (`allGroupMatchesFinished`). El botón `ScheduleBracketModal` ahora se muestra siempre que existan grupos armados y cuadro proyectado (`cards.length > 0`), permitiendo al organizador anticipar los días, canchas y turnos de los playoffs en cualquier momento.
+  - **Generación anticipada de partidos de cuadro sin alterar el estado del torneo:**
+    - `ensurePlayoffBracket` (`app/(app)/torneos/[id]/cuadro/actions.ts`) genera la estructura de partidos de playoffs en la tabla `matches` (`stage = 'playoff'`) tan pronto como se crean los grupos, manteniendo `tournament.status = 'group_stage'` y `category.status = 'group_stage'`.
+    - Cada partido de playoff cuenta con su ID real y puede programarse con `scheduleCustomMatch` o `assignSlot`.
+  - **Actualización no destructiva de clasificados al terminar la fase de grupos:**
+    - Al concluir todos los partidos de zona, `ensurePlayoffBracket` actualiza `home_team_id` y `away_team_id` sobre los partidos ya existentes en la base de datos sin borrarlos ni recrearlos.
+    - Se preservan de forma intacta los horarios (`starts_at`, `ends_at`), turnos (`slot_id`) y canchas (`court_id`) fijados previamente por el organizador.
+  - **Habilitación de botones de programación en `BracketView`:**
+    - Se desacopló la programación (`canSchedule` / `handleSchedule`) del permiso de carga de resultados (`canEditPlayoffs`). Ahora el botón "Asignar / Cambiar" en cada tarjeta del cuadro está habilitado en todo momento para asignar cancha y horario.
+- **Motivo:** responder a la solicitud del usuario ("no encontre el boton para programar los horarios en cuadro, si es que aparece cuando termina fase de grupos acomodalo para que quede disponible en cualquier momento").
+- **Cómo aplicar:** implementado en `app/(app)/torneos/[id]/cuadro/page.tsx`, `app/(app)/torneos/[id]/cuadro/actions.ts`, `components/bracket/bracket-view.tsx`, `lib/competition-view.ts` y `docs/PROYECTO.md`.
+
+### D-169 — Separador sutil de versus en flujo normal para evitar superposición con nombres (2026-10-27)
+- **Decisión:**
+  - En `PublicFixtureCard` (`components/public/public-fixture.tsx`), se reemplaza la insignia circular absoluta que invadía verticalmente las filas de nombres por una fila flex estándar en el flujo del documento:
+    - Una línea horizontal tenue a la izquierda (`h-px flex-1 bg-border/40`), el texto `vs` en tipografía gris clara limpia y legible (`text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/80`), y una línea horizontal tenue a la derecha.
+    - Al estar en el flujo normal del layout (`space-y-1.5`), se garantiza una separación vertical natural e inviolable entre la pareja local, el versus y la pareja visitante, eliminando por completo cualquier superposición física con los nombres o barras divisoras (`/`).
+- **Motivo:** responder a la solicitud del usuario con captura ("fijate que el versus se superpone a los nombres esta muy mal, capz es muy llamativo asi, si queres ponelo que sea como hoy letra gris un poco mas claro y ademas que no se superponga a los nombres de las parejas que es lo mas importante").
+- **Cómo aplicar:** implementado en `components/public/public-fixture.tsx` y `docs/PROYECTO.md`.
+
+### D-170 — Orden cronológico ascendente de rondas en modal de programación de cuadro (2026-10-27)
+- **Decisión:**
+  - En `ScheduleBracketModal` (`components/bracket/schedule-bracket-modal.tsx`), se invirtió el orden de presentación de las rondas (`roundsGrouped.sort(([a], [b]) => a - b)`):
+    - Comienza mostrando la fase mínima o más temprana (ej. 16avos de final u Octavos de final).
+    - Continúa progresivamente hacia adelante (Cuartos de final, Semifinales).
+    - La Final y el partido por el 3er y 4to puesto se ubican al final del formulario.
+    - Los cruces de cada ronda se ordenan por su posición natural (`m.position`), identificando claramente "3er y 4to puesto" cuando corresponde.
+    - La fecha por defecto del formulario de programación prioriza `startsOn` del torneo en lugar de `endsOn`.
+- **Motivo:** responder a la solicitud del usuario ("esta un poco mejor lo de los horarios para cuadro, lo que si, te muestra primero para poner el horario de la final, debe ser al reves, que arranque mostrandote para poner horarios de la fase minima es decir si hay 16 avos mostramelo antes que octavos").
+- **Cómo aplicar:** implementado en `components/bracket/schedule-bracket-modal.tsx` y `docs/PROYECTO.md`.

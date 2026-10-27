@@ -11,7 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { assignSlot } from "@/app/(app)/torneos/[id]/partidos/actions";
+import { assignSlot, scheduleCustomMatch } from "@/app/(app)/torneos/[id]/partidos/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
-import { formatDayHeading, formatTimeRange, localDateKey } from "@/lib/dates";
+import { formatDayHeading, formatTimeRange, localDateKey, localToUtcIso } from "@/lib/dates";
 import { groupSlotsByDay } from "@/lib/domain/availability";
 import {
   type FixedAssignment,
@@ -65,10 +65,17 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
   const { open, onOpenChange, match, slots, courts, timezone } = props;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [mode, setMode] = useState<"slots" | "custom">(slots.length > 0 ? "slots" : "custom");
   const [slotId, setSlotId] = useState(match.slotId ?? "");
   const [courtId, setCourtId] = useState(match.courtId ?? courts[0]?.id ?? "");
   const [dayFilter, setDayFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "green" | "yellow">("all");
+
+  // Estado para horario libre / personalizado
+  const [customDate, setCustomDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [customStart, setCustomStart] = useState("14:00");
+  const [customEnd, setCustomEnd] = useState("15:30");
+  const [customCourt, setCustomCourt] = useState(match.courtId ?? courts[0]?.id ?? "");
 
   const courtName = useMemo(() => new Map(courts.map((c) => [c.id, c.name])), [courts]);
   const slot = slots.find((s) => s.id === slotId);
@@ -237,6 +244,39 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
     });
   }
 
+  function handleCustomSave() {
+    if (!customDate || !customStart || !customEnd || !customCourt) {
+      toast.error("Completá fecha, hora inicio, hora fin y cancha.");
+      return;
+    }
+    if (customStart >= customEnd) {
+      toast.error("La hora de fin debe ser posterior a la de inicio.");
+      return;
+    }
+    const startsAt = localToUtcIso(customDate, customStart, timezone);
+    const endsAt = localToUtcIso(customDate, customEnd, timezone);
+
+    startTransition(async () => {
+      const result = await scheduleCustomMatch({
+        tournamentId: props.tournamentId,
+        matchId: match.id,
+        startsAt,
+        endsAt,
+        courtId: customCourt,
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(result.message ?? "Horario guardado.");
+      onOpenChange(false);
+      router.refresh();
+      if (typeof window !== "undefined") {
+        window.scrollTo({ left: 0, top: window.scrollY });
+      }
+    });
+  }
+
   const visibleDays = (dayFilter === "all" ? days : days.filter((d) => d.day === dayFilter))
     .map(({ day, slots: daySlots }) => {
       const filteredSlots = statusFilter === "all"
@@ -264,27 +304,106 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Referencia visual de colores (Boceto del organizador) */}
-          <div className="rounded-xl border border-border/70 bg-card p-3 space-y-2 shadow-xs">
-            <span className="font-semibold text-foreground/90 tracking-wide uppercase text-[10px] block">
-              Referencia de disponibilidad
-            </span>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <div className="flex items-center gap-2 rounded-lg border-2 border-emerald-500/70 bg-emerald-500/10 px-2.5 py-1.5 text-emerald-950 dark:text-emerald-100">
-                <span className="size-2.5 rounded-full bg-emerald-500 shadow-xs shrink-0" />
-                <span className="font-semibold text-[11px] leading-tight">Cancha libre y parejas disponibles</span>
+        {/* Selector de modo: Franjas predeterminadas vs Horario libre */}
+        <div className="flex items-center gap-1.5 p-1 rounded-lg bg-muted/60 border border-border/70 text-xs">
+          <button
+            type="button"
+            onClick={() => setMode("slots")}
+            disabled={slots.length === 0}
+            className={cn(
+              "flex-1 py-1.5 px-3 rounded-md font-semibold transition-all",
+              mode === "slots"
+                ? "bg-background text-foreground shadow-xs"
+                : "text-muted-foreground hover:text-foreground disabled:opacity-40",
+            )}
+          >
+            Franjas de torneo ({slots.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("custom")}
+            className={cn(
+              "flex-1 py-1.5 px-3 rounded-md font-semibold transition-all",
+              mode === "custom"
+                ? "bg-background text-foreground shadow-xs"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            Horario libre / personalizado
+          </button>
+        </div>
+
+        {mode === "custom" ? (
+          <div className="rounded-xl border border-border/80 bg-card p-4 space-y-3.5">
+            <p className="text-xs text-muted-foreground">
+              Asigná cualquier fecha, hora y cancha directamente, sin estar limitado por las franjas de grupos.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground block">Fecha</label>
+                <input
+                  type="date"
+                  value={customDate}
+                  onChange={(e) => setCustomDate(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium focus:ring-1 focus:ring-primary outline-hidden"
+                />
               </div>
-              <div className="flex items-center gap-2 rounded-lg border-2 border-amber-400 bg-amber-400/15 px-2.5 py-1.5 text-amber-950 dark:text-amber-100">
-                <span className="size-2.5 rounded-full bg-amber-400 shadow-xs shrink-0" />
-                <span className="font-semibold text-[11px] leading-tight">Alguna pareja no puede jugar</span>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground block">Cancha</label>
+                <select
+                  value={customCourt}
+                  onChange={(e) => setCustomCourt(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium focus:ring-1 focus:ring-primary outline-hidden"
+                >
+                  {courts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="flex items-center gap-2 rounded-lg border-2 border-rose-500/70 bg-rose-500/10 px-2.5 py-1.5 text-rose-950 dark:text-rose-100">
-                <span className="size-2.5 rounded-full bg-rose-500 shadow-xs shrink-0" />
-                <span className="font-semibold text-[11px] leading-tight">Canchas ocupadas / Ambas no pueden</span>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground block">Hora inicio</label>
+                <input
+                  type="time"
+                  value={customStart}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium focus:ring-1 focus:ring-primary outline-hidden"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground block">Hora fin</label>
+                <input
+                  type="time"
+                  value={customEnd}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium focus:ring-1 focus:ring-primary outline-hidden"
+                />
               </div>
             </div>
           </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Referencia visual de colores (Boceto del organizador) */}
+            <div className="rounded-xl border border-border/70 bg-card p-3 space-y-2 shadow-xs">
+              <span className="font-semibold text-foreground/90 tracking-wide uppercase text-[10px] block">
+                Referencia de disponibilidad
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="flex items-center gap-2 rounded-lg border-2 border-emerald-500/70 bg-emerald-500/10 px-2.5 py-1.5 text-emerald-950 dark:text-emerald-100">
+                  <span className="size-2.5 rounded-full bg-emerald-500 shadow-xs shrink-0" />
+                  <span className="font-semibold text-[11px] leading-tight">Cancha libre y parejas disponibles</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg border-2 border-amber-400 bg-amber-400/15 px-2.5 py-1.5 text-amber-950 dark:text-amber-100">
+                  <span className="size-2.5 rounded-full bg-amber-400 shadow-xs shrink-0" />
+                  <span className="font-semibold text-[11px] leading-tight">Alguna pareja no puede jugar</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg border-2 border-rose-500/70 bg-rose-500/10 px-2.5 py-1.5 text-rose-950 dark:text-rose-100">
+                  <span className="size-2.5 rounded-full bg-rose-500 shadow-xs shrink-0" />
+                  <span className="font-semibold text-[11px] leading-tight">Canchas ocupadas / Ambas no pueden</span>
+                </div>
+              </div>
+            </div>
 
           {/* Selector de franja horaria */}
           <div className="space-y-2">
@@ -623,6 +742,7 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
             </p>
           ))}
         </div>
+        )}
 
         <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
           <Button
@@ -647,8 +767,12 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
           ) : null}
           <Button
             type="button"
-            onClick={() => run(slotId)}
-            disabled={!slot || check.conflicts.length > 0 || isPending}
+            onClick={mode === "custom" ? handleCustomSave : () => run(slotId)}
+            disabled={
+              mode === "custom"
+                ? !customDate || !customStart || !customEnd || !customCourt || isPending
+                : !slot || check.conflicts.length > 0 || isPending
+            }
             className="w-full sm:w-auto h-11 sm:h-9 font-semibold"
           >
             {isPending ? <Spinner /> : null}

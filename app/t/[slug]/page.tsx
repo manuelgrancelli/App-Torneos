@@ -25,6 +25,7 @@ import {
 import { type PublicTournament, getPublicTournament, getPublicTournamentId } from "@/lib/data/public";
 import { formatDateRange, groupByLocalDay } from "@/lib/dates";
 import { approvedTeamsLabel, teamNoun } from "@/lib/domain/tournament-status";
+import { type CategoryColorTheme, getCategoryColorByIndex } from "@/lib/category-colors";
 import { truncate } from "@/lib/utils/text";
 
 const VIEWS = [
@@ -95,17 +96,38 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
     }
   }
 
-  const hasCategories = categories.length > 0;
-  const activeCategory = hasCategories
-    ? categories.find((c) => c.id === query.cat) ?? categories[0]
-    : null;
   const categoryNames = new Map(categories.map((c) => [c.id, c.name]));
-
+  const categoryColors = new Map(categories.map((c, index) => [c.id, getCategoryColorByIndex(index)]));
   const teamNames = new Map(competition.teams.map((t) => [t.id, t.name]));
   const teamLogos = new Map(competition.teams.map((t) => [t.id, t.logoUrl ?? null]));
   const courts = new Map(tournament.courts.map((c) => [c.id, c]));
   const courtNames = new Map(tournament.courts.map((c) => [c.id, c.name]));
   const groupCategoryMap = new Map(competition.groups.map((g) => [g.id, g.categoryId]));
+
+  const visibleMatches = competition.matches.filter((m) => !m.isBye);
+  const anyPlayoffs = competition.matches.some((m) => m.stage === "playoff");
+
+  // Vistas disponibles según lo que ya exista; por defecto, la etapa en curso.
+  const available = VIEWS.filter(
+    (v) =>
+      (v.value === "grupos" && competition.groups.length > 0) ||
+      (v.value === "fixture" && visibleMatches.length > 0) ||
+      (v.value === "cuadro" && (anyPlayoffs || competition.groups.length > 0)),
+  );
+  const requested = available.find((v) => v.value === query.vista);
+  const view: View | null = requested?.value ?? (anyPlayoffs ? "cuadro" : (available[0]?.value ?? null));
+
+  // En la vista fixture, por defecto mostramos todas las categorías mezcladas (activeCategory = null).
+  // Solo se filtra si el usuario selecciona explícitamente una categoría en ?cat=...
+  // En las vistas de grupos o cuadro, por defecto seleccionamos la primera categoría.
+  const hasCategories = categories.length > 0;
+  const activeCategory = hasCategories
+    ? query.cat
+      ? categories.find((c) => c.id === query.cat) ?? (view === "fixture" ? null : categories[0])
+      : view === "fixture"
+        ? null
+        : categories[0]
+    : null;
 
   const filteredGroups = hasCategories && activeCategory
     ? competition.groups.filter((g) => g.categoryId === activeCategory.id)
@@ -120,17 +142,6 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
     : competition.matches;
 
   const playoffMatches = filteredMatches.filter((m) => m.stage === "playoff");
-  const visibleMatches = competition.matches.filter((m) => !m.isBye);
-
-  // Vistas disponibles según lo que ya exista; por defecto, la etapa en curso.
-  const available = VIEWS.filter(
-    (v) =>
-      (v.value === "grupos" && competition.groups.length > 0) ||
-      (v.value === "fixture" && visibleMatches.length > 0) ||
-      (v.value === "cuadro" && (competition.matches.some((m) => m.stage === "playoff") || competition.groups.length > 0)),
-  );
-  const requested = available.find((v) => v.value === query.vista);
-  const view: View | null = requested?.value ?? (playoffMatches.length > 0 ? "cuadro" : (available[0]?.value ?? null));
   const noun = teamNoun(tournament.teamSize, true);
   const approvedCount = competition.teams.length;
 
@@ -196,14 +207,17 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
             <div className="space-y-1.5 pt-1">
               <span className="text-xs font-medium text-muted-foreground">Categoría:</span>
               <CategoryTabs
-                categories={categories.map((c) => ({
+                categories={categories.map((c, index) => ({
                   id: c.id,
                   name: c.name,
                   count: competition.teams.filter((t) => t.categoryId === c.id).length,
+                  dotColor: getCategoryColorByIndex(index).dot,
                 }))}
                 activeId={activeCategory?.id ?? null}
                 baseUrl={`/t/${tournament.slug}`}
                 extraParams={{ vista: view }}
+                allOption={view === "fixture"}
+                allLabel="Todas"
               />
             </div>
           ) : null}
@@ -256,7 +270,7 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
               tournamentName={tournament.name}
               sportName={tournament.sportName}
               days={groupByLocalDay(
-                fixtureItems(tournament, teamNames, courts, categoryNames, activeCategory?.id),
+                fixtureItems(tournament, teamNames, courts, categoryNames, activeCategory?.id, categoryColors),
                 () => timezone,
               )}
             />
@@ -377,6 +391,7 @@ function fixtureItems(
   courts: Map<string, { name: string; venue: string | null }>,
   categoryNames?: Map<string, string>,
   activeCategoryId?: string | null,
+  categoryColors?: Map<string, CategoryColorTheme>,
 ): FixtureItem[] {
   const { matches, groups } = tournament.competition;
   const groupCategoryMap = new Map(groups.map((g) => [g.id, g.categoryId]));
@@ -392,9 +407,11 @@ function fixtureItems(
     .filter((m) => !m.isBye)
     .map((m) => {
       const court = m.courtId ? courts.get(m.courtId) : undefined;
+      const catId = m.categoryId ?? (m.groupId ? groupCategoryMap.get(m.groupId) : null);
       return {
         id: m.id,
-        categoryName: m.categoryId && categoryNames ? (categoryNames.get(m.categoryId) ?? null) : null,
+        categoryName: catId && categoryNames ? (categoryNames.get(catId) ?? null) : null,
+        categoryColor: catId && categoryColors ? (categoryColors.get(catId) ?? null) : null,
         section: matchStageLabel(m, groups, rounds),
         homeName: m.homeTeamId ? (teamNames.get(m.homeTeamId) ?? "Equipo") : "A definir",
         awayName: m.awayTeamId ? (teamNames.get(m.awayTeamId) ?? "Equipo") : "A definir",

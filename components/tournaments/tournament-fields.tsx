@@ -179,7 +179,7 @@ export function CourtCountField({ form }: { form: TournamentFormApi }) {
       control={form.control}
       render={({ field, fieldState }) => (
         <Field data-invalid={fieldState.invalid}>
-          <FieldLabel htmlFor="t-courts">Canchas / sedes</FieldLabel>
+          <FieldLabel htmlFor="t-courts">Cantidad total de canchas</FieldLabel>
           <NumberInput
             id="t-courts"
             min={1}
@@ -189,7 +189,9 @@ export function CourtCountField({ form }: { form: TournamentFormApi }) {
             onBlur={field.onBlur}
             aria-invalid={fieldState.invalid}
           />
-          <FieldDescription>Después les podés poner nombre y sede.</FieldDescription>
+          <FieldDescription>
+            Confirmá cuántas canchas estarán disponibles. El sistema creará automáticamente Cancha 1, Cancha 2... para programar los partidos.
+          </FieldDescription>
           {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
         </Field>
       )}

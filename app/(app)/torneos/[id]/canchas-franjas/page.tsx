@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { CourtsManager } from "@/components/tournaments/courts-manager";
+import { ConfiguredSlotsList } from "@/components/tournaments/configured-slots-list";
 import { SlotsManager } from "@/components/tournaments/slots-manager";
 import { TournamentSetupStepper } from "@/components/tournaments/tournament-setup-stepper";
 import { getTournamentCategories } from "@/lib/data/categories";
@@ -20,7 +20,6 @@ export default async function CourtsAndSlotsPage({
     getCourtsAndSlots(tournament.id),
     getTournamentCategories(tournament.id),
   ]);
-  const inSetup = tournament.status === "draft" || tournament.status === "registration_open";
   const showWizard = tournament.status === "draft" || asistente === "1";
 
   return (
@@ -38,14 +37,21 @@ export default async function CourtsAndSlotsPage({
         />
       ) : null}
 
-      <div className="grid gap-6 grid-cols-1 xl:grid-cols-[2fr_3fr]">
-        <CourtsManager tournamentId={tournament.id} courts={courts} canDelete={inSetup} />
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 items-start">
+        {/* En reemplazo de la foto: las franjas horarias configuradas (diseño compacto) */}
+        <ConfiguredSlotsList
+          tournamentId={tournament.id}
+          timezone={tournament.timezone}
+          courts={courts}
+          slots={slots}
+        />
+
+        {/* Generador de franjas */}
         <SlotsManager
           tournamentId={tournament.id}
           timezone={tournament.timezone}
           days={listDates(tournament.startsOn, tournament.endsOn)}
           courts={courts}
-          slots={slots}
         />
       </div>
     </div>

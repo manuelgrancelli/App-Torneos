@@ -254,7 +254,7 @@ function TeamCard({
 }) {
   const complete = team.members.length >= teamSize;
   const foundCat = team.categoryId && categories ? categories.find((c) => c.id === team.categoryId) : null;
-  const categoryMax = foundCat ? (foundCat.maxTeams ?? null) : maxTeams;
+  const categoryMax = foundCat ? (foundCat.maxTeams ?? null) : null;
   const categoryApproved = team.categoryId
     ? allTeams.filter((t) => t.categoryId === team.categoryId && t.status === "approved").length
     : allTeams.filter((t) => t.status === "approved").length;

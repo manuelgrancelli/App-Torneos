@@ -507,6 +507,7 @@ export function cardsFromMatches(
   courtNames: Map<string, string>,
   seedMap?: Map<string, string>,
   categoryId?: string | null,
+  projectedCards?: BracketCard[] | null,
 ): BracketCard[] {
   let playoffMatches = matches.filter((m) => m.stage === "playoff");
   if (categoryId) {
@@ -519,34 +520,45 @@ export function cardsFromMatches(
   }
 
   return playoffMatches.map((m) => {
-      const side = (teamId: string | null): BracketCardTeam | null => {
-        if (!teamId) return null;
+    const proj = projectedCards?.find(
+      (p) => p.round === m.round && p.position === m.position && p.isThirdPlace === m.isThirdPlace,
+    );
+    const side = (teamId: string | null, fallback?: BracketCardTeam | null): BracketCardTeam | null => {
+      if (teamId) {
         return {
           id: teamId,
           name: teamNames.get(teamId) ?? "Equipo",
           winner: m.winnerTeamId === teamId,
           seedBadge: seedMap?.get(teamId) ?? null,
         };
-      };
-      return {
-        key: m.id,
-        matchId: m.id,
-        round: m.round,
-        position: m.position,
-        isThirdPlace: m.isThirdPlace,
-        isBye: m.isBye,
-        home: side(m.homeTeamId),
-        away: side(m.awayTeamId),
-        resultText: m.isBye ? null : resultLabel(m),
-        startsAt: m.startsAt,
-        courtName: m.courtId ? (courtNames.get(m.courtId) ?? null) : null,
-        homeTeamId: m.homeTeamId,
-        awayTeamId: m.awayTeamId,
-        slotId: m.slotId,
-        courtId: m.courtId,
-        result: m.result,
-        isWalkover: m.isWalkover,
-        canScore: Boolean(m.homeTeamId && m.awayTeamId && !m.isBye),
-      };
-    });
+      }
+      if (fallback) {
+        return {
+          ...fallback,
+          winner: false,
+        };
+      }
+      return null;
+    };
+    return {
+      key: m.id,
+      matchId: m.id,
+      round: m.round,
+      position: m.position,
+      isThirdPlace: m.isThirdPlace,
+      isBye: m.isBye,
+      home: side(m.homeTeamId, proj?.home),
+      away: side(m.awayTeamId, proj?.away),
+      resultText: m.isBye ? null : resultLabel(m),
+      startsAt: m.startsAt,
+      courtName: m.courtId ? (courtNames.get(m.courtId) ?? null) : null,
+      homeTeamId: m.homeTeamId,
+      awayTeamId: m.awayTeamId,
+      slotId: m.slotId,
+      courtId: m.courtId,
+      result: m.result,
+      isWalkover: m.isWalkover,
+      canScore: Boolean(m.homeTeamId && m.awayTeamId && !m.isBye),
+    };
+  });
 }

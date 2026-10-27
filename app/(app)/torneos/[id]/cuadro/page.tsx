@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BracketView } from "@/components/bracket/bracket-view";
 import { ExportBracketImageModal } from "@/components/bracket/export-bracket-image-modal";
+import { ScheduleBracketModal } from "@/components/bracket/schedule-bracket-modal";
 import { CategoryTabs } from "@/components/categories/category-tabs";
 import { MatchesBoard } from "@/components/matches/matches-board";
 import { SimulateResultsButton } from "@/components/matches/simulate-results-button";
@@ -50,13 +51,13 @@ export default async function BracketPage({
   );
   const allGroupMatchesFinished =
     groupMatches.length > 0 && groupMatches.every((m) => m.resultStatus !== null);
-
-  // Si está en playoffs para esta categoría o el torneo general, o concluyeron todos los partidos de zona
   const isPlayoffs = activeCategory
     ? activeCategory.status === "playoffs" || tournament.status === "playoffs" || allGroupMatchesFinished
     : tournament.status === "playoffs" || allGroupMatchesFinished;
 
-  if (isPlayoffs) {
+  // Asegurar que el cuadro de playoffs exista en la base de datos siempre que haya grupos armados,
+  // permitiendo al organizador programar sus horarios en cualquier momento (D-168).
+  if (competition.groups.length > 0) {
     const res = await ensurePlayoffBracket(
       supabase,
       tournament.id,
@@ -153,19 +154,17 @@ export default async function BracketPage({
     effectiveQualifiers
   );
 
-  const projectedCards = !hasPlayoffMatches
-    ? buildProjectedBracket(
-        groups,
-        categoryMatches,
-        categoryScoring,
-        categoryStandings,
-        { ...categoryPlayoff, qualifiersPerGroup: effectiveQualifiers },
-        teamNames
-      )
-    : null;
+  const projectedCards = buildProjectedBracket(
+    groups,
+    categoryMatches,
+    categoryScoring,
+    categoryStandings,
+    { ...categoryPlayoff, qualifiersPerGroup: effectiveQualifiers },
+    teamNames
+  );
 
   const cards = hasPlayoffMatches
-    ? cardsFromMatches(playoffMatches, teamNames, courtNames, seedMap)
+    ? cardsFromMatches(playoffMatches, teamNames, courtNames, seedMap, activeCategory?.id, projectedCards)
     : projectedCards ?? [];
 
   const board = hasPlayoffMatches
@@ -237,15 +236,51 @@ export default async function BracketPage({
               </p>
             ) : null}
           </div>
-          {cards.length > 0 ? (
-            <ExportBracketImageModal
-              tournamentName={tournament.name}
-              categoryName={activeCategory?.name}
-              sportName={tournament.sport.name}
-              cards={cards}
-              champion={champion}
-            />
-          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            {cards.length > 0 ? (
+              <ScheduleBracketModal
+                tournamentId={tournament.id}
+                timezone={tournament.timezone}
+                matches={(playoffMatches.length > 0 ? playoffMatches : cards).map((m: any) => {
+                  const proj = projectedCards?.find(
+                    (p) => p.round === m.round && p.position === m.position && p.isThirdPlace === m.isThirdPlace,
+                  );
+                  const home = m.homeTeamId
+                    ? teamNames.get(m.homeTeamId) ?? "A definir"
+                    : m.home?.name ?? proj?.home?.name ?? "A definir";
+                  const away = m.awayTeamId
+                    ? teamNames.get(m.awayTeamId) ?? "A definir"
+                    : m.away?.name ?? proj?.away?.name ?? "A definir";
+                  return {
+                    id: m.id ?? m.matchId ?? m.key,
+                    round: m.round,
+                    position: m.position,
+                    isThirdPlace: m.isThirdPlace,
+                    homeName: home,
+                    awayName: away,
+                    startsAt: m.startsAt,
+                    endsAt: m.endsAt,
+                    courtId: m.courtId,
+                    categoryName: activeCategory?.name,
+                  };
+                })}
+                courts={scheduling.courts}
+                tournamentDates={{
+                  startsOn: tournament.startsOn,
+                  endsOn: tournament.endsOn,
+                }}
+              />
+            ) : null}
+            {cards.length > 0 ? (
+              <ExportBracketImageModal
+                tournamentName={tournament.name}
+                categoryName={activeCategory?.name}
+                sportName={tournament.sport.name}
+                cards={cards}
+                champion={champion}
+              />
+            ) : null}
+          </div>
         </div>
         <BracketView
           cards={cards}

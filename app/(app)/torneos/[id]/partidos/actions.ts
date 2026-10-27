@@ -118,6 +118,91 @@ export const assignSlot = createAction(assignSlotSchema, async (input, { supabas
   return actionOk(undefined, input.slotId ? "Guardamos el horario." : "Quitamos el horario.");
 });
 
+export const scheduleCustomMatchSchema = z.object({
+  tournamentId: z.string().uuid(),
+  matchId: z.string().uuid(),
+  startsAt: z.string(),
+  endsAt: z.string(),
+  courtId: z.string().uuid(),
+});
+
+/**
+ * Permite programar un horario y cancha libre para cualquier partido (ej. cruces de playoffs),
+ * creando o reutilizando la franja horaria correspondiente sin estar limitado por las franjas de grupos.
+ */
+export const scheduleCustomMatch = createAction(scheduleCustomMatchSchema, async (input, { supabase, userId }) => {
+  const canManage = await canUserManageTournament(supabase, input.tournamentId, userId);
+  if (!canManage) return actionError(NOT_FOUND);
+
+  const { data: match } = await (supabase as any)
+    .from("matches")
+    .select("id, result_status")
+    .eq("id", input.matchId)
+    .eq("tournament_id", input.tournamentId)
+    .maybeSingle();
+
+  if (!match) return actionError("No encontramos el partido.");
+  if (match.result_status !== null) {
+    return actionError("El partido ya tiene resultado. Borrá el resultado antes de reprogramarlo.");
+  }
+
+  // 1. Buscar si ya existe un slot idéntico
+  const { data: existingSlot } = await (supabase as any)
+    .from("time_slots")
+    .select("id")
+    .eq("tournament_id", input.tournamentId)
+    .eq("starts_at", input.startsAt)
+    .eq("ends_at", input.endsAt)
+    .eq("court_id", input.courtId)
+    .maybeSingle();
+
+  let slotId = existingSlot?.id;
+  if (!slotId) {
+    const { data: newSlot, error: insertErr } = await (supabase as any)
+      .from("time_slots")
+      .insert({
+        tournament_id: input.tournamentId,
+        starts_at: input.startsAt,
+        ends_at: input.endsAt,
+        court_id: input.courtId,
+      })
+      .select("id")
+      .single();
+
+    if (insertErr) {
+      const { data: retrySlot } = await (supabase as any)
+        .from("time_slots")
+        .select("id")
+        .eq("tournament_id", input.tournamentId)
+        .eq("starts_at", input.startsAt)
+        .eq("ends_at", input.endsAt)
+        .eq("court_id", input.courtId)
+        .maybeSingle();
+      slotId = retrySlot?.id;
+      if (!slotId) return actionError(dbErrorMessage(insertErr));
+    } else {
+      slotId = newSlot.id;
+    }
+  }
+
+  // 2. Asignar al partido
+  const { error: updErr } = await (supabase as any)
+    .from("matches")
+    .update({
+      slot_id: slotId,
+      court_id: input.courtId,
+      schedule_locked: true,
+    })
+    .eq("id", input.matchId)
+    .eq("tournament_id", input.tournamentId);
+
+  if (updErr) return actionError(dbErrorMessage(updErr));
+
+  revalidate(input.tournamentId);
+  return actionOk(undefined, "Horario asignado exitosamente.");
+});
+
+
 /**
  * Carga un resultado: se valida con la configuración del torneo
  * (evaluateResult) y la RPC lo guarda y, en playoffs, hace avanzar al ganador.

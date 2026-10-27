@@ -81,7 +81,7 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
       startsOn: "",
       endsOn: "",
       timezone: DEFAULT_TIMEZONE,
-      maxTeams: 16,
+      maxTeams: 128,
       courtCount: 2,
       resultsRequireConfirmation: false,
       sportId: initialSport.id,

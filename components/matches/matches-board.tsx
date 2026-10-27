@@ -5,10 +5,13 @@ import {
   CalendarClock,
   CheckCheck,
   ClipboardEdit,
+  Clock,
   Eraser,
   LayoutGrid,
   Lock,
+  MapPin,
   TriangleAlert,
+  Trophy,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -27,6 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { getCategoryColorByName } from "@/lib/category-colors";
 import { formatDayHeading, formatInTimeZone, formatTimeRange, groupByLocalDay } from "@/lib/dates";
 import type { FixedAssignment } from "@/lib/domain/scheduler";
 import { type BoardMatch, compareMatchesChronological, playoffRoundCount } from "@/lib/competition-view";
@@ -89,6 +93,7 @@ function MatchRow({
   const ready = Boolean(match.homeTeamId && match.awayTeamId);
   const homeWon = match.winnerTeamId && match.winnerTeamId === match.homeTeamId;
   const awayWon = match.winnerTeamId && match.winnerTeamId === match.awayTeamId;
+  const catColor = getCategoryColorByName(match.categoryName);
 
   async function confirm() {
     const result = await confirmResult({ tournamentId, matchId: match.id });
@@ -100,41 +105,81 @@ function MatchRow({
   }
 
   return (
-    <li className="flex items-start gap-2.5 sm:gap-3 p-3 sm:px-4" data-testid="match-row">
+    <li
+      className={cn(
+        "flex items-start gap-2.5 sm:gap-3 p-3 sm:px-4 transition-colors",
+        catColor ? `border-l-4 ${catColor.borderLeft}` : "",
+      )}
+      data-testid="match-row"
+    >
       <div className="min-w-0 flex-1 space-y-1">
+        {/* Cabecera: Categoría y Sección */}
         <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
           {match.categoryName ? (
-            <Badge variant="outline" className="border-primary/40 bg-primary/5 text-primary text-[10px] font-medium tracking-wide">
+            <Badge
+              variant="outline"
+              className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 border", catColor.badge)}
+            >
               {match.categoryName}
             </Badge>
           ) : null}
           <span className="text-[11px] font-medium text-muted-foreground">{match.section}</span>
         </div>
-        <p className={cn("text-xs sm:text-sm leading-snug line-clamp-1", homeWon && "font-bold text-foreground")}>
-          {match.homeName}
-        </p>
-        <p className={cn("text-xs sm:text-sm leading-snug line-clamp-1", awayWon && "font-bold text-foreground")}>
-          {match.awayName}
-        </p>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-xs text-muted-foreground">
+
+        {/* Parejas contendientes */}
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-1.5 min-w-0">
+            {homeWon ? <Trophy className="size-3.5 shrink-0 text-amber-400" aria-label="Ganador" /> : null}
+            <p className={cn("text-xs sm:text-sm leading-snug line-clamp-1", homeWon ? "font-bold text-emerald-400 dark:text-emerald-300" : "font-semibold text-foreground")}>
+              {match.homeName}
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 min-w-0">
+            {awayWon ? <Trophy className="size-3.5 shrink-0 text-amber-400" aria-label="Ganador" /> : null}
+            <p className={cn("text-xs sm:text-sm leading-snug line-clamp-1", awayWon ? "font-bold text-emerald-400 dark:text-emerald-300" : "font-semibold text-foreground")}>
+              {match.awayName}
+            </p>
+          </div>
+        </div>
+
+        {/* Horario, Cancha y Estados destacados */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-1.5 text-xs">
           {match.startsAt && match.endsAt ? (
-            <span className="inline-flex flex-wrap items-center gap-x-1.5">
-              <CalendarClock className="size-3.5 text-muted-foreground" aria-hidden="true" />
-              <span className="whitespace-nowrap first-letter:uppercase">
-                {formatInTimeZone(match.startsAt, timezone, "EEE d/M")}
-              </span>
-              <span className="whitespace-nowrap tabular-nums font-semibold text-foreground">{formatTimeRange(match.startsAt, match.endsAt, timezone)}</span>
-              {match.courtName ? <span className="whitespace-nowrap font-medium text-foreground">· {match.courtName}</span> : null}
-              {match.scheduleLocked ? <Lock className="size-3" aria-label="Horario fijado a mano" /> : null}
-            </span>
+            <>
+              <div className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-mono font-bold text-emerald-400 dark:text-emerald-300 tabular-nums">
+                <Clock className="size-3 text-emerald-400" aria-hidden="true" />
+                <span className="capitalize">{formatInTimeZone(match.startsAt, timezone, "EEE d/M")}</span>
+                <span>{formatTimeRange(match.startsAt, match.endsAt, timezone)}</span>
+              </div>
+
+              {match.courtName ? (
+                <div className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 text-xs font-semibold text-sky-400 dark:text-sky-300">
+                  <MapPin className="size-3 text-sky-400" aria-hidden="true" />
+                  <span>{match.courtName}</span>
+                </div>
+              ) : null}
+
+              {match.scheduleLocked ? (
+                <span className="inline-flex items-center justify-center size-5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30" title="Horario fijado a mano">
+                  <Lock className="size-2.5" aria-label="Horario fijado a mano" />
+                </span>
+              ) : null}
+            </>
           ) : ready && !match.result ? (
-            <Badge variant="secondary" className="bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200 text-[11px]">
-              Sin horario
+            <div className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 text-xs font-medium text-amber-400">
+              <Clock className="size-3 text-amber-400" aria-hidden="true" />
+              <span>Sin horario</span>
+            </div>
+          ) : null}
+
+          {match.resultStatus === "provisional" ? (
+            <Badge variant="outline" className="text-[11px] border-amber-500/40 text-amber-400">
+              A confirmar
             </Badge>
           ) : null}
-          {match.resultStatus === "provisional" ? <Badge variant="outline" className="text-[11px]">A confirmar</Badge> : null}
+
           {match.resultStatus === "disputed" ? (
-            <Badge variant="secondary" className="bg-red-100 text-red-900 dark:bg-red-950/60 dark:text-red-200 text-[11px]">
+            <Badge variant="secondary" className="bg-red-500/15 text-red-400 border border-red-500/30 text-[11px] gap-1">
               <TriangleAlert className="size-3" aria-hidden="true" />
               Objetado
             </Badge>
@@ -418,16 +463,16 @@ export function MatchesBoard(props: MatchesBoardProps) {
             const headingId = `dia-${group.day ?? "sin-horario"}`;
             return (
               <section key={group.day ?? "sin-horario"} aria-labelledby={headingId} className="space-y-2">
-                <div className="flex items-center justify-between px-0.5 gap-2">
-                  <h3 id={headingId} className="text-sm font-semibold first-letter:uppercase flex items-center gap-2 min-w-0 truncate">
-                    <Calendar className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                    <span className="truncate">{group.day ? formatDayHeading(group.day) : "Sin horario asignado"}</span>
-                  </h3>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <Badge variant="secondary" className="text-xs font-normal">
-                      {group.items.length} {group.items.length === 1 ? "partido" : "partidos"}
-                    </Badge>
+                <div className="flex items-center gap-2 border-b border-border/50 pb-1.5">
+                  <div className="flex size-6 items-center justify-center rounded-md bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30">
+                    <Calendar className="size-3.5" aria-hidden="true" />
                   </div>
+                  <h3 id={headingId} className="text-sm sm:text-base font-bold text-foreground capitalize tracking-tight truncate">
+                    {group.day ? formatDayHeading(group.day) : "Sin horario asignado"}
+                  </h3>
+                  <Badge variant="outline" className="text-[11px] font-medium text-muted-foreground ml-auto px-2 py-0">
+                    {group.items.length} {group.items.length === 1 ? "partido" : "partidos"}
+                  </Badge>
                 </div>
                 <ul className="divide-y rounded-lg border bg-card">
                   {group.items.map((match) => (
