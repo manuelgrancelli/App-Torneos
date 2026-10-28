@@ -267,9 +267,11 @@ export function BulkDrawDialog({ tournamentId, categories }: BulkDrawDialogProps
             className="gap-2"
           >
             {isPending ? <Spinner /> : <Dices className="size-4" />}
-            {eligibleCategories.length > 0
-              ? `Sortear ${eligibleCategories.length} ${eligibleCategories.length === 1 ? "categoría" : "categorías"}`
-              : "No hay categorías elegibles"}
+            {isPending
+              ? "Sorteando y distribuyendo grupos…"
+              : eligibleCategories.length > 0
+                ? `Sortear ${eligibleCategories.length} ${eligibleCategories.length === 1 ? "categoría" : "categorías"}`
+                : "No hay categorías elegibles"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -312,13 +312,13 @@ isOneToOne: false
                   ]
                 },"time_slots": {
                   Row: {
-                    "court_id": string | null,"created_at": string,"ends_at": string,"id": string,"starts_at": string,"tournament_id": string
+                    "court_id": string | null,"created_at": string,"ends_at": string,"id": string,"stage": "group" | "playoff","starts_at": string,"tournament_id": string
                   }
                   Insert: {
-                    "court_id"?: string | null,"created_at"?: string,"ends_at": string,"id"?: string,"starts_at": string,"tournament_id": string
+                    "court_id"?: string | null,"created_at"?: string,"ends_at": string,"id"?: string,"stage"?: "group" | "playoff","starts_at": string,"tournament_id": string
                   }
                   Update: {
-                    "court_id"?: string | null,"created_at"?: string,"ends_at"?: string,"id"?: string,"starts_at"?: string,"tournament_id"?: string
+                    "court_id"?: string | null,"created_at"?: string,"ends_at"?: string,"id"?: string,"stage"?: "group" | "playoff","starts_at"?: string,"tournament_id"?: string
                   }
                   Relationships: [
                     {

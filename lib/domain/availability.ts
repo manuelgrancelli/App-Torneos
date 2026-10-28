@@ -4,7 +4,7 @@
  * horaria del torneo) la calcula quien llama.
  */
 
-export type AvailabilitySlot = { id: string; startsAt: string; endsAt: string };
+export type AvailabilitySlot = { id: string; startsAt: string; endsAt: string; stage?: "group" | "playoff" | string };
 
 export type DayGroup<T> = { day: string; slots: T[] };
 
@@ -63,11 +63,13 @@ export function groupDaySlotsIntoWindows<T extends AvailabilitySlot>(
     startMs: number;
     endMs: number;
     slots: T[];
+    stage?: string;
   } | null = null;
 
   for (const slot of sorted) {
     const slotStartMs = Date.parse(slot.startsAt);
     const slotEndMs = Date.parse(slot.endsAt);
+    const slotStage = (slot as { stage?: string }).stage ?? "group";
 
     if (!current) {
       current = {
@@ -76,8 +78,9 @@ export function groupDaySlotsIntoWindows<T extends AvailabilitySlot>(
         startMs: slotStartMs,
         endMs: slotEndMs,
         slots: [slot],
+        stage: slotStage,
       };
-    } else if (slotStartMs <= current.endMs + maxBreakMs) {
+    } else if (slotStartMs <= current.endMs + maxBreakMs && slotStage === (current.stage ?? "group")) {
       // Turno continuo o superpuesto dentro de la misma franja
       current.slots.push(slot);
       if (slotEndMs > current.endMs) {
@@ -99,6 +102,7 @@ export function groupDaySlotsIntoWindows<T extends AvailabilitySlot>(
         startMs: slotStartMs,
         endMs: slotEndMs,
         slots: [slot],
+        stage: slotStage,
       };
     }
   }

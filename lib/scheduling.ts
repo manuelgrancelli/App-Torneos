@@ -31,20 +31,26 @@ export async function runAutoSchedule(
   mode: AutoScheduleMode,
   onlyMatchIds?: readonly string[],
 ): Promise<{ ok: true; outcome: AutoScheduleOutcome } | { ok: false; error: { code?: string; message?: string } }> {
-  const [matches, slots, courts, rows, groupTeams, tournamentData, groupsData] = await Promise.all([
+  const [matches, slots, courts, rows, groupTeams, tournamentData, groupsData, categoriesData] = await Promise.all([
     supabase.from("matches").select("*").eq("tournament_id", tournamentId),
-    supabase.from("time_slots").select("id, starts_at, ends_at, court_id").eq("tournament_id", tournamentId),
+    supabase.from("time_slots").select("id, starts_at, ends_at, court_id, stage").eq("tournament_id", tournamentId),
     supabase.from("courts").select("id").eq("tournament_id", tournamentId).order("position").order("name"),
     supabase.from("team_availability").select("team_id, slot_id").eq("tournament_id", tournamentId),
     supabase.from("group_teams").select("group_id, team_id").eq("tournament_id", tournamentId),
     supabase.from("tournaments").select("timezone").eq("id", tournamentId).maybeSingle(),
     supabase.from("tournament_groups").select("id, position, name").eq("tournament_id", tournamentId).order("position"),
+    (supabase as any).from("tournament_categories").select("id, position, name").eq("tournament_id", tournamentId).order("position"),
   ]);
   for (const result of [matches, slots, courts, rows, groupTeams]) {
     if (result.error) return { ok: false, error: result.error };
   }
   const tz = tournamentData.data?.timezone || DEFAULT_TIMEZONE;
   const groupsList = groupsData.data ?? [];
+  const categoriesList = (categoriesData.data ?? []) as Array<{ id: string; position: number; name: string }>;
+  const catOrderMap = new Map<string, number>();
+  categoriesList.forEach((c, idx) => {
+    catOrderMap.set(c.id, idx);
+  });
 
   const all = matches.data ?? [];
   const groupTeamsMap = new Map<string, string[]>();
@@ -59,7 +65,8 @@ export async function runAutoSchedule(
     !m.schedule_locked &&
     !m.is_bye &&
     ((m.home_team_id !== null && m.away_team_id !== null) ||
-      (m.stage === "group" && m.round === 2 && m.group_id !== null && groupTeamsMap.get(m.group_id)?.length === 4)) &&
+      (m.stage === "group" && m.round === 2 && m.group_id !== null && groupTeamsMap.get(m.group_id)?.length === 4) ||
+      m.stage === "playoff") &&
     (mode === "all" || m.slot_id === null) &&
     (!onlyMatchIds || onlyMatchIds.includes(m.id));
 
@@ -78,6 +85,8 @@ export async function runAutoSchedule(
       end: Date.parse(m.ends_at as string),
       groupTeamIds: m.group_id ? groupTeamsMap.get(m.group_id) : undefined,
       groupId: m.group_id ?? undefined,
+      categoryId: m.category_id ?? undefined,
+      stage: m.stage as "group" | "playoff",
       round: m.round,
       day: m.starts_at ? localDateKey(m.starts_at as string, tz) : undefined,
     }));
@@ -152,6 +161,36 @@ export async function runAutoSchedule(
     groupEarliestSlot.set(groupId, earliest);
   }
 
+  // Fin más tardío de la fase de grupos (global y por categoría) para que los primeros cruces de playoffs
+  // arranquen apenas concluyan los grupos de su categoría (o en la misma hora si sobran canchas libres)
+  let latestGroupEndGlobal: number | undefined = undefined;
+  const latestGroupEndByCat = new Map<string, number>();
+
+  for (const m of all) {
+    if (m.stage === "group" && m.ends_at) {
+      const endMs = Date.parse(m.ends_at);
+      if (latestGroupEndGlobal === undefined || endMs > latestGroupEndGlobal) {
+        latestGroupEndGlobal = endMs;
+      }
+      if (m.category_id) {
+        const catEnd = latestGroupEndByCat.get(m.category_id);
+        if (catEnd === undefined || endMs > catEnd) {
+          latestGroupEndByCat.set(m.category_id, endMs);
+        }
+      }
+    }
+  }
+  if (latestGroupEndGlobal === undefined) {
+    for (const s of slots.data ?? []) {
+      if ((s as any).stage === "group") {
+        const endMs = Date.parse(s.ends_at);
+        if (latestGroupEndGlobal === undefined || endMs > latestGroupEndGlobal) {
+          latestGroupEndGlobal = endMs;
+        }
+      }
+    }
+  }
+
   const sortedGroups = [...groupsList].sort((a, b) => {
     const ea = groupEarliestSlot.get(a.id) ?? Number.POSITIVE_INFINITY;
     const eb = groupEarliestSlot.get(b.id) ?? Number.POSITIVE_INFINITY;
@@ -174,20 +213,31 @@ export async function runAutoSchedule(
     } else if (m.stage === "group") {
       matchOrder = m.round;
     } else {
-      // Playoffs van después de los grupos
-      matchOrder = 10_000 + m.round * 100 + m.position;
+      // Cruces de playoffs: ordenados estrictamente por ronda, y dentro de la ronda por categoría
+      // Ejemplo: Octavos Cat 1 -> Octavos Cat 2 -> Cuartos Cat 1 -> Cuartos Cat 2 -> Semis Cat 1 -> Semis Cat 2 -> Final Cat 1 -> Final Cat 2
+      const catIndex = m.category_id ? (catOrderMap.get(m.category_id) ?? 0) : 0;
+      matchOrder = 100_000 + (m.round * 10_000) + (catIndex * 100) + m.position;
+    }
+
+    let playoffNotBefore: number | undefined = undefined;
+    if (m.stage === "playoff") {
+      const catEnd = m.category_id ? latestGroupEndByCat.get(m.category_id) : undefined;
+      playoffNotBefore = catEnd ?? latestGroupEndGlobal;
     }
 
     return {
       id: m.id,
       homeTeamId: m.home_team_id,
       awayTeamId: m.away_team_id,
-      notBefore: feedersEnd.get(m.id),
+      notBefore: feedersEnd.get(m.id) ?? playoffNotBefore,
       order: matchOrder,
       feederMatchIds: feederIdsMap.get(m.id),
       groupTeamIds: (!m.home_team_id || !m.away_team_id) && gTeams && gTeams.length === 4 ? gTeams : undefined,
       groupId: m.group_id ?? undefined,
+      categoryId: m.category_id ?? undefined,
       round: m.round,
+      stage: m.stage as "group" | "playoff",
+      allAvailable: m.stage === "playoff",
     };
   });
 
@@ -199,6 +249,7 @@ export async function runAutoSchedule(
       end: Date.parse(s.ends_at),
       courtId: s.court_id,
       day: localDateKey(s.starts_at, tz),
+      stage: ((s as any).stage ?? "group") as "group" | "playoff",
     })),
     courtIds: (courts.data ?? []).map((c) => c.id),
     availability,

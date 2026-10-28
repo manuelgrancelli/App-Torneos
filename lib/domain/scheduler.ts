@@ -24,6 +24,7 @@ export type SchedulerSlot = {
   /** null = la franja sirve para cualquier cancha. */
   courtId: string | null;
   day?: string;
+  stage?: "group" | "playoff";
 };
 
 export type SchedulerMatch = {
@@ -44,6 +45,9 @@ export type SchedulerMatch = {
   round?: number;
   /** Instante ideal para jugar después del anterior (epoch ms). */
   idealAfter?: number;
+  stage?: "group" | "playoff";
+  allAvailable?: boolean;
+  categoryId?: string;
 };
 
 /** Partido que ya ocupa recursos y no se mueve (fijado a mano, jugado o no reprogramado). */
@@ -58,6 +62,8 @@ export type FixedAssignment = {
   groupId?: string;
   round?: number;
   day?: string;
+  categoryId?: string;
+  stage?: "group" | "playoff";
 };
 
 export type ScheduleInput = {
@@ -108,6 +114,8 @@ type Interval = {
   groupId?: string;
   round?: number;
   day?: string;
+  categoryId?: string;
+  stage?: "group" | "playoff";
 };
 
 const DEFAULT_MAX_ITERATIONS = 150_000;
@@ -279,6 +287,50 @@ function candidatePenalty(
     penalty += computeGapPenalty(candidate.start - match.idealAfter);
   }
 
+  // Si el partido de playoff pertenece a una categoría, agrupar los cruces de la misma ronda
+  // en la misma jornada y en horarios continuos o en paralelo (si sobran canchas a la misma hora)
+  if (match.stage === "playoff" && match.categoryId) {
+    let catRoundPrevEnd: number | null = null;
+    let catRoundNextStart: number | null = null;
+    let hasParallelSlotSameTime = false;
+
+    const checkPlayoffCategoryInterval = (iv: Interval) => {
+      if (
+        iv.stage !== "playoff" ||
+        iv.categoryId !== match.categoryId ||
+        iv.round !== match.round ||
+        iv.matchId === match.id
+      ) {
+        return;
+      }
+      if (iv.start === candidate.start) {
+        hasParallelSlotSameTime = true;
+      }
+      if (iv.end <= candidate.start) {
+        if (catRoundPrevEnd === null || iv.end > catRoundPrevEnd) catRoundPrevEnd = iv.end;
+      }
+      if (iv.start >= candidate.end) {
+        if (catRoundNextStart === null || iv.start < catRoundNextStart) catRoundNextStart = iv.start;
+      }
+    };
+
+    for (const iv of assignedIntervals.values()) {
+      checkPlayoffCategoryInterval(iv);
+    }
+    for (const iv of fixedIntervals.values()) {
+      checkPlayoffCategoryInterval(iv);
+    }
+
+    if (!hasParallelSlotSameTime) {
+      if (catRoundPrevEnd !== null) {
+        penalty += computeGapPenalty(candidate.start - catRoundPrevEnd);
+      }
+      if (catRoundNextStart !== null) {
+        penalty += computeGapPenalty(catRoundNextStart - candidate.end);
+      }
+    }
+  }
+
   // Si el partido pertenece a un grupo, asegurar que TODOS los partidos del mismo grupo
   // se jueguen en el MISMO DÍA y en horarios contiguos/cercanos (sin dividirlos entre días distintos).
   if (match.groupId) {
@@ -345,6 +397,8 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
       groupId: fixed.groupId,
       round: fixed.round,
       day: fixed.day,
+      categoryId: fixed.categoryId,
+      stage: fixed.stage,
     };
     fixedIntervals.set(fixed.matchId, interval);
     if (fixed.homeTeamId) teams.add(fixed.homeTeamId, interval);
@@ -367,8 +421,9 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
   for (const match of input.matches) {
     const isDefined = Boolean(match.homeTeamId && match.awayTeamId);
     const isGroupUnresolved = !isDefined && Boolean(match.groupTeamIds && match.groupTeamIds.length > 0);
+    const isPlayoff = match.stage === "playoff" || Boolean(match.allAvailable);
 
-    if (!isDefined && !isGroupUnresolved) {
+    if (!isDefined && !isGroupUnresolved && !isPlayoff) {
       unscheduled.push({ matchId: match.id, reason: "missing_teams" });
       continue;
     }
@@ -390,9 +445,21 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
       }
     }
 
+    const hasPlayoffSlots = slots.some((s) => s.stage === "playoff");
+    const hasGroupSlots = slots.some((s) => s.stage === "group");
+
     const list: Candidate[] = [];
     for (const slot of slots) {
-      if (isDefined) {
+      if (match.stage === "playoff" && hasPlayoffSlots && slot.stage !== "playoff") {
+        continue;
+      }
+      if (match.stage === "group" && hasGroupSlots && slot.stage !== "group") {
+        continue;
+      }
+
+      if (isPlayoff) {
+        // En playoffs, las parejas pueden jugar en todas las franjas de playoffs (disponibilidad 100%)
+      } else if (isDefined) {
         const homeOk = availability.get(match.homeTeamId!)?.has(slot.id) ?? false;
         const awayOk = availability.get(match.awayTeamId!)?.has(slot.id) ?? false;
         if (!homeOk || !awayOk) continue;
@@ -494,6 +561,8 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
         groupId: match.groupId,
         round: match.round,
         day: candidate.day,
+        categoryId: match.categoryId,
+        stage: match.stage,
       };
       if (!courts.isFree(candidate.courtId, interval)) continue;
 
@@ -570,7 +639,7 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
  * conflictos que la bloquean y las advertencias (disponibilidad no marcada).
  */
 export function checkManualAssignment(params: {
-  match: { id: string; homeTeamId: string | null; awayTeamId: string | null; homeName?: string; awayName?: string };
+  match: { id: string; homeTeamId: string | null; awayTeamId: string | null; homeName?: string; awayName?: string; stage?: string; isPlayoff?: boolean };
   slot: SchedulerSlot;
   courtId: string;
   others: readonly FixedAssignment[];
@@ -628,7 +697,7 @@ export type SlotEvaluation = {
  */
 export function getSlotEvaluation(params: {
   slot: { id: string; startsAt: string; endsAt: string; courtId: string | null };
-  match: { id: string; homeTeamId: string | null; awayTeamId: string | null; homeName?: string; awayName?: string };
+  match: { id: string; homeTeamId: string | null; awayTeamId: string | null; homeName?: string; awayName?: string; stage?: string; isPlayoff?: boolean };
   courts: readonly { id: string; name: string }[];
   scheduled: readonly FixedAssignment[];
   availability: Readonly<Record<string, readonly string[]>>;
@@ -673,18 +742,23 @@ export function getSlotEvaluation(params: {
       overlapping.some((o) => o.homeTeamId === match.awayTeamId || o.awayTeamId === match.awayTeamId),
   );
 
-  // Marcó disponibilidad
-  const homeAvailable = match.homeTeamId
-    ? hasGlobalAvailability
-      ? (availability[match.homeTeamId] ?? []).includes(slot.id)
-      : true
-    : true;
+  // Marcó disponibilidad (en playoffs todos están disponibles)
+  const isPlayoffMatch = match.stage === "playoff" || Boolean(match.isPlayoff);
+  const homeAvailable = isPlayoffMatch
+    ? true
+    : match.homeTeamId
+      ? hasGlobalAvailability
+        ? (availability[match.homeTeamId] ?? []).includes(slot.id)
+        : true
+      : true;
 
-  const awayAvailable = match.awayTeamId
-    ? hasGlobalAvailability
-      ? (availability[match.awayTeamId] ?? []).includes(slot.id)
-      : true
-    : true;
+  const awayAvailable = isPlayoffMatch
+    ? true
+    : match.awayTeamId
+      ? hasGlobalAvailability
+        ? (availability[match.awayTeamId] ?? []).includes(slot.id)
+        : true
+      : true;
 
   const homeCanPlay = !homeClash && homeAvailable;
   const awayCanPlay = !awayClash && awayAvailable;

@@ -139,7 +139,7 @@ export function AutoScheduleDialog({
           ) : (
             <Button type="button" onClick={run} disabled={isPending}>
               {isPending ? <Spinner /> : null}
-              Programar
+              {isPending ? "Optimizando y programando partidos…" : "Programar"}
             </Button>
           )}
         </DialogFooter>

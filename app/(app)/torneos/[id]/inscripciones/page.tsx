@@ -45,6 +45,7 @@ export default async function RegistrationsPage({
       : null;
   const filter: Filter = requested ?? (teams.some((t) => t.status === "pending") ? "pending" : "all");
 
+  const groupSlots = slots.filter((s) => s.stage !== "playoff");
   const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name, maxTeams: c.maxTeams }));
 
   const teamCountsByCategory: Record<string, number> = {};
@@ -162,7 +163,7 @@ export default async function RegistrationsPage({
           sportId={tournament.sport.id}
           timezone={tournament.timezone}
           teamSize={tournament.sport.min_team_size}
-          slots={slots}
+          slots={groupSlots}
           courts={courts}
           categories={categoryOptions}
         />
@@ -187,7 +188,7 @@ export default async function RegistrationsPage({
           canReview={tournament.status === "registration_open"}
           filter={filter}
           categories={categoryOptions}
-          slots={slots}
+          slots={groupSlots}
           timezone={tournament.timezone}
         />
       </div>

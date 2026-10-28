@@ -2499,3 +2499,78 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
     - Proximidad horaria dentro del mismo día: se premia la continuidad de juego y descanso ideal (0 a 2.5 horas), logrando que la Fecha 2 (Gan vs Gan y Per vs Per) se juegue en turnos contiguos o cercanos el mismo día en que empezó la zona.
 - **Motivo:** Resolver la solicitud del usuario ("no me gusta nada como hace la programacion automatica, ya que arma los partidos la 1er fecha de cada pareja y la 2da fecha por ejemplo en el torneo que cree lo que hay muchos grupos de4 se juega ganvsgan y pervsper, los pone al otro dia, eso no me sirve yo quiero que cada grupo tenga un dia para terminar los partidos de ese grupo, es decir no me pongas 1 partido por dia, programalos que queden horarios cercanos el mismo dia").
 - **Cómo aplicar:** implementado en `lib/domain/scheduler.ts`, `lib/scheduling.ts`, `lib/domain/scheduler.test.ts` y `docs/PROYECTO.md`.
+
+### D-180 — Franjas horarias separadas para Grupos y Cuadro/Playoffs con programación automática de cuadro y disponibilidad total (2026-10-28)
+- **Decisión:**
+  - **Soporte de etapa en franjas horarias (`public.time_slots`):**
+    - Se agregó la columna `stage text not null default 'group' check (stage in ('group', 'playoff'))` e índice en `supabase/migrations/20261028180000_time_slots_stage_support.sql`.
+    - `generateSlotsSchema` y `createSlotSchema` en `lib/validation/tournament.ts` admiten `stage: z.enum(["group", "playoff"]).default("group")`.
+    - `SlotRow` (`lib/data/tournaments.ts`) y `SchedulingData` (`lib/data/competition.ts`) exponen la propiedad `stage`.
+  - **Gestor interactivo en 2 etapas en Canchas y Franjas (`components/tournaments/slots-manager.tsx`):**
+    - Selector visual de 2 pasos: `[ 1. Fase de Grupos ]` y `[ 2. Cuadro / Playoffs ]` con badges contadores de turnos generados.
+    - Explicación contextual para cada fase: Grupos es para zonas y disponibilidad de parejas al inscribirse; Cuadro/Playoffs es para cruces eliminatorios donde todas las parejas clasificadas pueden jugar en todas las franjas.
+    - Sugerencia inteligente de días (los primeros días para grupos y los días finales para el cuadro).
+    - Flujo asistido: al generar las franjas de grupo con éxito, si aún no hay de cuadro, el generador transiciona fluidamente a "Cuadro / Playoffs" con sugerencia de días para completar la configuración.
+  - **Listado y filtros de franjas (`components/tournaments/configured-slots-list.tsx`):**
+    - Pestañas de filtrado: `Todos`, `Grupos` y `Cuadro / Playoffs`.
+    - Badges distintivos en cada ventana de franja (verde esmeralda para Grupos y violeta para Cuadro).
+  - **Aislamiento de disponibilidad en inscripciones (`lib/data/teams.ts` y `app/(app)/torneos/[id]/inscripciones/page.tsx`):**
+    - Las parejas y el formulario del organizador solo seleccionan disponibilidad entre las franjas de `stage === 'group'`. Las franjas de playoffs quedan reservadas exclusivamente para los cruces del cuadro sin exigir marcado previo.
+  - **Programación automática del cuadro en el Scheduler (`lib/domain/scheduler.ts` y `lib/scheduling.ts`):**
+    - Los partidos de playoffs (`m.stage === "playoff"`) ahora son candidatos automáticos para asignarse en las franjas de playoff, aun si sus parejas todavía no están definidas ("A definir / Ganador P1").
+    - **Disponibilidad 100% en playoffs:** Para cruces de playoff, el scheduler no chequea `team_availability` individual, permitiendo asignar todos los turnos del cuadro sin bloqueos.
+    - **Orden estricto por categoría y ronda en Playoffs:**
+      - Los cruces se ordenan primero por ronda (Ronda 1 = octavos/16avos, Ronda 2 = cuartos, Ronda 3 = semis, Ronda 4 = final), y **dentro de cada ronda en orden estricto de categorías** (`100_000 + m.round * 10_000 + catIndex * 100 + m.position`).
+      - Por ejemplo: se programan todos los octavos de 6ta lo más temprano posible (o en paralelo si sobran canchas a la misma hora), luego todos los octavos de 5ta, luego otra categoría; una vez concluidos los octavos de todas las categorías, se programan en orden de categoría los cuartos (primero cuartos de 6ta, luego cuartos de 5ta), y luego semis y final.
+      - **Inicio ágil por categoría:** Cada categoría puede arrancar sus primeros cruces de playoff apenas concluye su respectiva fase de grupos (`latestGroupEndByCat`) o en la misma hora si sobran canchas libres.
+      - Los cruces de grupos van exclusivamente a franjas de grupos, y los de playoffs a franjas de playoffs.
+  - **Programación automática directa y edición manual en Cuadro (`components/bracket/auto-schedule-bracket-button.tsx` y `ScheduleBracketModal`):**
+    - Se agregó el botón `AutoScheduleBracketButton` en la barra superior de `/torneos/[id]/cuadro`, permitiendo con un solo clic generar o actualizar los horarios del cuadro completo.
+    - Se conserva 100% intacto `ScheduleBracketModal` para modificar manualmente cualquier horario o cancha puntual según el criterio del organizador.
+- **Motivo:** atender la solicitud del usuario ("me gustaria que cuando crwas el torneo primero te aparezcan las franjas para las fases de grupos, y despues franjas para el cuadro, asi no seria necesario poner horario por horario desde cuadro, aunque quiero que esa opcion quede por si quiero cambiar algun horario, a partir de cuadro tene en cuenta que las parejas puedan jugar en todas las franjas solo se crearian para que la app arme los partidos con sus horarios, que obviamente van despues de la fase ya que antes hay que ver quien clasifica").
+- **Cómo aplicar:** implementado en `supabase/migrations/20261028180000_time_slots_stage_support.sql`, `lib/supabase/database.types.ts`, `lib/validation/tournament.ts`, `lib/data/tournaments.ts`, `lib/data/competition.ts`, `lib/data/teams.ts`, `lib/scheduling.ts`, `lib/domain/scheduler.ts`, `lib/domain/scheduler.test.ts`, `components/tournaments/slots-manager.tsx`, `components/tournaments/configured-slots-list.tsx`, `components/bracket/auto-schedule-bracket-button.tsx`, `app/(app)/torneos/[id]/cuadro/page.tsx`, `app/(app)/torneos/[id]/canchas-franjas/page.tsx`, `app/(app)/torneos/[id]/canchas-franjas/actions.ts` y `docs/PROYECTO.md`.
+
+### D-181 - Sistema integral de indicadores de carga y progreso visual (2026-10-28)
+- **Decisión:**
+  - **Barra superior global de navegación (`components/shared/top-loading-bar.tsx`):**
+    - Componente cliente ultraliviano montado en `app/layout.tsx` que detecta la navegación interna vía clicks en enlaces y cambios de ruta (`usePathname`, `useSearchParams`).
+    - Renderiza una barra delgada color dorado brillante con resplandor cálido (`fixed top-0 left-0 right-0 z-[9999] h-[2.5px] bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 shadow-[0_0_12px_rgba(245,158,11,0.9)]`), a tono con el trofeo y los detalles dorados de la aplicación, simulando avance gradual (trickling) y completándose al 100% de manera fluida al cargar la nueva página.
+  - **Componente de progreso y avance del torneo (`components/ui/progress.tsx` y `components/tournaments/tournament-matches-progress.tsx`):**
+    - Se creó el componente `Progress` accesible y estilizado con Tailwind CSS.
+    - Se incorporó `TournamentMatchesProgress` en la cabecera del panel del torneo (`app/(app)/torneos/[id]/layout.tsx`):
+      - En fase de inscripción: porcentaje y cantidad de cupos cubiertos respecto al límite.
+      - En fase de grupos: cantidad y porcentaje de partidos de zona disputados ("18 de 24 jugados · 75%").
+      - En playoffs / final: cantidad y porcentaje de cruces eliminatorios concluidos con barra esmeralda.
+  - **Pantallas de carga esqueletadas (`loading.tsx` con `Skeleton`):**
+    - Se añadieron esqueletos específicos y contextuales en todas las subrutas de torneos para eliminar el efecto de pantalla congelada durante Server Actions y navegación SSR:
+      - `app/(app)/torneos/[id]/loading.tsx`: vista general del torneo.
+      - `app/(app)/torneos/[id]/cuadro/loading.tsx`: silueta del cuadro eliminatorio con rondas y partidos conectados.
+      - `app/(app)/torneos/[id]/partidos/loading.tsx`: grilla de horarios y canchas.
+      - `app/(app)/torneos/[id]/grupos/loading.tsx`: tablas de zonas y partidos por grupo.
+      - `app/(app)/torneos/[id]/canchas-franjas/loading.tsx`: dos columnas de canchas/franjas y formulario generador.
+      - `app/(app)/torneos/[id]/inscripciones/loading.tsx`: tarjetas de métricas y listado de parejas.
+  - **Feedback descriptivo en acciones pesadas y botones:**
+    - Se sustituyeron spinners sin texto por mensajes de estado explicativos en tiempo real:
+      - En cuadro eliminatorio (`auto-schedule-bracket-button.tsx`): "Programando cruces del cuadro…".
+      - En programador de partidos (`auto-schedule-dialog.tsx`): "Optimizando y programando partidos…".
+      - En generador de turnos (`slots-manager.tsx`): "Creando turnos en la grilla…".
+      - En sorteo masivo de zonas (`bulk-draw-dialog.tsx`): "Sorteando y distribuyendo grupos…".
+      - En confirmación de fixture de grupos (`group-builder.tsx`): "Guardando grupos y creando fixture…".
+      - En exportación de imágenes (`export-matches-image-modal.tsx`, `export-bracket-image-modal.tsx`, `export-groups-image-modal.tsx`): "Generando imagen…" en botón y "Generando imagen en alta resolución…" en vista previa.
+- **Motivo:** responder a la solicitud del usuario ("TE PARECERIA UTIL AGREGAR: Indicadores de carga o progreso ? ... me interesan todas esas cargas, asi que agregalas") para brindar feedback inmediato y claridad visual de avance en toda la app.
+- **Cómo aplicar:** implementado en `components/shared/top-loading-bar.tsx`, `app/layout.tsx`, `components/ui/progress.tsx`, `components/tournaments/tournament-matches-progress.tsx`, `app/(app)/torneos/[id]/layout.tsx`, `app/(app)/torneos/[id]/loading.tsx`, `app/(app)/torneos/[id]/cuadro/loading.tsx`, `app/(app)/torneos/[id]/partidos/loading.tsx`, `app/(app)/torneos/[id]/grupos/loading.tsx`, `app/(app)/torneos/[id]/canchas-franjas/loading.tsx`, `app/(app)/torneos/[id]/inscripciones/loading.tsx`, `components/bracket/auto-schedule-bracket-button.tsx`, `components/matches/auto-schedule-dialog.tsx`, `components/tournaments/slots-manager.tsx`, `components/groups/bulk-draw-dialog.tsx`, `components/groups/group-builder.tsx`, modales de exportación y `docs/PROYECTO.md`.
+
+### D-182 - Aislamiento estricto de franjas por etapa y cambio interactivo de etapa en turnos (2026-10-28)
+- **Decisión:**
+  - **Aislamiento en `groupDaySlotsIntoWindows` (`lib/domain/availability.ts`):**
+    - Se agregó el chequeo `slotStage === (current.stage ?? "group")` al agrupar turnos cronológicos continuos.
+    - Turnos contiguos en horario (por ejemplo, grupos de 09:00 a 15:00 y playoffs de 15:00 a 21:00) **nunca se fusionan en una sola franja**. Se dividen en dos ventanas independientes e identificables: una en verde para grupos y otra en violeta para cuadro.
+  - **Blindaje del formulario en `SlotsManager` (`components/tournaments/slots-manager.tsx`):**
+    - Se añadió input hidden sincronizado con `activeStage` y se forzó en `onSubmit` que el payload use explícitamente `stage: activeStage`, eliminando cualquier riesgo de desincronización en react-hook-form.
+  - **Server Action `updateTimeSlotsStage` (`app/(app)/torneos/[id]/canchas-franjas/actions.ts` y `lib/validation/tournament.ts`):**
+    - Permite cambiar franjas o turnos existentes de etapa (`group` <-> `playoff`) sin necesidad de borrarlos y recrearlos.
+  - **Conmutador interactivo de etapa en `ConfiguredSlotsList` (`components/tournaments/configured-slots-list.tsx`):**
+    - El badge de etapa de cada franja ("Grupos" en verde / "Cuadro" en violeta) es un botón interactivo que permite alternar la franja entera con un solo clic.
+    - En el desglose de turnos (cuando está expandido), cada turno individual cuenta con un botón rápido para pasarlo a Grupos o Cuadro individualmente.
+- **Motivo:** atender el problema reportado por el usuario ("yo puse una franja de grupos sabado de 9 a 15, y quedo en verde esta bien, pero despues puse una el mismo dia de 15 a 21 y lo identifico como color verde, es decir de grupos y actualizo la franja verde y la paso de 9 a 21, pero a mi me interesa que el programa identifique entre franjas de grupos y de play offs").
+- **Cómo aplicar:** implementado en `lib/domain/availability.ts`, `lib/domain/availability.test.ts`, `lib/validation/tournament.ts`, `app/(app)/torneos/[id]/canchas-franjas/actions.ts`, `components/tournaments/slots-manager.tsx`, `components/tournaments/configured-slots-list.tsx` y `docs/PROYECTO.md`.

@@ -92,7 +92,7 @@ export const getTeamForMember = cache(async (teamId: string, userId: string): Pr
   const [slots, courts] = await Promise.all([
     supabase
       .from("time_slots")
-      .select("id, starts_at, ends_at, court_id")
+      .select("id, starts_at, ends_at, court_id, stage")
       .eq("tournament_id", team.tournament_id)
       .order("starts_at"),
     supabase.from("courts").select("id, name").eq("tournament_id", team.tournament_id).order("position"),
@@ -144,7 +144,7 @@ export const getTeamForMember = cache(async (teamId: string, userId: string): Pr
         : null,
       circuitOrder: (t as any).circuit_order ?? null,
     },
-    slots: slots.data.map((s) => ({ id: s.id, startsAt: s.starts_at, endsAt: s.ends_at, courtId: s.court_id })),
+    slots: slots.data.filter((s: any) => s.stage !== "playoff").map((s) => ({ id: s.id, startsAt: s.starts_at, endsAt: s.ends_at, courtId: s.court_id })),
     courts: courts.data,
   };
 });
@@ -224,7 +224,7 @@ export const getAvailabilityMatrix = cache(async (tournamentId: string): Promise
       .eq("tournament_id", tournamentId)
       .neq("status", "rejected")
       .order("name"),
-    supabase.from("time_slots").select("id, starts_at, ends_at, court_id").eq("tournament_id", tournamentId).order("starts_at"),
+    supabase.from("time_slots").select("id, starts_at, ends_at, court_id, stage").eq("tournament_id", tournamentId).order("starts_at"),
     supabase.from("team_availability").select("team_id, slot_id").eq("tournament_id", tournamentId),
   ]);
   if (teams.error) throw teams.error;
@@ -233,7 +233,7 @@ export const getAvailabilityMatrix = cache(async (tournamentId: string): Promise
 
   return {
     teams: teams.data,
-    slots: slots.data.map((s) => ({ id: s.id, startsAt: s.starts_at, endsAt: s.ends_at, courtId: s.court_id })),
+    slots: slots.data.filter((s: any) => s.stage !== "playoff").map((s) => ({ id: s.id, startsAt: s.starts_at, endsAt: s.ends_at, courtId: s.court_id })),
     rows: rows.data.map((r) => ({ teamId: r.team_id, slotId: r.slot_id })),
   };
 });

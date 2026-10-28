@@ -430,7 +430,7 @@ describe("asignación inteligente de horarios y proximidad", () => {
   it("con múltiples zonas de 4 y franjas en distintos días, termina cada zona completa en el mismo día sin separar fechas en días distintos", () => {
     // Viernes (día 1): franjas a las 0h y 2h en c1 y c2 (4 turnos)
     // Sábado (día 2): franjas a las 20h y 22h en c1 y c2 (4 turnos)
-    const slotWithDay = (id, hours, courtId, day) => {
+    const slotWithDay = (id: string, hours: number, courtId: string, day: string) => {
       const s = slot(id, hours, courtId);
       s.day = day;
       return s;
@@ -626,3 +626,226 @@ describe("getSlotEvaluation (identificación de franjas por colores)", () => {
   });
 });
 
+describe("Programación automática de cuadro / playoffs", () => {
+  it("asigna partidos de playoff a franjas de playoff sin exigir disponibilidad previa de parejas", () => {
+    const sGroup = { id: "sg1", start: T0, end: T0 + 1.5 * H, courtId: "c1", stage: "group" as const };
+    const sPlayoff1 = { id: "sp1", start: T0 + 4 * H, end: T0 + 5.5 * H, courtId: "c1", stage: "playoff" as const };
+    const sPlayoff2 = { id: "sp2", start: T0 + 6 * H, end: T0 + 7.5 * H, courtId: "c1", stage: "playoff" as const };
+
+    const data = input({
+      matches: [
+        {
+          id: "m-semi",
+          homeTeamId: null,
+          awayTeamId: null,
+          stage: "playoff",
+          allAvailable: true,
+          order: 10100,
+        },
+        {
+          id: "m-final",
+          homeTeamId: null,
+          awayTeamId: null,
+          stage: "playoff",
+          allAvailable: true,
+          feederMatchIds: ["m-semi"],
+          order: 10200,
+        },
+      ],
+      slots: [sGroup, sPlayoff1, sPlayoff2],
+      availability: {}, // Vacía: los equipos de playoff no requieren marcar disponibilidad individual
+    });
+
+    const result = scheduleMatches(data);
+    expect(result.unscheduled).toEqual([]);
+    expect(result.assignments).toHaveLength(2);
+
+    const semiAssign = result.assignments.find((a) => a.matchId === "m-semi")!;
+    const finalAssign = result.assignments.find((a) => a.matchId === "m-final")!;
+
+    expect(semiAssign.slotId).toBe("sp1");
+    expect(finalAssign.slotId).toBe("sp2");
+    expect(semiAssign.start).toBeLessThan(finalAssign.start);
+  });
+
+  it("separa franjas de grupos de las franjas de playoffs", () => {
+    const sGroup = { id: "sg1", start: T0, end: T0 + 1.5 * H, courtId: "c1", stage: "group" as const };
+    const sPlayoff = { id: "sp1", start: T0 + 3 * H, end: T0 + 4.5 * H, courtId: "c1", stage: "playoff" as const };
+
+    const data = input({
+      matches: [
+        {
+          id: "m-group",
+          homeTeamId: "T1",
+          awayTeamId: "T2",
+          stage: "group",
+          order: 1,
+        },
+        {
+          id: "m-playoff",
+          homeTeamId: null,
+          awayTeamId: null,
+          stage: "playoff",
+          allAvailable: true,
+          order: 10000,
+        },
+      ],
+      slots: [sGroup, sPlayoff],
+      availability: { T1: ["sg1", "sp1"], T2: ["sg1", "sp1"] },
+    });
+
+    const result = scheduleMatches(data);
+    expect(result.unscheduled).toEqual([]);
+
+    const groupAssign = result.assignments.find((a) => a.matchId === "m-group")!;
+    const playoffAssign = result.assignments.find((a) => a.matchId === "m-playoff")!;
+
+    expect(groupAssign.slotId).toBe("sg1");
+    expect(playoffAssign.slotId).toBe("sp1");
+  });
+
+  it("getSlotEvaluation devuelve verde para partidos de playoff aunque no haya disponibilidad en availability", () => {
+    const testSlot = { id: "sp1", startsAt: new Date(T0).toISOString(), endsAt: new Date(T0 + 1.5 * H).toISOString(), courtId: "c1" };
+    const evalResult = getSlotEvaluation({
+      slot: testSlot,
+      match: {
+        id: "m-playoff-1",
+        homeTeamId: "T1",
+        awayTeamId: "T2",
+        homeName: "Clasificado 1",
+        awayName: "Clasificado 2",
+        stage: "playoff",
+      },
+      courts: [{ id: "c1", name: "Cancha 1" }],
+      scheduled: [],
+      availability: { T1: [], T2: [] }, // No marcaron disponibilidad para grupos
+    });
+
+    expect(evalResult.status).toBe("green");
+    expect(evalResult.homeCanPlay).toBe(true);
+    expect(evalResult.awayCanPlay).toBe(true);
+  });
+  it("programa cruces de playoffs en orden estricto de categoría y ronda (octavos Cat 1, luego octavos Cat 2, cuartos Cat 1, cuartos Cat 2) y en paralelo si sobran canchas", () => {
+    // Franjas de playoff:
+    // Turno 1 (T0 + 4h): Cancha 1 y Cancha 2 (2 canchas en paralelo)
+    // Turno 2 (T0 + 5.5h): Cancha 1 y Cancha 2
+    // Turno 3 (T0 + 7h): Cancha 1 y Cancha 2
+    const sp1_c1 = { id: "sp1_c1", start: T0 + 4 * H, end: T0 + 5.5 * H, courtId: "c1", stage: "playoff" as const };
+    const sp1_c2 = { id: "sp1_c2", start: T0 + 4 * H, end: T0 + 5.5 * H, courtId: "c2", stage: "playoff" as const };
+    const sp2_c1 = { id: "sp2_c1", start: T0 + 5.5 * H, end: T0 + 7 * H, courtId: "c1", stage: "playoff" as const };
+    const sp2_c2 = { id: "sp2_c2", start: T0 + 5.5 * H, end: T0 + 7 * H, courtId: "c2", stage: "playoff" as const };
+    const sp3_c1 = { id: "sp3_c1", start: T0 + 7 * H, end: T0 + 8.5 * H, courtId: "c1", stage: "playoff" as const };
+    const sp3_c2 = { id: "sp3_c2", start: T0 + 7 * H, end: T0 + 8.5 * H, courtId: "c2", stage: "playoff" as const };
+
+    const data = input({
+      courtIds: ["c1", "c2"],
+      slots: [sp1_c1, sp1_c2, sp2_c1, sp2_c2, sp3_c1, sp3_c2],
+      matches: [
+        // Octavos 6ta (Ronda 1, Cat 0: 6ta) -> deben ir lo más temprano posible (Turno 1 en paralelo)
+        { id: "oct_6ta_1", homeTeamId: null, awayTeamId: null, stage: "playoff", allAvailable: true, categoryId: "cat-6ta", round: 1, order: 110001 },
+        { id: "oct_6ta_2", homeTeamId: null, awayTeamId: null, stage: "playoff", allAvailable: true, categoryId: "cat-6ta", round: 1, order: 110002 },
+
+        // Octavos 5ta (Ronda 1, Cat 1: 5ta) -> deben ir luego de los octavos de 6ta (Turno 2 en paralelo)
+        { id: "oct_5ta_1", homeTeamId: null, awayTeamId: null, stage: "playoff", allAvailable: true, categoryId: "cat-5ta", round: 1, order: 110101 },
+        { id: "oct_5ta_2", homeTeamId: null, awayTeamId: null, stage: "playoff", allAvailable: true, categoryId: "cat-5ta", round: 1, order: 110102 },
+
+        // Cuartos 6ta (Ronda 2, Cat 0: 6ta) -> después de octavos de 6ta
+        { id: "cuartos_6ta_1", homeTeamId: null, awayTeamId: null, stage: "playoff", allAvailable: true, categoryId: "cat-6ta", round: 2, feederMatchIds: ["oct_6ta_1", "oct_6ta_2"], order: 120001 },
+
+        // Cuartos 5ta (Ronda 2, Cat 1: 5ta) -> después de octavos de 5ta
+        { id: "cuartos_5ta_1", homeTeamId: null, awayTeamId: null, stage: "playoff", allAvailable: true, categoryId: "cat-5ta", round: 2, feederMatchIds: ["oct_5ta_1", "oct_5ta_2"], order: 120101 },
+      ],
+      availability: {},
+    });
+
+    const result = scheduleMatches(data);
+    expect(result.unscheduled).toEqual([]);
+    expect(result.assignments).toHaveLength(6);
+
+    const oct6_1 = result.assignments.find((a) => a.matchId === "oct_6ta_1")!;
+    const oct6_2 = result.assignments.find((a) => a.matchId === "oct_6ta_2")!;
+    const oct5_1 = result.assignments.find((a) => a.matchId === "oct_5ta_1")!;
+    const oct5_2 = result.assignments.find((a) => a.matchId === "oct_5ta_2")!;
+    const cto6_1 = result.assignments.find((a) => a.matchId === "cuartos_6ta_1")!;
+    const cto5_1 = result.assignments.find((a) => a.matchId === "cuartos_5ta_1")!;
+
+    // 1. Octavos de 6ta arrancan en el Turno 1 (T0 + 4h) en paralelo usando c1 y c2
+    expect(oct6_1.start).toBe(T0 + 4 * H);
+    expect(oct6_2.start).toBe(T0 + 4 * H);
+    expect(new Set([oct6_1.courtId, oct6_2.courtId])).toEqual(new Set(["c1", "c2"]));
+
+    // 2. Octavos de 5ta van a continuación (T0 + 5.5h) en paralelo usando c1 y c2
+    expect(oct5_1.start).toBe(T0 + 5.5 * H);
+    expect(oct5_2.start).toBe(T0 + 5.5 * H);
+    expect(new Set([oct5_1.courtId, oct5_2.courtId])).toEqual(new Set(["c1", "c2"]));
+
+    // 3. Cuartos van en el Turno 3 (T0 + 7h) después de concluir sus respectivos octavos
+    expect(cto6_1.start).toBe(T0 + 7 * H);
+    expect(cto5_1.start).toBe(T0 + 7 * H);
+    expect(new Set([cto6_1.courtId, cto5_1.courtId])).toEqual(new Set(["c1", "c2"]));
+  });
+  it("con 8 partidos de octavos en la primera categoría (16 parejas), se completan todos los 8 partidos antes de pasar a los octavos de la siguiente categoría", () => {
+    // 2 canchas y 8 turnos consecutivos de 1.5 hs (16 slots de cancha en total)
+    const courtIds = ["c1", "c2"];
+    const slots: any[] = [];
+    for (let turn = 0; turn < 8; turn++) {
+      const start = T0 + (4 + turn * 1.5) * H;
+      const end = start + 1.5 * H;
+      slots.push({ id: `sp_${turn}_c1`, start, end, courtId: "c1", stage: "playoff" });
+      slots.push({ id: `sp_${turn}_c2`, start, end, courtId: "c2", stage: "playoff" });
+    }
+
+    // 8 partidos de octavos para 6ta (16 parejas clasificadas)
+    const matches6ta = Array.from({ length: 8 }, (_, i) => ({
+      id: `oct_6ta_${i + 1}`,
+      homeTeamId: null,
+      awayTeamId: null,
+      stage: "playoff" as const,
+      allAvailable: true,
+      categoryId: "cat-6ta",
+      round: 1,
+      position: i + 1,
+      order: 110000 + (i + 1),
+    }));
+
+    // 8 partidos de octavos para 5ta (16 parejas clasificadas)
+    const matches5ta = Array.from({ length: 8 }, (_, i) => ({
+      id: `oct_5ta_${i + 1}`,
+      homeTeamId: null,
+      awayTeamId: null,
+      stage: "playoff" as const,
+      allAvailable: true,
+      categoryId: "cat-5ta",
+      round: 1,
+      position: i + 1,
+      order: 110100 + (i + 1),
+    }));
+
+    const data = input({
+      courtIds,
+      slots,
+      matches: [...matches6ta, ...matches5ta],
+      availability: {},
+    });
+
+    const result = scheduleMatches(data);
+    expect(result.unscheduled).toEqual([]);
+    expect(result.assignments).toHaveLength(16);
+
+    const assigns6ta = result.assignments.filter((a) => a.matchId.startsWith("oct_6ta_"));
+    const assigns5ta = result.assignments.filter((a) => a.matchId.startsWith("oct_5ta_"));
+
+    expect(assigns6ta).toHaveLength(8);
+    expect(assigns5ta).toHaveLength(8);
+
+    // Los 8 partidos de 6ta ocupan los turnos 0, 1, 2 y 3 (4 turnos x 2 canchas = 8 partidos)
+    const maxEnd6ta = Math.max(...assigns6ta.map((a) => a.end));
+    const minStart6ta = Math.min(...assigns6ta.map((a) => a.start));
+    expect(minStart6ta).toBe(T0 + 4 * H); // Turno 0
+    expect(maxEnd6ta).toBe(T0 + (4 + 4 * 1.5) * H); // Termina exactamente al final del Turno 3 (T0 + 10h)
+
+    // Los 8 partidos de 5ta arrancan estrictamente DESPUÉS de que concluyeron los 8 de 6ta (Turno 4 en adelante)
+    const minStart5ta = Math.min(...assigns5ta.map((a) => a.start));
+    expect(minStart5ta).toBeGreaterThanOrEqual(maxEnd6ta);
+  });
+});

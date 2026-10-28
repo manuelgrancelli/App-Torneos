@@ -4,6 +4,7 @@ import { StatusBadge, SportBadge } from "@/components/tournaments/status-badge";
 import { buildPhaseGuide } from "@/components/tournaments/phase-guide-model";
 import { type NavGroupKey, TournamentNav } from "@/components/tournaments/tournament-nav";
 import { TournamentProgress } from "@/components/tournaments/tournament-progress";
+import { TournamentMatchesProgress } from "@/components/tournaments/tournament-matches-progress";
 import { getTournamentCategories } from "@/lib/data/categories";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
 import { getTournamentCounts } from "@/lib/data/tournaments";
@@ -67,6 +68,11 @@ export default async function TournamentPanelLayout({ children, params }: Layout
           status={tournament.status}
           detail={guide.progress.short || undefined}
           canFinish={tournament.status !== "finished" && counts.allCategoriesFinished}
+        />
+        <TournamentMatchesProgress
+          status={tournament.status}
+          counts={counts}
+          maxTeams={tournament.maxTeams}
         />
         <TournamentNav
           tournamentId={tournament.id}

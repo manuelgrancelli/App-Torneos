@@ -134,6 +134,7 @@ export const generateSlotsSchema = z
     durationMinutes: integer(15, 480, "la duración"),
     breakMinutes: integer(0, 240, "la pausa"),
     courtId: z.uuid().nullable(),
+    stage: z.enum(["group", "playoff"]).default("group"),
   })
   .refine((data) => data.to > data.from, {
     error: "La hora de fin tiene que ser posterior a la de inicio.",
@@ -147,11 +148,18 @@ export const createSlotSchema = z
     start: localTimeSchema,
     end: localTimeSchema,
     courtId: z.uuid().nullable(),
+    stage: z.enum(["group", "playoff"]).default("group"),
   })
   .refine((data) => data.end > data.start, {
     error: "La hora de fin tiene que ser posterior a la de inicio.",
     path: ["end"],
   });
+
+export const updateSlotsStageSchema = z.object({
+  tournamentId: z.uuid(),
+  slotIds: z.array(z.uuid()).min(1).max(500),
+  stage: z.enum(["group", "playoff"]),
+});
 
 export const deleteSlotsSchema = z.object({
   tournamentId: z.uuid(),

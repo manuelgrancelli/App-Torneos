@@ -78,6 +78,26 @@ describe("groupDaySlotsIntoWindows", () => {
     expect(windows[0]?.endsAt).toBe("2026-10-10T11:00:00Z");
     expect(windows[0]?.slotIds).toHaveLength(4);
   });
+
+  it("separa franjas cuando son consecutivas en horario pero pertenecen a distintas etapas (ej. grupos de 9 a 15 y playoffs de 15 a 21)", () => {
+    const slots = [
+      // Franja de Grupos (09:00 a 15:00)
+      { id: "g1", startsAt: "2026-10-10T09:00:00Z", endsAt: "2026-10-10T12:00:00Z", stage: "group" },
+      { id: "g2", startsAt: "2026-10-10T12:00:00Z", endsAt: "2026-10-10T15:00:00Z", stage: "group" },
+      // Franja de Playoffs (15:00 a 21:00)
+      { id: "p1", startsAt: "2026-10-10T15:00:00Z", endsAt: "2026-10-10T18:00:00Z", stage: "playoff" },
+      { id: "p2", startsAt: "2026-10-10T18:00:00Z", endsAt: "2026-10-10T21:00:00Z", stage: "playoff" },
+    ];
+    const windows = groupDaySlotsIntoWindows("2026-10-10", slots);
+    expect(windows).toHaveLength(2);
+    expect(windows[0]?.startsAt).toBe("2026-10-10T09:00:00Z");
+    expect(windows[0]?.endsAt).toBe("2026-10-10T15:00:00Z");
+    expect(windows[0]?.slotIds).toEqual(["g1", "g2"]);
+
+    expect(windows[1]?.startsAt).toBe("2026-10-10T15:00:00Z");
+    expect(windows[1]?.endsAt).toBe("2026-10-10T21:00:00Z");
+    expect(windows[1]?.slotIds).toEqual(["p1", "p2"]);
+  });
 });
 
 describe("summarizeAvailability", () => {

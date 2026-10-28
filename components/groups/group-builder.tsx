@@ -590,7 +590,7 @@ export function GroupBuilder({
           <div className="pt-2">
             <Button type="submit" onClick={save} disabled={isPending || !validation?.ok} className="shadow-sm">
               {isPending ? <Spinner /> : null}
-              Confirmar grupos y generar partidos
+              {isPending ? "Guardando grupos y creando fixture…" : "Confirmar grupos y generar partidos"}
             </Button>
           </div>
         ) : null}

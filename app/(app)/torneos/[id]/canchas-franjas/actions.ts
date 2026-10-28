@@ -12,6 +12,7 @@ import {
   createSlotSchema,
   deleteCourtSchema,
   deleteSlotsSchema,
+  updateSlotsStageSchema,
   generateSlotsSchema,
   updateCourtSchema,
 } from "@/lib/validation/tournament";
@@ -88,7 +89,7 @@ export const deleteCourt = createAction(deleteCourtSchema, async (input, { supab
 // Franjas
 // -----------------------------------------------------------------------------
 
-type SlotInsert = { tournament_id: string; starts_at: string; ends_at: string; court_id: string | null };
+type SlotInsert = { tournament_id: string; starts_at: string; ends_at: string; court_id: string | null; stage?: "group" | "playoff" };
 
 /**
  * Inserta franjas ignorando las que ya existen (mismo horario y cancha), en
@@ -128,6 +129,7 @@ export const generateTimeSlots = createAction(generateSlotsSchema, async (input,
     starts_at: localToUtcIso(slot.date, slot.start, timezone),
     ends_at: localToUtcIso(slot.date, slot.end, timezone),
     court_id: input.courtId,
+    stage: input.stage ?? "group",
   }));
 
   const { created, error } = await insertSlots(supabase, rows);
@@ -146,6 +148,7 @@ export const createTimeSlot = createAction(createSlotSchema, async (input, { sup
       starts_at: localToUtcIso(input.date, input.start, timezone),
       ends_at: localToUtcIso(input.date, input.end, timezone),
       court_id: input.courtId,
+      stage: input.stage ?? "group",
     },
   ]);
   if (error) return actionError(dbErrorMessage(error, NOT_FOUND));
@@ -166,4 +169,21 @@ export const deleteTimeSlots = createAction(deleteSlotsSchema, async (input, { s
   if (data.length === 0) return actionError(NOT_FOUND);
   revalidate(input.tournamentId);
   return actionOk(undefined, data.length === 1 ? "Borramos la franja." : `Borramos ${data.length} franjas.`);
+});
+
+/** Cambia la etapa de franjas horarias existentes entre Grupos y Playoffs (D-180, D-181). */
+export const updateTimeSlotsStage = createAction(updateSlotsStageSchema, async (input, { supabase }) => {
+  const { data, error } = await supabase
+    .from("time_slots")
+    .update({ stage: input.stage })
+    .in("id", input.slotIds)
+    .eq("tournament_id", input.tournamentId)
+    .select("id");
+  if (error) return actionError(dbErrorMessage(error));
+  if (data.length === 0) return actionError(NOT_FOUND);
+  revalidate(input.tournamentId);
+  return actionOk(
+    undefined,
+    `Pasamos ${data.length === 1 ? "la franja" : `${data.length} turnos`} a ${input.stage === "playoff" ? "Cuadro / Playoffs" : "Fase de Grupos"}.`,
+  );
 });

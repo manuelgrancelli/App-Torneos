@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BracketView } from "@/components/bracket/bracket-view";
 import { ExportBracketImageModal } from "@/components/bracket/export-bracket-image-modal";
+import { AutoScheduleBracketButton } from "@/components/bracket/auto-schedule-bracket-button";
 import { ScheduleBracketModal } from "@/components/bracket/schedule-bracket-modal";
 import { CategoryTabs } from "@/components/categories/category-tabs";
 import { MatchesBoard } from "@/components/matches/matches-board";
@@ -179,6 +180,8 @@ export default async function BracketPage({
     ? buildBoardMatches(playoffMatches, groups, teamNames, courtNames, competition.confirmations)
     : [];
 
+  const hasUnscheduledPlayoffMatches = playoffMatches.some((m) => m.slotId === null);
+
   const scheduled: FixedAssignment[] = competition.matches
     .filter((m) => m.startsAt && m.endsAt)
     .map((m) => ({
@@ -245,6 +248,12 @@ export default async function BracketPage({
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {playoffMatches.length > 0 ? (
+              <AutoScheduleBracketButton
+                tournamentId={tournament.id}
+                hasUnscheduledMatches={hasUnscheduledPlayoffMatches}
+              />
+            ) : null}
             {cards.length > 0 ? (
               <ScheduleBracketModal
                 tournamentId={tournament.id}

@@ -332,8 +332,8 @@ export function ExportGroupsImageModal({
             disabled={!imageBlob || isGenerating}
             className={`${canNativeShare ? "flex-1 min-w-[120px]" : "w-full"} bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs sm:text-sm h-10 shadow-xs`}
           >
-            <Download className="size-4 mr-1.5 shrink-0" />
-            Descargar
+            {isGenerating ? <Spinner className="size-4 mr-1.5 shrink-0" /> : <Download className="size-4 mr-1.5 shrink-0" />}
+            {isGenerating ? "Generando imagen…" : "Descargar"}
           </Button>
 
           <Button

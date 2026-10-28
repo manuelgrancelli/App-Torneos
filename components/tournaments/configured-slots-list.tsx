@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp, Clock, Flame, Layers, Swords, Trash2 } from "lucide-react";
-import { deleteTimeSlots } from "@/app/(app)/torneos/[id]/canchas-franjas/actions";
+import { ChevronDown, ChevronUp, Clock, Flame, Layers, Swords, Trash2, Trophy, Users } from "lucide-react";
+import { deleteTimeSlots, updateTimeSlotsStage } from "@/app/(app)/torneos/[id]/canchas-franjas/actions";
 import { ConfirmActionButton } from "@/components/shared/confirm-action-button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -22,39 +22,19 @@ interface ConfiguredSlotsListProps {
   slots: SlotRow[];
 }
 
-/** Paletas de color para diferenciar visualmente cada franja */
-const FRANGE_PALETTES = [
-  {
+/** Paletas de color por etapa del torneo (D-180, D-181) */
+const STAGE_PALETTES = {
+  group: {
     card: "border-l-4 border-l-emerald-500 bg-card hover:bg-card/90",
-    time: "text-emerald-400 dark:text-emerald-300",
-    badge: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+    time: "text-emerald-600 dark:text-emerald-400 font-bold",
+    badge: "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
   },
-  {
-    card: "border-l-4 border-l-sky-500 bg-card hover:bg-card/90",
-    time: "text-sky-400 dark:text-sky-300",
-    badge: "border-sky-500/40 bg-sky-500/10 text-sky-300",
-  },
-  {
+  playoff: {
     card: "border-l-4 border-l-violet-500 bg-card hover:bg-card/90",
-    time: "text-violet-400 dark:text-violet-300",
-    badge: "border-violet-500/40 bg-violet-500/10 text-violet-300",
+    time: "text-violet-600 dark:text-violet-400 font-bold",
+    badge: "border-violet-500/40 bg-violet-500/10 text-violet-600 dark:text-violet-300",
   },
-  {
-    card: "border-l-4 border-l-amber-500 bg-card hover:bg-card/90",
-    time: "text-amber-400 dark:text-amber-300",
-    badge: "border-amber-500/40 bg-amber-500/10 text-amber-300",
-  },
-  {
-    card: "border-l-4 border-l-rose-500 bg-card hover:bg-card/90",
-    time: "text-rose-400 dark:text-rose-300",
-    badge: "border-rose-500/40 bg-rose-500/10 text-rose-300",
-  },
-  {
-    card: "border-l-4 border-l-teal-500 bg-card hover:bg-card/90",
-    time: "text-teal-400 dark:text-teal-300",
-    badge: "border-teal-500/40 bg-teal-500/10 text-teal-300",
-  },
-];
+};
 
 export function ConfiguredSlotsList({
   tournamentId,
@@ -64,15 +44,25 @@ export function ConfiguredSlotsList({
 }: ConfiguredSlotsListProps) {
   const router = useRouter();
   const [expandedWindows, setExpandedWindows] = useState<Set<string>>(new Set());
+  const [stageFilter, setStageFilter] = useState<"all" | "group" | "playoff">("all");
 
   const courtName = useMemo(
     () => new Map(courts.map((court) => [court.id, court.name])),
     [courts],
   );
 
+  const groupSlots = useMemo(() => slots.filter((s) => s.stage === "group"), [slots]);
+  const playoffSlots = useMemo(() => slots.filter((s) => s.stage === "playoff"), [slots]);
+
+  const displayedSlots = useMemo(() => {
+    if (stageFilter === "group") return groupSlots;
+    if (stageFilter === "playoff") return playoffSlots;
+    return slots;
+  }, [slots, stageFilter, groupSlots, playoffSlots]);
+
   const dayWindows = useMemo(
-    () => groupSlotsIntoDayWindows(slots, (slot) => localDateKey(slot.startsAt, timezone)),
-    [slots, timezone],
+    () => groupSlotsIntoDayWindows(displayedSlots, (slot) => localDateKey(slot.startsAt, timezone)),
+    [displayedSlots, timezone],
   );
 
   const toggleExpand = (windowId: string) => {
@@ -117,14 +107,42 @@ export function ConfiguredSlotsList({
     router.refresh();
   };
 
+  const changeWindowStage = async (window: AvailabilityWindow<SlotRow>, targetStage: "group" | "playoff") => {
+    const result = await updateTimeSlotsStage({
+      tournamentId,
+      slotIds: window.slotIds,
+      stage: targetStage,
+    });
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(result.message ?? "Etapa actualizada.");
+    router.refresh();
+  };
+
+  const changeSingleSlotStage = async (slot: SlotRow, targetStage: "group" | "playoff") => {
+    const result = await updateTimeSlotsStage({
+      tournamentId,
+      slotIds: [slot.id],
+      stage: targetStage,
+    });
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(result.message ?? "Turno actualizado.");
+    router.refresh();
+  };
+
   const totalAssignedMatches = slots.reduce((acc, s) => acc + s.assignedMatches, 0);
   const totalGameHours = Math.round(
-    slots.reduce((acc, s) => acc + (Date.parse(s.endsAt) - Date.parse(s.startsAt)) / 3600000, 0),
+    displayedSlots.reduce((acc, s) => acc + (Date.parse(s.endsAt) - Date.parse(s.startsAt)) / 3600000, 0),
   );
 
   return (
     <Card className="overflow-hidden border-border/80 shadow-xs">
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-3 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="space-y-0.5">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -134,7 +152,7 @@ export function ConfiguredSlotsList({
             <CardDescription className="text-xs">
               {slots.length === 0
                 ? "Las franjas que generes aparecerán acá organizadas por día."
-                : `${slots.length} ${slots.length === 1 ? "turno" : "turnos"} en total · ~${totalGameHours} hs de juego`}
+                : `${displayedSlots.length} ${displayedSlots.length === 1 ? "turno" : "turnos"} ${stageFilter !== "all" ? `(${stageFilter === "group" ? "grupos" : "cuadro"})` : "en total"} · ~${totalGameHours} hs de juego`}
             </CardDescription>
           </div>
 
@@ -165,8 +183,52 @@ export function ConfiguredSlotsList({
           ) : null}
         </div>
 
+        {/* Filtro por etapa: Todos / Fase de Grupos / Cuadro / Playoffs */}
+        {slots.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <button
+              type="button"
+              onClick={() => setStageFilter("all")}
+              className={cn(
+                "px-2.5 py-1 text-xs font-medium rounded-lg border transition-all cursor-pointer",
+                stageFilter === "all"
+                  ? "bg-foreground text-background border-foreground font-semibold"
+                  : "bg-muted/50 text-muted-foreground border-border/60 hover:text-foreground",
+              )}
+            >
+              Todos ({slots.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStageFilter("group")}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border transition-all cursor-pointer",
+                stageFilter === "group"
+                  ? "bg-emerald-600 text-white border-emerald-600 font-semibold shadow-xs"
+                  : "bg-muted/50 text-muted-foreground border-border/60 hover:text-foreground",
+              )}
+            >
+              <Users className="size-3" />
+              <span>Grupos ({groupSlots.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStageFilter("playoff")}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border transition-all cursor-pointer",
+                stageFilter === "playoff"
+                  ? "bg-violet-600 text-white border-violet-600 font-semibold shadow-xs"
+                  : "bg-muted/50 text-muted-foreground border-border/60 hover:text-foreground",
+              )}
+            >
+              <Trophy className="size-3" />
+              <span>Cuadro / Playoffs ({playoffSlots.length})</span>
+            </button>
+          </div>
+        ) : null}
+
         {/* Resumen de canchas confirmadas en la creación del torneo */}
-        <div className="pt-2">
+        <div className="pt-1">
           <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground bg-muted/30 border border-border/60 rounded-lg px-2.5 py-1.5">
             <div className="flex items-center gap-1 font-semibold text-foreground shrink-0">
               <Layers className="size-3 text-muted-foreground" />
@@ -197,13 +259,19 @@ export function ConfiguredSlotsList({
             title="Todavía no hay franjas"
             description="Completá el formulario para generarlas. Se crearán los turnos correspondientes para tus canchas automáticamente."
           />
+        ) : displayedSlots.length === 0 ? (
+          <EmptyState
+            icon={Clock}
+            title={`No hay franjas de ${stageFilter === "group" ? "grupos" : "cuadro"}`}
+            description="Cambiá de filtro o generá las franjas correspondientes con el formulario a la derecha."
+          />
         ) : (
           dayWindows.map(({ day, windows }) => {
             const dayAllSlots = windows.flatMap((w) => w.slots);
 
             return (
               <section key={day} aria-labelledby={`day-heading-${day}`} className="space-y-2.5">
-                {/* Header del Día: limpio sin botón redundante */}
+                {/* Header del Día */}
                 <div className="border-b border-border/50 pb-1.5 pt-1">
                   <h3 id={`day-heading-${day}`} className="text-xs sm:text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
                     <span>{formatDayHeading(day)}</span>
@@ -213,7 +281,7 @@ export function ConfiguredSlotsList({
                   </h3>
                 </div>
 
-                {/* Lista de franjas con distinción por color y tipografía mejorada */}
+                {/* Lista de franjas */}
                 <div className="space-y-2.5">
                   {windows.map((window, index) => {
                     const time = formatTimeRange(window.startsAt, window.endsAt, timezone);
@@ -223,6 +291,9 @@ export function ConfiguredSlotsList({
                     const assignedMatches = window.slots.reduce((acc, s) => acc + s.assignedMatches, 0);
                     const inUse = availableTeams > 0 || assignedMatches > 0;
 
+                    const isPlayoffWindow = window.slots.every((s) => s.stage === "playoff");
+                    const isGroupWindow = window.slots.every((s) => s.stage === "group");
+
                     const courtIds = new Set(window.slots.map((s) => s.courtId));
                     const courtLabel =
                       courtIds.size === 1
@@ -230,7 +301,7 @@ export function ConfiguredSlotsList({
                           ? (courtName.get([...courtIds][0]!) ?? "Cancha")
                           : "Todas las canchas"
                         : "Múltiples canchas";
-                    const palette = FRANGE_PALETTES[index % FRANGE_PALETTES.length] ?? FRANGE_PALETTES[0]!;
+                    const palette = isPlayoffWindow ? STAGE_PALETTES.playoff : STAGE_PALETTES.group;
 
                     return (
                       <div
@@ -240,16 +311,41 @@ export function ConfiguredSlotsList({
                           palette.card,
                         )}
                       >
-                        {/* Fila superior: Horario grande, Cancha y Acciones */}
+                        {/* Fila superior: Horario grande, Etapa, Cancha y Acciones */}
                         <div className="flex items-center justify-between gap-2">
-                          <div className="flex flex-wrap items-center gap-2.5 min-w-0">
-                            {/* Horario más grande y visible */}
+                          <div className="flex flex-wrap items-center gap-2 min-w-0">
+                            {/* Horario */}
                             <span className={cn("font-mono text-base sm:text-lg font-bold tabular-nums tracking-tight", palette.time)}>
                               {time}
                             </span>
+
+                            {/* Selector interactivo de Etapa: Grupos vs Cuadro */}
+                            {isPlayoffWindow ? (
+                              <button
+                                type="button"
+                                onClick={() => changeWindowStage(window, "group")}
+                                className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-md border border-violet-500/40 text-violet-600 dark:text-violet-300 bg-violet-500/10 hover:bg-violet-500/20 transition-all cursor-pointer"
+                                title="Franja de Cuadro. Clic para cambiarla a Fase de Grupos"
+                              >
+                                <Trophy className="size-3 mr-1 inline" />
+                                <span>Cuadro</span>
+                              </button>
+                            ) : isGroupWindow ? (
+                              <button
+                                type="button"
+                                onClick={() => changeWindowStage(window, "playoff")}
+                                className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-md border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 transition-all cursor-pointer"
+                                title="Franja de Grupos. Clic para cambiarla a Cuadro / Playoffs"
+                              >
+                                <Users className="size-3 mr-1 inline" />
+                                <span>Grupos</span>
+                              </button>
+                            ) : null}
+
                             <Badge variant="outline" className={cn("text-xs font-semibold px-2.5 py-0.5", palette.badge)}>
                               {courtLabel}
                             </Badge>
+
                             {availableTeams > 0 ? (
                               <Badge variant="secondary" className="text-xs px-2 py-0.5 font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
                                 <Flame className="size-3 mr-1 inline" />
@@ -276,7 +372,7 @@ export function ConfiguredSlotsList({
                               >
                                 <span>{isExpanded ? "Ocultar" : `Turnos (${window.slots.length})`}</span>
                                 {isExpanded ? (
-                                  <ChevronUp className="ml-1 size-3.5" />
+                                   <ChevronUp className="ml-1 size-3.5" />
                                 ) : (
                                   <ChevronDown className="ml-1 size-3.5" />
                                 )}
@@ -297,60 +393,113 @@ export function ConfiguredSlotsList({
                               description={
                                 inUse ? (
                                   <>
-                                    <p>
-                                      {availableTeams > 0
-                                        ? `${availableTeams} inscripciones la marcaron como disponible y perderán esa marca.`
-                                        : null}
-                                    </p>
-                                    <p>{assignedMatches > 0 ? "Los partidos asignados quedan sin horario." : null}</p>
+                                    <p>Hay disponibilidad marcada o partidos asignados en este horario.</p>
+                                    <p>Se borrarán los {window.slots.length} turnos de la franja.</p>
                                   </>
                                 ) : (
-                                  <p>Se borrarán los {window.slots.length} turnos de este intervalo.</p>
+                                  <p>Se eliminarán los {window.slots.length} turnos comprendidos en esta franja.</p>
                                 )
                               }
                               confirmLabel="Borrar franja"
                               onConfirm={() => removeWindow(window)}
                             >
-                              <Trash2 className="size-4" aria-hidden="true" />
+                              <Trash2 className="size-3.5" aria-hidden="true" />
                             </ConfirmActionButton>
                           </div>
                         </div>
 
-                        {/* Detalle desplegable de turnos individuales */}
-                        {isExpanded && window.slots.length > 1 ? (
-                          <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5 space-y-2 pt-2.5">
-                            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                              Turnos dentro del intervalo:
-                            </span>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {/* Desglose de turnos atómicos internos */}
+                        {isExpanded ? (
+                          <div className="mt-2 space-y-1.5 rounded-lg bg-background/60 p-2.5 border border-border/50 text-xs">
+                            <p className="font-semibold text-muted-foreground text-[11px] uppercase tracking-wider mb-1.5">
+                              Turnos de partido ({window.slots.length})
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               {window.slots.map((slot) => {
                                 const slotTime = formatTimeRange(slot.startsAt, slot.endsAt, timezone);
+                                const court = slot.courtId ? courtName.get(slot.courtId) : "Cualquier cancha";
                                 const slotInUse = slot.availableTeams > 0 || slot.assignedMatches > 0;
+
                                 return (
                                   <div
                                     key={slot.id}
-                                    className="flex items-center justify-between rounded-md border border-border/70 bg-background px-2.5 py-1.5 text-xs shadow-2xs"
+                                    className={cn(
+                                      "flex items-center justify-between rounded-md bg-card/90 px-2.5 py-1.5 border border-border/40",
+                                      isPlayoffWindow && "border-violet-500/25",
+                                    )}
                                   >
-                                    <span className="font-mono text-xs font-semibold text-foreground">
-                                      {slotTime}
-                                    </span>
-                                    <ConfirmActionButton
-                                      variant="ghost"
-                                      size="icon"
-                                      destructive
-                                      className="size-5 shrink-0 text-muted-foreground/60 hover:text-destructive cursor-pointer"
-                                      aria-label={`Borrar turno ${slotTime}`}
-                                      title="¿Borrar este turno puntual?"
-                                      description={
-                                        slotInUse
-                                          ? "Puede afectar partidos asignados en este horario específico."
-                                          : "Se eliminará únicamente este turno."
-                                      }
-                                      confirmLabel="Borrar"
-                                      onConfirm={() => removeSingleSlot(slot)}
-                                    >
-                                      <Trash2 className="size-3" aria-hidden="true" />
-                                    </ConfirmActionButton>
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span
+                                        className={cn(
+                                          "font-mono font-medium text-xs",
+                                          isPlayoffWindow
+                                            ? "text-violet-600 dark:text-violet-300 font-semibold"
+                                            : "text-foreground",
+                                        )}
+                                      >
+                                        {slotTime}
+                                      </span>
+                                      <span className="text-muted-foreground text-[11px] truncate">
+                                        · {court}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      {slot.availableTeams > 0 ? (
+                                        <span className="text-[10px] text-emerald-400 font-medium">
+                                          {slot.availableTeams} disp.
+                                        </span>
+                                      ) : null}
+                                      {slot.assignedMatches > 0 ? (
+                                        <span className="text-[10px] text-indigo-300 font-medium ml-1">
+                                          {slot.assignedMatches} part.
+                                        </span>
+                                      ) : null}
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          changeSingleSlotStage(
+                                            slot,
+                                            slot.stage === "playoff" ? "group" : "playoff",
+                                          )
+                                        }
+                                        className="size-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer ml-1"
+                                        title={
+                                          slot.stage === "playoff"
+                                            ? "Turno de Cuadro. Clic para pasarlo a Grupos"
+                                            : "Turno de Grupos. Clic para pasarlo a Cuadro / Playoffs"
+                                        }
+                                        aria-label={
+                                          slot.stage === "playoff"
+                                            ? "Pasar a Grupos"
+                                            : "Pasar a Cuadro"
+                                        }
+                                      >
+                                        {slot.stage === "playoff" ? (
+                                          <Trophy className="size-3 text-violet-500" />
+                                        ) : (
+                                          <Users className="size-3 text-emerald-500" />
+                                        )}
+                                      </button>
+                                      <ConfirmActionButton
+                                        variant="ghost"
+                                        size="icon"
+                                        destructive
+                                        className="size-6 text-muted-foreground hover:text-destructive cursor-pointer ml-1"
+                                        aria-label={`Borrar turno ${slotTime}`}
+                                        title="¿Borrar este turno específico?"
+                                        description={
+                                          slotInUse ? (
+                                            <p>Este turno tiene parejas con disponibilidad o partidos asignados.</p>
+                                          ) : (
+                                            <p>Se eliminará este turno de juego.</p>
+                                          )
+                                        }
+                                        confirmLabel="Borrar turno"
+                                        onConfirm={() => removeSingleSlot(slot)}
+                                      >
+                                        <Trash2 className="size-3" aria-hidden="true" />
+                                      </ConfirmActionButton>
+                                    </div>
                                   </div>
                                 );
                               })}

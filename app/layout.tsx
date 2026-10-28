@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import { connection } from "next/server";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { TopLoadingBar } from "@/components/shared/top-loading-bar";
 import { APP_DESCRIPTION, APP_NAME } from "@/lib/config";
 import "./globals.css";
 
@@ -60,6 +61,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col">
         <ThemeProvider defaultTheme={themeCookie}>
           {children}
+          <TopLoadingBar />
           <Toaster position="top-center" richColors closeButton />
         </ThemeProvider>
       </body>

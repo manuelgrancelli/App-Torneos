@@ -180,7 +180,7 @@ export const getCompetition = cache(async (tournamentId: string): Promise<Compet
 });
 
 export type SchedulingData = {
-  slots: { id: string; startsAt: string; endsAt: string; courtId: string | null }[];
+  slots: { id: string; startsAt: string; endsAt: string; courtId: string | null; stage?: "group" | "playoff" }[];
   courts: { id: string; name: string; venue: string | null }[];
   availability: Record<string, string[]>;
 };
@@ -189,7 +189,7 @@ export type SchedulingData = {
 export const getSchedulingData = cache(async (tournamentId: string): Promise<SchedulingData> => {
   const supabase = await createClient();
   const [slots, courts, rows] = await Promise.all([
-    supabase.from("time_slots").select("id, starts_at, ends_at, court_id").eq("tournament_id", tournamentId).order("starts_at"),
+    supabase.from("time_slots").select("id, starts_at, ends_at, court_id, stage").eq("tournament_id", tournamentId).order("starts_at"),
     supabase.from("courts").select("id, name, venue").eq("tournament_id", tournamentId).order("position").order("name"),
     supabase.from("team_availability").select("team_id, slot_id").eq("tournament_id", tournamentId),
   ]);
@@ -201,7 +201,7 @@ export const getSchedulingData = cache(async (tournamentId: string): Promise<Sch
   for (const row of rows.data) (availability[row.team_id] ??= []).push(row.slot_id);
 
   return {
-    slots: slots.data.map((s) => ({ id: s.id, startsAt: s.starts_at, endsAt: s.ends_at, courtId: s.court_id })),
+    slots: slots.data.map((s) => ({ id: s.id, startsAt: s.starts_at, endsAt: s.ends_at, courtId: s.court_id, stage: ((s as any).stage ?? "group") as "group" | "playoff" })),
     courts: courts.data,
     availability,
   };

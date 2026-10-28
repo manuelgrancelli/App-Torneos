@@ -52,6 +52,7 @@ export default async function CourtsAndSlotsPage({
           timezone={tournament.timezone}
           days={listDates(tournament.startsOn, tournament.endsOn)}
           courts={courts}
+          slots={slots}
         />
       </div>
     </div>

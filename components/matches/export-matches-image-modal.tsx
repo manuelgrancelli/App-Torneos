@@ -506,8 +506,8 @@ export function ExportMatchesImageModal({
             disabled={!imageBlob || isGenerating || filteredMatches.length === 0}
             className={`${canNativeShare ? "flex-1 min-w-[120px]" : "w-full sm:flex-1"} bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs sm:text-sm h-10 shadow-xs`}
           >
-            <Download className="size-4 mr-1.5 shrink-0" />
-            Descargar
+            {isGenerating ? <Spinner className="size-4 mr-1.5 shrink-0" /> : <Download className="size-4 mr-1.5 shrink-0" />}
+            {isGenerating ? "Generando imagen…" : "Descargar"}
           </Button>
 
           <Button
@@ -649,7 +649,7 @@ export function ExportMatchesImageModal({
           {isGenerating ? (
             <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground py-8">
               <Spinner className="size-8" />
-              <span>Generando imagen de horarios…</span>
+              <span>Generando imagen en alta resolución…</span>
             </div>
           ) : filteredMatches.length === 0 ? (
             <div className="text-center text-sm text-muted-foreground py-8">

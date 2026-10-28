@@ -586,6 +586,7 @@ export type SlotRow = {
   startsAt: string;
   endsAt: string;
   courtId: string | null;
+  stage: "group" | "playoff";
   availableTeams: number;
   assignedMatches: number;
 };
@@ -603,7 +604,7 @@ export const getCourtsAndSlots = cache(
         .order("name"),
       supabase
         .from("time_slots")
-        .select("id, starts_at, ends_at, court_id, team_availability(count), matches(count)")
+        .select("id, starts_at, ends_at, court_id, stage, team_availability(count), matches(count)")
         .eq("tournament_id", tournamentId)
         .order("starts_at"),
     ]);
@@ -617,6 +618,7 @@ export const getCourtsAndSlots = cache(
         startsAt: slot.starts_at,
         endsAt: slot.ends_at,
         courtId: slot.court_id,
+        stage: ((slot as any).stage ?? "group") as "group" | "playoff",
         availableTeams: slot.team_availability[0]?.count ?? 0,
         assignedMatches: slot.matches[0]?.count ?? 0,
       })),
