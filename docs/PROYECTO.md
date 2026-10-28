@@ -2386,3 +2386,80 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
     - La fecha por defecto del formulario de programación prioriza `startsOn` del torneo en lugar de `endsOn`.
 - **Motivo:** responder a la solicitud del usuario ("esta un poco mejor lo de los horarios para cuadro, lo que si, te muestra primero para poner el horario de la final, debe ser al reves, que arranque mostrandote para poner horarios de la fase minima es decir si hay 16 avos mostramelo antes que octavos").
 - **Cómo aplicar:** implementado en `components/bracket/schedule-bracket-modal.tsx` y `docs/PROYECTO.md`.
+
+### D-171 — Reemplazo de "Página pública" por botón "Ver fixture completo" (jugador) y modal "Compartir fixture" (organizador) (2026-10-27)
+- **Decisión:**
+  - **Vista del jugador (`app/(app)/inscripciones/[teamId]/page.tsx`):**
+    - Se eliminó el enlace de texto plano "Página pública" (`PublicPageLink`) que se ubicaba discretamente junto a las fechas del torneo.
+    - Se incorporó un botón prominente **"Ver fixture completo"** con ícono `CalendarRange` e indicador de enlace externo (`ExternalLink`), situado en la cabecera superior del equipo (bien arriba, antes del afiche, banner de circuito y de la sección "Mi zona" donde el jugador consulta el estado de su grupo). Al pulsarlo, abre `/t/[slug]?vista=fixture` en una nueva pestaña.
+    - Se adaptó fluidamente tanto para teléfonos móviles (ancho completo `w-full` debajo de los datos del equipo) como para escritorio (`sm:w-auto` alineado a la derecha de la cabecera).
+  - **Vista del organizador (`app/(app)/torneos/[id]/layout.tsx` y `partidos/page.tsx`):**
+    - Se reemplazó el texto "Página pública" por el nuevo componente **`ShareFixtureModal`** (`components/tournaments/share-fixture-modal.tsx`), con botón **"Compartir fixture"** con acento esmeralda e ícono `Share2`.
+    - Al hacer clic, abre un diálogo modal que presenta:
+      1. El link público directo al fixture (`https://.../t/[slug]?vista=fixture`).
+      2. Botón de copiado al portapapeles con un clic con feedback visual y toast.
+      3. Botón de acceso directo para compartir por **WhatsApp** con mensaje prearmado que incluye emojis deportivos, nombre del torneo y enlace oficial.
+      4. Soporte para el diálogo de compartir nativo del dispositivo (`navigator.share`) en navegadores compatibles (celulares/tablets).
+      5. Enlace directo para abrir la vista pública del fixture.
+    - El botón se integró en la cabecera del panel del torneo (`layout.tsx`) para estar disponible en todo momento y también en la barra de herramientas de la vista de partidos (`partidos/page.tsx`) junto al exportador de imágenes.
+- **Motivo:** responder a la solicitud del usuario ("LA OPCION QUE APARECE QUE DICE PAGINA PUBLICA no me gusta, en la parte de jugador saca esa opcion y pone una opcion de ver fixture completo, tiene que ser un boton que este bastante arriba, antes de que el jugador vea como esta su grupo, y en la parte de organizador estaria bueno que le aparezca la opcion de compartir fixture con el link de la pagina").
+- **Cómo aplicar:** implementado en `components/tournaments/share-fixture-modal.tsx`, `app/(app)/inscripciones/[teamId]/page.tsx`, `app/(app)/torneos/[id]/layout.tsx`, `app/(app)/torneos/[id]/partidos/page.tsx` y `docs/PROYECTO.md`.
+
+### D-172 — Desvinculación y limpieza automática de cruces duplicados en cuadro y ocultamiento de disponibilidad horaria tras inicio del torneo (2026-10-27)
+- **Decisión:**
+  - **Limpieza y prevención de cruces duplicados en playoffs (`app/(app)/torneos/[id]/cuadro/actions.ts`):**
+    - **Diagnóstico del problema:** Al rearmar un cuadro (`force: true`), la eliminación de partidos previos (`delQuery`) fallaba silenciosamente debido al check constraint de PostgreSQL `check ((next_match_id is null) = (next_match_side is null))`: al intentar borrar partidos que eran referenciados por rondas anteriores, el `ON DELETE SET NULL` ponía `next_match_id = null` pero dejaba `next_match_side` en `'home'` o `'away'`, violando la restricción y abortando el `DELETE`. Como la llamada no validaba errores, continuaba e insertaba una nueva tanda de partidos, acumulando 45 partidos en lugar de 15 (24 octavos, 12 cuartos, 6 semis y 3 finales).
+    - **Desvinculación previa segura:** Antes de borrar partidos de playoffs en `ensurePlayoffBracket`, se actualiza primero `next_match_id = null, next_match_side = null, loser_next_match_id = null, loser_next_match_side = null`. De esta forma, el posterior `DELETE` se ejecuta limpiamente sin violar restricciones de clave foránea ni checks.
+    - **Detección y auto-reparación:** `ensurePlayoffBracket` detecta automáticamente si existen partidos duplicados (`existing.length > plan.matches.length` o claves `(round, position, isThirdPlace)` repetidas). Si detecta duplicados, activa `shouldRebuild = true` de forma autónoma, limpiando los registros corruptos y reinsertando el cuadro unificado correspondiente.
+    - **Deduplicación defensiva en UI:** Se implementó deduplicación estricta por `(round, position, isThirdPlace)` en `lib/competition-view.ts` (`cardsFromMatches`), `app/(app)/torneos/[id]/cuadro/page.tsx` (`playoffMatches`) y `app/t/[slug]/page.tsx` (`playoffMatches`), garantizando que la interfaz nunca renderice cruces repetidos ni totales inflados (ej. nunca mostrará 24 octavos ni 3 finales).
+  - **Ocultamiento de disponibilidad horaria tras inicio del torneo (`app/(app)/inscripciones/[teamId]/page.tsx`):**
+    - Cuando el torneo ya comenzó (`started = !["draft", "registration_open"].includes(tournament.status)`), la tarjeta de `Disponibilidad` (`AvailabilityPicker`) se oculta por completo de la vista del jugador/pareja.
+    - El contenedor se adapta dinámicamente (`started ? "space-y-6" : "grid gap-6 lg:grid-cols-[1fr_2fr]"`) para que la tarjeta de "Pareja / Equipo" ocupe el ancho natural sin dejar columnas vacías innecesarias.
+- **Motivo:** responder a la solicitud del usuario ("fijate que en esa categoria aparece que son como 24 partidos de octavos algo grave paso ahi me parece porque en las otras categorias aparecen 8 partidos de octavos y esta bien pero en esa no se que paso, fijate, me parece por lo que interpreto hay 3 finales, para mi se mezclaron las categorias, y despues cuando arranca el torneo que no le aparezca la disponibilidad a cada jugador, ya que noi es necesario").
+- **Cómo aplicar:** implementado en `app/(app)/torneos/[id]/cuadro/actions.ts`, `app/(app)/torneos/[id]/cuadro/page.tsx`, `app/t/[slug]/page.tsx`, `lib/competition-view.ts`, `lib/competition-view.test.ts`, `app/(app)/inscripciones/[teamId]/page.tsx` y `docs/PROYECTO.md`.
+
+### D-173 — Rediseño estético y rectangular de ActiveTournamentCard (2026-10-27)
+- **Decisión:**
+  - En `ActiveTournamentCard` (`components/player/active-tournament-card.tsx`):
+    - Se eliminó la barra de etapas del torneo (`PlayerStepper`) que mostraba los pasos desde inscripción hasta la final.
+    - Se eliminó la etiqueta de estado de inscripción aprobada (`TeamStatusBadge`) cuando el equipo ya está aprobado (manteniendo advertencias sutiles solo para estados pendientes o rechazados).
+    - Se eliminó el contador de récord de partidos jugados y ganados (`1 PJ · 1 G`).
+    - Se rediseñó la tarjeta para adoptar proporciones horizontales elegantes (más rectangular que cuadrada), con fondo degradado sutil (`bg-gradient-to-br from-card via-card/95 to-primary/5`), borde pulido y caja de "Próximo partido" compacta y horizontal con tipografía moderna, íconos y llamada a la acción "Ver mi progreso" con chevron interactivo.
+    - En `app/(app)/torneos/page.tsx`, cuando el usuario tiene un solo torneo activo, el contenedor adopta `max-w-2xl` para proyectar una tarjeta rectangular amplia en lugar de confinarse a la mitad de una grilla cuadrada.
+- **Motivo:** responder a la solicitud del usuario ("EN LA FOTO desde la vista jugador/participo te digo lo que hay que sacar, primero la barra que va desde inscripcion a final despues lo de partidos jugados y ganados y la etiqueta deinscripcion aprobada y me gustaria que quede mas estetica, quiza que sea mas rectangulo que cuadrado").
+- **Cómo aplicar:** implementado en `components/player/active-tournament-card.tsx`, `app/(app)/torneos/page.tsx` y `docs/PROYECTO.md`.
+
+### D-174 — Rediseño estético y rectangular de tarjetas de organizador (OrganizedTournamentCard) (2026-10-27)
+- **Decisión:**
+  - En `OrganizedTournamentCard` y `FinishedTournamentCard` (`components/tournaments/tournament-card.tsx`):
+    - **Categorías directas sin conteo redundante:** Se eliminó el prefijo `{categories.length} categorías:` cuando ya hay categorías cargadas; ahora se muestran de inmediato las insignias de las categorías existentes (`[6ta CABALLEROS (14)] [5TA Caballeros (18)] ...`) precedidas por un ícono sutil `Layers`.
+    - **Corrección de etiqueta de inscripciones:** Se sustituyó la frase redundante e incorrecta `X parejas aprobadas inscriptas` / `X equipos aprobados inscriptas` por `X parejas inscriptas` (pádel), `X equipos inscriptos` (fútbol) o `X jugadores inscriptos` (tenis individual), eliminando la palabra "aprobadas".
+    - **Fecha en blanco fuerte:** Se actualizó la tipografía de la fecha del torneo a `font-semibold text-zinc-950 dark:text-white` con ícono `CalendarDays` coloreado con `text-primary`. En modo oscuro resalta en blanco puro de alto contraste; en modo claro se presenta en negro carbón nítido y legible.
+    - **Proporciones rectangulares estilizadas:** Se compactaron las separaciones verticales internas (`space-y-3`, padding `p-4 sm:p-4.5`, caja de inscripciones `p-2.5 sm:px-3 sm:py-2`), reduciendo la altura total en ~35px y logrando una silueta apaisada más rectangular.
+    - En `components/tournaments/tournament-dashboard.tsx`, cuando el organizador tiene un único torneo activo, el contenedor utiliza `max-w-2xl` para que se expanda horizontalmente con elegancia.
+- **Motivo:** responder a la solicitud del usuario ("y en esta foto, del lado organizador que sea similar a lo que te dije anteriromente mas rectangulo que cuadrado, y si ya tiene categorias cargadas que no aparezca cuantas categorias hay cargadas, sino que aparezca que categorias hay cargadas, despues lo de parejas aprobadas inscriptas que diga parejas inscriptas sin lo de aprobadas y la fecha del torneo que sea color blanca fuerte, no gris, en modo oscuro al menos, en modo claro se puede poner de alguna forma que quede notoria").
+- **Cómo aplicar:** implementado en `components/tournaments/tournament-card.tsx`, `components/tournaments/tournament-dashboard.tsx` y `docs/PROYECTO.md`.
+
+### D-175 — Cuadro de playoffs plegable en la vista del jugador (2026-10-27)
+- **Decisión:**
+  - En `PlayerProgressPanel` (`components/player/player-progress-panel.tsx`), la tarjeta del **Cuadro de playoffs** (tanto real como proyectado) se transformó en un panel **plegable/desplegable** mediante `<details className="group/bracket">` nativo estilizado como Card:
+    - **Plegado por defecto:** Ocupa solo una barra delgada y elegante (~48px) con el ícono `Network`, el título "Cuadro de playoffs", badge "Proyectado" si corresponde, subtítulo informativo y el indicador "Ver cuadro" con ícono `ChevronDown` animado que rota al abrirse.
+    - **Apertura y cierre con un clic:** Al tocar el encabezado, se expande fluidamente mostrando el árbol y fixture completo de playoffs (`BracketView`), y permite replegarlo con otro clic cambiando el texto a "Ocultar cuadro".
+    - **Ahorro de espacio:** Evita que el cuadro completo monopolice la pantalla del jugador en teléfonos móviles o computadoras, permitiéndole consultar de inmediato su zona y sus partidos sin scroll interminable.
+- **Motivo:** responder a la solicitud del usuario ("el cuadro en jugador hacelo plegable sino le ocupa mucho espacio").
+- **Cómo aplicar:** implementado en `components/player/player-progress-panel.tsx` y `docs/PROYECTO.md`.
+
+### D-176 — Cambio de color del campo de código de inscripción de verde a blanco (2026-10-27)
+- **Decisión:**
+  - En `JoinCodeForm` (`components/registration/join-code-form.tsx`):
+    - Se eliminó el estilo verde esmeralda del input de código de inscripción (`bg-emerald-100/90 dark:bg-emerald-950/60`, `text-emerald-950 dark:text-emerald-100`, `border-emerald-600/70 dark:border-emerald-500/70`, `placeholder:text-emerald-800/60`).
+    - Se reemplazó por un estilo blanco/neutro de alto contraste: `bg-white dark:bg-zinc-900/90 text-zinc-950 dark:text-white border-2 border-zinc-300 dark:border-zinc-700 placeholder:text-muted-foreground/50 dark:placeholder:text-zinc-500 focus:bg-white dark:focus:bg-zinc-900 focus:border-zinc-600 dark:focus:border-white focus-visible:ring-zinc-400/20`.
+    - En modo oscuro se destaca con fondo oscuro profundo y texto y foco en blanco brillante; en modo claro presenta fondo blanco limpio con tipografía oscura nítida.
+- **Motivo:** responder a la solicitud del usuario ("donde aparece para poner codigo de inscripcion esta en verde, cambialo a blanco").
+- **Cómo aplicar:** implementado en `components/registration/join-code-form.tsx` y `docs/PROYECTO.md`.
+
+
+
+
+
+

@@ -136,8 +136,17 @@ export async function ensurePlayoffBracket(
 
   const plan = buildBracket(qualifiers, { thirdPlace });
 
-  // Si los partidos ya existen y no se fuerza rearmar:
-  if (existing && existing.length > 0 && !options?.force) {
+  // Detectar si la base de datos contiene cruces duplicados (por inserciones fallidas o regeneraciones previas)
+  const hasDuplicates = Boolean(
+    existing &&
+      (existing.length > plan.matches.length ||
+        new Set(existing.map((e) => `${e.round}-${e.position}-${Boolean(e.is_third_place)}`)).size < existing.length),
+  );
+
+  const shouldRebuild = Boolean(options?.force || hasDuplicates);
+
+  // Si los partidos ya existen, no hay duplicados corruptos y no se fuerza rearmar:
+  if (existing && existing.length > 0 && !shouldRebuild) {
     // Si concluyó la fase de grupos, actualizamos las parejas clasificadas en los cruces
     // preservando los horarios y canchas ya programados por el organizador (D-168).
     if (allGroupMatchesFinished) {
@@ -180,13 +189,43 @@ export async function ensurePlayoffBracket(
     return { ok: true, count: existing.length, warnings: plan.warnings };
   }
 
-  // Si no existen o se fuerza rearmar:
-  if (options?.force && existing && existing.length > 0) {
-    let delQuery = supabase.from("matches").delete().eq("tournament_id", tournamentId).eq("stage", "playoff");
-    if (options.categoryId) {
+  // Si se debe rearmar (forzado o por duplicados detectados) y existen partidos anteriores:
+  if (shouldRebuild && existing && existing.length > 0) {
+    // Paso 0: Desvincular llaves auto-referenciales (next_match_id y loser_next_match_id)
+    // para no violar el check constraint `((next_match_id is null) = (next_match_side is null))` (D-172)
+    let unlinkQuery = supabase
+      .from("matches")
+      .update({
+        next_match_id: null,
+        next_match_side: null,
+        loser_next_match_id: null,
+        loser_next_match_side: null,
+      })
+      .eq("tournament_id", tournamentId)
+      .eq("stage", "playoff");
+
+    if (options?.categoryId) {
+      unlinkQuery = (unlinkQuery as any).eq("category_id", options.categoryId);
+    }
+    const { error: unlinkError } = await unlinkQuery;
+    if (unlinkError) {
+      console.error("Error unlinking playoff matches:", unlinkError);
+    }
+
+    // Paso 0.1: Eliminar partidos de playoff anteriores
+    let delQuery = supabase
+      .from("matches")
+      .delete()
+      .eq("tournament_id", tournamentId)
+      .eq("stage", "playoff");
+
+    if (options?.categoryId) {
       delQuery = (delQuery as any).eq("category_id", options.categoryId);
     }
-    await delQuery;
+    const { error: delError } = await delQuery;
+    if (delError) {
+      return { ok: false, error: dbErrorMessage(delError) };
+    }
   }
 
   const keyToId = new Map<string, string>();

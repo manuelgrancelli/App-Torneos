@@ -255,7 +255,7 @@ export function TournamentDashboard({
                   description="Todavía no tenés torneos creados. Cuando crees uno aparecerá acá."
                 />
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={filteredActiveOrganized.length === 1 ? "max-w-2xl" : "grid grid-cols-1 md:grid-cols-2 gap-4"}>
                   {filteredActiveOrganized.map((tournament) => (
                     <OrganizedTournamentCard
                       key={tournament.id}

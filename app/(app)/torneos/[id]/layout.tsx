@@ -1,5 +1,5 @@
 import { CalendarDays } from "lucide-react";
-import { PublicPageLink } from "@/components/tournaments/public-page-link";
+import { ShareFixtureModal } from "@/components/tournaments/share-fixture-modal";
 import { StatusBadge, SportBadge } from "@/components/tournaments/status-badge";
 import { buildPhaseGuide } from "@/components/tournaments/phase-guide-model";
 import { type NavGroupKey, TournamentNav } from "@/components/tournaments/tournament-nav";
@@ -38,17 +38,27 @@ export default async function TournamentPanelLayout({ children, params }: Layout
     <div className="space-y-6">
       <header className="space-y-4">
         <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{tournament.name}</h1>
-            <SportBadge sport={tournament.sport.name} />
-            <StatusBadge status={tournament.status} />
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-semibold tracking-tight">{tournament.name}</h1>
+              <SportBadge sport={tournament.sport.name} />
+              <StatusBadge status={tournament.status} />
+            </div>
+            {tournament.status !== "draft" ? (
+              <div className="flex items-center gap-2">
+                <ShareFixtureModal
+                  slug={tournament.slug}
+                  tournamentName={tournament.name}
+                  status={tournament.status}
+                />
+              </div>
+            ) : null}
           </div>
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <CalendarDays className="size-4" aria-hidden="true" />
               {formatDateRange(tournament.startsOn, tournament.endsOn)}
             </span>
-            <PublicPageLink slug={tournament.slug} status={tournament.status} />
           </p>
         </div>
         <TournamentProgress

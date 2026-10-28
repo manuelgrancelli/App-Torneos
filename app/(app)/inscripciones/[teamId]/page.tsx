@@ -1,4 +1,4 @@
-import { CalendarDays, Crown, Trophy, UserRoundCheck, UserRoundX } from "lucide-react";
+import { CalendarDays, CalendarRange, Crown, ExternalLink, Trophy, UserRoundCheck, UserRoundX } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -12,10 +12,10 @@ import { RemoveMemberButton } from "@/components/registration/remove-member-butt
 import { TeamActions } from "@/components/registration/team-actions";
 import { TeamInviteCard } from "@/components/registration/team-invite-card";
 import { TeamShield } from "@/components/teams/team-shield";
-import { PublicPageLink } from "@/components/tournaments/public-page-link";
 import { StatusBadge, TeamStatusBadge, SportBadge } from "@/components/tournaments/status-badge";
 import { TournamentBanner } from "@/components/tournaments/tournament-banner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth";
 import { buildTeamMatches } from "@/lib/competition-view";
@@ -78,27 +78,44 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
 
   return (
     <div className="w-full min-w-0 max-w-full overflow-x-hidden space-y-6">
-      <header className="space-y-2">
+      <header className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-foreground">{tournament.name}</span>
           <SportBadge sport={tournament.sportName} />
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <TeamShield logoUrl={team.logoUrl} teamName={team.name} size="lg" />
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight">{team.name}</h1>
-              <TeamStatusBadge status={team.status} />
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <TeamShield logoUrl={team.logoUrl} teamName={team.name} size="lg" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-semibold tracking-tight truncate">{team.name}</h1>
+                <TeamStatusBadge status={team.status} />
+              </div>
+              <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground mt-0.5">
+                <span className="inline-flex items-center gap-1">
+                  <CalendarDays className="size-4" aria-hidden="true" />
+                  {formatDateRange(tournament.startsOn, tournament.endsOn)}
+                </span>
+                <StatusBadge status={tournament.status} />
+              </p>
             </div>
-            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground mt-0.5">
-              <span className="inline-flex items-center gap-1">
-                <CalendarDays className="size-4" aria-hidden="true" />
-                {formatDateRange(tournament.startsOn, tournament.endsOn)}
-              </span>
-              <StatusBadge status={tournament.status} />
-              <PublicPageLink slug={tournament.slug} status={tournament.status} />
-            </p>
           </div>
+          {tournament.status !== "draft" ? (
+            <div className="shrink-0 pt-1 sm:pt-0">
+              <Button
+                asChild
+                variant="outline"
+                className="w-full sm:w-auto h-9 gap-2 font-medium shadow-2xs border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary hover:text-primary transition-all"
+              >
+                <Link href={`/t/${tournament.slug}?vista=fixture`} target="_blank" rel="noopener">
+                  <CalendarRange className="size-4 text-primary" aria-hidden="true" />
+                  <span>Ver fixture completo</span>
+                  <ExternalLink className="size-3.5 text-muted-foreground" aria-hidden="true" />
+                  <span className="sr-only">(se abre en una pestaña nueva)</span>
+                </Link>
+              </Button>
+            </div>
+          ) : null}
         </div>
       </header>
 
@@ -171,7 +188,7 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
         </Card>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_2fr]">
+      <div className={started ? "space-y-6" : "grid gap-6 lg:grid-cols-[1fr_2fr]"}>
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
@@ -281,28 +298,30 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              <h2 className="text-base font-semibold">Disponibilidad</h2>
-            </CardTitle>
-            <CardDescription>
-              {registrationOpen
-                ? "Marcá todas las franjas en las que pueden jugar. Con eso se arman los horarios de los partidos."
-                : "La inscripción cerró: la disponibilidad ya no se puede cambiar."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AvailabilityPicker
-              teamId={team.id}
-              timezone={tournament.timezone}
-              slots={team.slots}
-              courts={team.courts}
-              selected={team.availability}
-              readOnly={!registrationOpen}
-            />
-          </CardContent>
-        </Card>
+        {!started ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <h2 className="text-base font-semibold">Disponibilidad</h2>
+              </CardTitle>
+              <CardDescription>
+                {registrationOpen
+                  ? "Marcá todas las franjas en las que pueden jugar. Con eso se arman los horarios de los partidos."
+                  : "La inscripción cerró: la disponibilidad ya no se puede cambiar."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AvailabilityPicker
+                teamId={team.id}
+                timezone={tournament.timezone}
+                slots={team.slots}
+                courts={team.courts}
+                selected={team.availability}
+                readOnly={!registrationOpen}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
     </div>
   );

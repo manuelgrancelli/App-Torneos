@@ -1,4 +1,4 @@
-import { CalendarClock, Crown, Flag, LayoutGrid, MapPin, Network, Swords, Trophy } from "lucide-react";
+import { CalendarClock, ChevronDown, Crown, Flag, LayoutGrid, MapPin, Network, Swords, Trophy } from "lucide-react";
 import { BracketView } from "@/components/bracket/bracket-view";
 import { StandingsTable } from "@/components/groups/standings-table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -199,39 +199,53 @@ export function PlayerProgressPanel({ progress, tournamentStatus, timezone, team
       ) : null}
 
       {hasBracket || (projected && projected.length > 0) ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              <h2 className="flex items-center gap-2 text-base font-semibold">
-                <Network className="size-4 text-primary" aria-hidden="true" />
-                Cuadro
-              </h2>
-            </CardTitle>
-            {!hasBracket ? (
-              <CardDescription>Proyectado con las posiciones actuales: puede cambiar hasta que terminen los grupos.</CardDescription>
-            ) : null}
-          </CardHeader>
-          <CardContent>
-            <BracketView
-              cards={
-                hasBracket
-                  ? cardsFromMatches(
-                      progress.playoffMatches,
-                      teamNames,
-                      courtNames,
-                      buildTeamSeedMap(
-                        progress.categoryGroups,
-                        progress.categoryMatches,
-                        progress.scoring,
-                        progress.standingsConfig,
-                        perGroup,
-                      ),
-                    )
-                  : (projected ?? [])
-              }
-              timezone={timezone}
-            />
-          </CardContent>
+        <Card className="overflow-hidden">
+          <details className="group/bracket">
+            <summary className="flex cursor-pointer list-none items-center justify-between p-4 sm:p-5 hover:bg-muted/40 transition-colors select-none [&::-webkit-details-marker]:hidden">
+              <div className="space-y-1 min-w-0 pr-2">
+                <div className="flex items-center gap-2">
+                  <Network className="size-4 text-primary shrink-0" aria-hidden="true" />
+                  <h2 className="text-base font-semibold text-foreground truncate">Cuadro de playoffs</h2>
+                  {!hasBracket ? (
+                    <span className="text-[11px] font-medium rounded-full bg-primary/10 text-primary px-2 py-0.5 border border-primary/20 shrink-0">
+                      Proyectado
+                    </span>
+                  ) : null}
+                </div>
+                <p className="text-xs text-muted-foreground line-clamp-1">
+                  {!hasBracket
+                    ? "Proyectado con las posiciones de grupos. Tocá para ver cómo quedan los cruces."
+                    : "Tocá para desplegar los cruces y llaves de playoffs."}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground group-hover/bracket:text-primary transition-colors shrink-0 ml-3">
+                <span className="hidden sm:inline group-open/bracket:hidden">Ver cuadro</span>
+                <span className="hidden sm:group-open/bracket:inline">Ocultar cuadro</span>
+                <ChevronDown className="size-4 transition-transform duration-200 group-open/bracket:rotate-180" aria-hidden="true" />
+              </div>
+            </summary>
+            <div className="border-t p-4 sm:p-6 pt-4">
+              <BracketView
+                cards={
+                  hasBracket
+                    ? cardsFromMatches(
+                        progress.playoffMatches,
+                        teamNames,
+                        courtNames,
+                        buildTeamSeedMap(
+                          progress.categoryGroups,
+                          progress.categoryMatches,
+                          progress.scoring,
+                          progress.standingsConfig,
+                          perGroup,
+                        ),
+                      )
+                    : (projected ?? [])
+                }
+                timezone={timezone}
+              />
+            </div>
+          </details>
         </Card>
       ) : null}
     </div>

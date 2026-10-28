@@ -5,6 +5,7 @@ import { ExportMatchesImageModal } from "@/components/matches/export-matches-ima
 import { MatchesBoard } from "@/components/matches/matches-board";
 import { SimulateResultsButton } from "@/components/matches/simulate-results-button";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ShareFixtureModal } from "@/components/tournaments/share-fixture-modal";
 import { buildBoardMatches } from "@/lib/competition-view";
 import { getCompetition, getSchedulingData } from "@/lib/data/competition";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
@@ -67,12 +68,19 @@ export default async function MatchesPage({ params }: PageProps<"/torneos/[id]/p
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {board.length > 0 ? (
-            <ExportMatchesImageModal
-              tournamentName={tournament.name}
-              sportName={tournament.sport.name}
-              timezone={tournament.timezone}
-              matches={board}
-            />
+            <>
+              <ShareFixtureModal
+                slug={tournament.slug}
+                tournamentName={tournament.name}
+                status={tournament.status}
+              />
+              <ExportMatchesImageModal
+                tournamentName={tournament.name}
+                sportName={tournament.sport.name}
+                timezone={tournament.timezone}
+                matches={board}
+              />
+            </>
           ) : null}
           {canEdit && pending.length > 0 ? (
             <>

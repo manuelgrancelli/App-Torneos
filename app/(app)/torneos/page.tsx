@@ -107,7 +107,7 @@ async function PlayerHome({
             description="Pedile al organizador el código o el link de inscripción y anotate con tu pareja."
           />
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className={active.length === 1 ? "max-w-2xl" : "grid grid-cols-1 gap-4 md:grid-cols-2"}>
             {active.map((participation) => {
               const teamMatches = byTeam.get(participation.teamId) ?? [];
               const next =

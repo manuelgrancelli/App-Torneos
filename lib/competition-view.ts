@@ -519,6 +519,18 @@ export function cardsFromMatches(
     }
   }
 
+  // Deduplicación defensiva por ronda, posición y tercer puesto
+  const dedupedMatches: MatchView[] = [];
+  const seenKey = new Set<string>();
+  for (const m of playoffMatches) {
+    const key = `${m.round}-${m.position}-${Boolean(m.isThirdPlace)}`;
+    if (!seenKey.has(key)) {
+      seenKey.add(key);
+      dedupedMatches.push(m);
+    }
+  }
+  playoffMatches = dedupedMatches;
+
   return playoffMatches.map((m) => {
     const proj = projectedCards?.find(
       (p) => p.round === m.round && p.position === m.position && p.isThirdPlace === m.isThirdPlace,

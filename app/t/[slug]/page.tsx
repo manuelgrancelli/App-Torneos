@@ -141,7 +141,14 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
       )
     : competition.matches;
 
-  const playoffMatches = filteredMatches.filter((m) => m.stage === "playoff");
+  let playoffMatches = filteredMatches.filter((m) => m.stage === "playoff");
+  const seenPublicPlayoffKeys = new Set<string>();
+  playoffMatches = playoffMatches.filter((m) => {
+    const key = `${m.round}-${m.position}-${Boolean(m.isThirdPlace)}`;
+    if (seenPublicPlayoffKeys.has(key)) return false;
+    seenPublicPlayoffKeys.add(key);
+    return true;
+  });
   const noun = teamNoun(tournament.teamSize, true);
   const approvedCount = competition.teams.length;
 

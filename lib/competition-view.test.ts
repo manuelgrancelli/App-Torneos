@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareMatchesChronological, buildBoardMatches, groupStandings, matchStageLabel, qualifiersFromStandings } from "./competition-view";
+import { compareMatchesChronological, buildBoardMatches, groupStandings, matchStageLabel, qualifiersFromStandings, cardsFromMatches } from "./competition-view";
 import type { MatchView, GroupView, ConfirmationView } from "@/lib/data/competition";
 import type { StandingRow } from "@/lib/domain/standings";
 
@@ -427,5 +427,124 @@ describe("groupStandings", () => {
     expect(rowT1?.points).toBe(4);
   });
 });
+
+describe("cardsFromMatches", () => {
+  it("deduplica cruces si existen partidos duplicados para la misma ronda y posición (D-172)", () => {
+    const rawMatches: MatchView[] = [
+      // 3 copias de Octavos Cruce 1
+      {
+        id: "m_r1_p1_v1",
+        stage: "playoff",
+        categoryId: "cat-5ta",
+        groupId: null,
+        round: 1,
+        position: 1,
+        homeTeamId: null,
+        awayTeamId: null,
+        winnerTeamId: null,
+        isDraw: false,
+        isBye: false,
+        isThirdPlace: false,
+        isWalkover: false,
+        slotId: null,
+        courtId: null,
+        startsAt: null,
+        endsAt: null,
+        scheduleLocked: false,
+        resultStatus: null,
+        result: null,
+        nextMatchId: null,
+        nextMatchSide: null,
+        loserNextMatchId: null,
+        loserNextMatchSide: null,
+      },
+      {
+        id: "m_r1_p1_v2",
+        stage: "playoff",
+        categoryId: "cat-5ta",
+        groupId: null,
+        round: 1,
+        position: 1,
+        homeTeamId: null,
+        awayTeamId: null,
+        winnerTeamId: null,
+        isDraw: false,
+        isBye: false,
+        isThirdPlace: false,
+        isWalkover: false,
+        slotId: null,
+        courtId: null,
+        startsAt: null,
+        endsAt: null,
+        scheduleLocked: false,
+        resultStatus: null,
+        result: null,
+        nextMatchId: null,
+        nextMatchSide: null,
+        loserNextMatchId: null,
+        loserNextMatchSide: null,
+      },
+      // Octavos Cruce 2
+      {
+        id: "m_r1_p2",
+        stage: "playoff",
+        categoryId: "cat-5ta",
+        groupId: null,
+        round: 1,
+        position: 2,
+        homeTeamId: null,
+        awayTeamId: null,
+        winnerTeamId: null,
+        isDraw: false,
+        isBye: false,
+        isThirdPlace: false,
+        isWalkover: false,
+        slotId: null,
+        courtId: null,
+        startsAt: null,
+        endsAt: null,
+        scheduleLocked: false,
+        resultStatus: null,
+        result: null,
+        nextMatchId: null,
+        nextMatchSide: null,
+        loserNextMatchId: null,
+        loserNextMatchSide: null,
+      },
+      // Final
+      {
+        id: "m_r4_p1",
+        stage: "playoff",
+        categoryId: "cat-5ta",
+        groupId: null,
+        round: 4,
+        position: 1,
+        homeTeamId: null,
+        awayTeamId: null,
+        winnerTeamId: null,
+        isDraw: false,
+        isBye: false,
+        isThirdPlace: false,
+        isWalkover: false,
+        slotId: null,
+        courtId: null,
+        startsAt: null,
+        endsAt: null,
+        scheduleLocked: false,
+        resultStatus: null,
+        result: null,
+        nextMatchId: null,
+        nextMatchSide: null,
+        loserNextMatchId: null,
+        loserNextMatchSide: null,
+      },
+    ];
+
+    const cards = cardsFromMatches(rawMatches, new Map(), new Map(), undefined, "cat-5ta");
+    expect(cards).toHaveLength(3); // Cruce 1, Cruce 2 y Final (sin el Cruce 1 duplicado)
+    expect(cards.map((c) => `${c.round}-${c.position}`)).toEqual(["1-1", "1-2", "4-1"]);
+  });
+});
+
 
 

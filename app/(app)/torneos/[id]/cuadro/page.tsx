@@ -77,7 +77,15 @@ export default async function BracketPage({
   const categoryMatches = competition.matches.filter(
     (m) => !activeCategory || m.categoryId === activeCategory.id
   );
-  const playoffMatches = categoryMatches.filter((m) => m.stage === "playoff");
+  let playoffMatches = categoryMatches.filter((m) => m.stage === "playoff");
+  // Deduplicación defensiva por ronda, posición y tercer puesto para evitar cruces duplicados
+  const seenPlayoffKeys = new Set<string>();
+  playoffMatches = playoffMatches.filter((m) => {
+    const key = `${m.round}-${m.position}-${Boolean(m.isThirdPlace)}`;
+    if (seenPlayoffKeys.has(key)) return false;
+    seenPlayoffKeys.add(key);
+    return true;
+  });
   const playoffRounds = playoffMatches.filter((m) => !m.isThirdPlace).map((m) => m.round);
   const maxPlayoffRound = playoffRounds.length > 0 ? Math.max(...playoffRounds) : 0;
   const finalMatch = maxPlayoffRound > 0

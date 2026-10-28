@@ -55,7 +55,7 @@ export function JoinCodeForm() {
               autoComplete="off"
               autoCapitalize="characters"
               spellCheck="false"
-              className="h-9 text-center sm:text-left font-mono font-bold tracking-widest text-base sm:text-xs uppercase bg-emerald-100/90 dark:bg-emerald-950/60 text-emerald-950 dark:text-emerald-100 placeholder:text-emerald-800/60 dark:placeholder:text-emerald-400/60 border-2 border-emerald-600/70 dark:border-emerald-500/70 focus:bg-emerald-100 dark:focus:bg-emerald-950/80 focus:border-emerald-600 dark:focus:border-emerald-400 focus-visible:ring-emerald-500/30"
+              className="h-9 text-center sm:text-left font-mono font-bold tracking-widest text-base sm:text-xs uppercase bg-white dark:bg-zinc-900/90 text-zinc-950 dark:text-white placeholder:text-muted-foreground/50 dark:placeholder:text-zinc-500 border-2 border-zinc-300 dark:border-zinc-700 focus:bg-white dark:focus:bg-zinc-900 focus:border-zinc-600 dark:focus:border-white focus-visible:ring-zinc-400/20 transition-colors shadow-2xs"
               aria-invalid={Boolean(error)}
             />
           </Field>
