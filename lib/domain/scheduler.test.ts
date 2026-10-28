@@ -427,6 +427,72 @@ describe("asignación inteligente de horarios y proximidad", () => {
     expect(["s_full", "s_another"]).toContain(slotMap.get("r2_win"));
     expect(["s_full", "s_another"]).toContain(slotMap.get("r2_lose"));
   });
+  it("con múltiples zonas de 4 y franjas en distintos días, termina cada zona completa en el mismo día sin separar fechas en días distintos", () => {
+    // Viernes (día 1): franjas a las 0h y 2h en c1 y c2 (4 turnos)
+    // Sábado (día 2): franjas a las 20h y 22h en c1 y c2 (4 turnos)
+    const slotWithDay = (id, hours, courtId, day) => {
+      const s = slot(id, hours, courtId);
+      s.day = day;
+      return s;
+    };
+
+    const slots = [
+      slotWithDay("fri_14_c1", 0, "c1", "2026-10-30"),
+      slotWithDay("fri_14_c2", 0, "c2", "2026-10-30"),
+      slotWithDay("fri_16_c1", 2, "c1", "2026-10-30"),
+      slotWithDay("fri_16_c2", 2, "c2", "2026-10-30"),
+      slotWithDay("sat_10_c1", 20, "c1", "2026-10-31"),
+      slotWithDay("sat_10_c2", 20, "c2", "2026-10-31"),
+      slotWithDay("sat_12_c1", 22, "c1", "2026-10-31"),
+      slotWithDay("sat_12_c2", 22, "c2", "2026-10-31"),
+    ];
+
+    const g1Teams = ["T1", "T2", "T3", "T4"];
+    const g2Teams = ["T5", "T6", "T7", "T8"];
+    const allTeams = [...g1Teams, ...g2Teams];
+    const availability = Object.fromEntries(allTeams.map((t) => [t, slots.map((s) => s.id)]));
+
+    const matches = [
+      // Zona 1 (g1): orden en bloque de grupo (order 1..2)
+      { id: "g1_r1_m1", homeTeamId: "T1", awayTeamId: "T2", order: 1, groupId: "g1", round: 1 },
+      { id: "g1_r1_m2", homeTeamId: "T3", awayTeamId: "T4", order: 1, groupId: "g1", round: 1 },
+      { id: "g1_r2_win", homeTeamId: null, awayTeamId: null, groupTeamIds: g1Teams, feederMatchIds: ["g1_r1_m1", "g1_r1_m2"], order: 2, groupId: "g1", round: 2 },
+      { id: "g1_r2_lose", homeTeamId: null, awayTeamId: null, groupTeamIds: g1Teams, feederMatchIds: ["g1_r1_m1", "g1_r1_m2"], order: 2, groupId: "g1", round: 2 },
+
+      // Zona 2 (g2): orden en bloque de grupo (order 11..12)
+      { id: "g2_r1_m1", homeTeamId: "T5", awayTeamId: "T6", order: 11, groupId: "g2", round: 1 },
+      { id: "g2_r1_m2", homeTeamId: "T7", awayTeamId: "T8", order: 11, groupId: "g2", round: 1 },
+      { id: "g2_r2_win", homeTeamId: null, awayTeamId: null, groupTeamIds: g2Teams, feederMatchIds: ["g2_r1_m1", "g2_r1_m2"], order: 12, groupId: "g2", round: 2 },
+      { id: "g2_r2_lose", homeTeamId: null, awayTeamId: null, groupTeamIds: g2Teams, feederMatchIds: ["g2_r1_m1", "g2_r1_m2"], order: 12, groupId: "g2", round: 2 },
+    ];
+
+    const data = input({
+      matches,
+      slots,
+      courtIds: ["c1", "c2"],
+      availability,
+    });
+
+    const result = scheduleMatches(data);
+    expect(result.unscheduled).toEqual([]);
+
+    const slotMap = new Map(result.assignments.map((a) => [a.matchId, a.slotId]));
+    const fridaySlotIds = ["fri_14_c1", "fri_14_c2", "fri_16_c1", "fri_16_c2"];
+    const saturdaySlotIds = ["sat_10_c1", "sat_10_c2", "sat_12_c1", "sat_12_c2"];
+
+    // Zona 1 debe completarse ENTERA el viernes
+    expect(fridaySlotIds).toContain(slotMap.get("g1_r1_m1"));
+    expect(fridaySlotIds).toContain(slotMap.get("g1_r1_m2"));
+    expect(fridaySlotIds).toContain(slotMap.get("g1_r2_win"));
+    expect(fridaySlotIds).toContain(slotMap.get("g1_r2_lose"));
+
+    // Zona 2 debe completarse ENTERA el sábado
+    expect(saturdaySlotIds).toContain(slotMap.get("g2_r1_m1"));
+    expect(saturdaySlotIds).toContain(slotMap.get("g2_r1_m2"));
+    expect(saturdaySlotIds).toContain(slotMap.get("g2_r2_win"));
+    expect(saturdaySlotIds).toContain(slotMap.get("g2_r2_lose"));
+  });
+
 
   it("no asigna el segundo partido antes del primero aunque exista una franja previa disponible", () => {
     const data = input({

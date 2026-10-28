@@ -633,6 +633,12 @@ export function ExportMatchesImageModal({
             </div>
           )}
 
+          {filteredMatches.length > 32 && (
+            <span className="text-[11px] text-amber-500 font-medium hidden sm:inline mr-2">
+              💡 Tip: Filtrá por día o categoría para verlos más grandes
+            </span>
+          )}
+
           <span className="ml-auto text-muted-foreground font-mono">
             {filteredMatches.length} {filteredMatches.length === 1 ? "partido" : "partidos"}
           </span>

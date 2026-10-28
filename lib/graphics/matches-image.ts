@@ -202,14 +202,56 @@ function renderStoryFormat(
   // 3. Partidos
   const dayGroups = groupByLocalDay(matches, () => tz);
   const numMatches = matches.length;
+  const totalDays = dayGroups.length;
 
-  // Usar 1 columna si hay pocos partidos (<= 6) o 2 columnas si hay más
-  const useSingleCol = numMatches <= 6;
+  // Usar 1 columna si hay pocos partidos (<= 8) y pocos grupos (<= 2)
+  const useSingleCol = numMatches <= 8 && totalDays <= 2;
   const cols = useSingleCol ? 1 : 2;
   const cardWidth = useSingleCol ? 940 : 455;
   const gapX = useSingleCol ? 0 : 30;
-  const gapY = 10;
-  const cardHeight = useSingleCol ? 58 : 54;
+
+  // Calcular cantidad total de filas sumando todos los días
+  let totalRows = 0;
+  for (const group of dayGroups) {
+    totalRows += Math.ceil(group.items.length / cols);
+  }
+
+  // Altura disponible total para partidos (Y=275 a Y=1820 = 1545px)
+  // Cada día tiene una pastilla de 28px + margen superior 10px + margen inferior 20px (~58px por día)
+  const availableForCards = Math.max(400, 1545 - totalDays * 58);
+
+  // Determinar altura de tarjeta y separación de forma auto-adaptativa según la cantidad de filas:
+  let cardHeight: number;
+  let gapY: number;
+  let useSeparateTeamLines = true;
+
+  if (totalRows <= 12) {
+    cardHeight = 72;
+    gapY = 8;
+  } else if (totalRows <= 16) {
+    // Caso de 24 a 32 partidos en 2 columnas (ej. 27 partidos = 14 filas)
+    cardHeight = 68;
+    gapY = 7;
+  } else if (totalRows <= 20) {
+    // 33 a 40 partidos en 2 columnas
+    cardHeight = 62;
+    gapY = 6;
+  } else if (totalRows <= 24) {
+    // 41 a 48 partidos en 2 columnas
+    cardHeight = 56;
+    gapY = 5;
+  } else {
+    // Más de 48 partidos: calcular altura exacta para que entren todos en la foto
+    const calculatedRowH = Math.floor(availableForCards / Math.max(1, totalRows));
+    if (calculatedRowH >= 54) {
+      cardHeight = calculatedRowH - 5;
+      gapY = 5;
+    } else {
+      cardHeight = Math.max(46, calculatedRowH - 4);
+      gapY = 4;
+      useSeparateTeamLines = false; // Modo compacto si son muchísimos partidos
+    }
+  }
 
   let currentY = 275;
 
@@ -274,7 +316,7 @@ function renderStoryFormat(
       ctx.stroke();
 
       // Indicador lateral
-      drawRoundedRect(ctx, cardX + 3, cardY + 7, 3.5, cardHeight - 14, 1.5);
+      drawRoundedRect(ctx, cardX + 3, cardY + 6, 3.5, cardHeight - 12, 1.5);
       if (match.resultText) {
         ctx.fillStyle = "#10b981";
       } else if (match.startsAt) {
@@ -285,25 +327,26 @@ function renderStoryFormat(
       ctx.fill();
 
       // LINEA 1: Horario / Cancha y Zona / Resultado
-      const line1Y = cardY + 17;
+      const line1Y = cardY + (useSeparateTeamLines ? (cardHeight >= 68 ? 16 : cardHeight >= 60 ? 14 : 13) : 16);
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
 
+      const timeFontSize = cardHeight >= 68 ? 11.5 : cardHeight >= 60 ? 11 : 10;
       if (match.startsAt) {
         const timeStr = formatInTimeZone(match.startsAt, tz, "HH:mm");
-        ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
+        ctx.font = `bold ${timeFontSize}px system-ui, -apple-system, sans-serif`;
         ctx.fillStyle = "#f8fafc";
         const timeLabel = `🕐 ${timeStr} hs`;
         ctx.fillText(timeLabel, cardX + 14, line1Y);
         const timeW = ctx.measureText(timeLabel).width;
 
         if (match.courtName) {
-          ctx.font = "600 12px system-ui, -apple-system, sans-serif";
+          ctx.font = `600 ${timeFontSize}px system-ui, -apple-system, sans-serif`;
           ctx.fillStyle = "#94a3b8";
           ctx.fillText(` · ${match.courtName}`, cardX + 14 + timeW, line1Y);
         }
       } else {
-        ctx.font = "600 12px system-ui, -apple-system, sans-serif";
+        ctx.font = `600 ${timeFontSize}px system-ui, -apple-system, sans-serif`;
         ctx.fillStyle = "#fbbf24";
         ctx.fillText("⏳ Horario a definir", cardX + 14, line1Y);
       }
@@ -312,7 +355,7 @@ function renderStoryFormat(
       let rightOffset = cardX + cardWidth - 14;
 
       if (match.resultText) {
-        ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
+        ctx.font = `bold ${timeFontSize}px system-ui, -apple-system, sans-serif`;
         ctx.fillStyle = "#38bdf8";
         const scoreLabel = `[ ${match.resultText} ]`;
         ctx.fillText(scoreLabel, rightOffset, line1Y);
@@ -323,43 +366,79 @@ function renderStoryFormat(
       const stageLabelParts = [match.section, match.categoryName].filter(Boolean);
       const stageLabel = stageLabelParts.join(" · ");
       if (stageLabel) {
-        ctx.font = "600 11px system-ui, -apple-system, sans-serif";
+        ctx.font = `600 ${Math.max(9.5, timeFontSize - 1)}px system-ui, -apple-system, sans-serif`;
         ctx.fillStyle = "#94a3b8";
-        const maxStageW = Math.max(70, rightOffset - (cardX + 190));
+        const maxStageW = Math.max(60, rightOffset - (cardX + (cardWidth >= 500 ? 200 : 160)));
         const truncatedStage = truncateText(ctx, stageLabel, maxStageW);
         ctx.fillText(truncatedStage, rightOffset, line1Y);
       }
 
-      // LINEA 2: Parejas (Equipo 1 vs Equipo 2)
-      const line2Y = cardY + 38;
+      // PAREJAS / EQUIPOS
       const homeWon = Boolean(match.winnerTeamId && match.homeTeamId && match.winnerTeamId === match.homeTeamId);
       const awayWon = Boolean(match.winnerTeamId && match.awayTeamId && match.winnerTeamId === match.awayTeamId);
       const hasWinner = homeWon || awayWon;
-
       const availableMatchupW = cardWidth - 28;
-      const vsStr = " vs ";
-      ctx.font = "600 11px system-ui, -apple-system, sans-serif";
-      const vsW = ctx.measureText(vsStr).width;
-      const maxPerTeamW = Math.floor((availableMatchupW - vsW) / 2);
 
-      ctx.font = "bold 13px system-ui, -apple-system, sans-serif";
-      const homeText = truncateText(ctx, match.homeName, maxPerTeamW);
-      const homeW = ctx.measureText(homeText).width;
-      const awayText = truncateText(ctx, match.awayName, maxPerTeamW);
+      if (useSeparateTeamLines) {
+        // En dos renglones: cada pareja tiene disponible el ancho completo de la tarjeta
+        const line2Y = cardY + (cardHeight >= 68 ? 36 : cardHeight >= 60 ? 32 : 28);
+        const line3Y = cardY + (cardHeight >= 68 ? 54 : cardHeight >= 60 ? 48 : 42);
+        const teamFontSize = cardHeight >= 68 ? 12.5 : cardHeight >= 60 ? 11.5 : 10.5;
 
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = hasWinner ? (homeWon ? "#ffffff" : "#71717a") : "#f8fafc";
-      ctx.font = homeWon ? "bold 13px system-ui, -apple-system, sans-serif" : "600 13px system-ui, -apple-system, sans-serif";
-      ctx.fillText(homeText, cardX + 14, line2Y);
+        // LINEA 2: Pareja Local
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.font = homeWon
+          ? `bold ${teamFontSize}px system-ui, -apple-system, sans-serif`
+          : hasWinner
+            ? `500 ${teamFontSize}px system-ui, -apple-system, sans-serif`
+            : `bold ${teamFontSize}px system-ui, -apple-system, sans-serif`;
+        ctx.fillStyle = hasWinner ? (homeWon ? "#ffffff" : "#94a3b8") : "#f8fafc";
+        const homeText = truncateText(ctx, match.homeName, availableMatchupW);
+        ctx.fillText(homeText, cardX + 14, line2Y);
 
-      ctx.fillStyle = "#71717a";
-      ctx.font = "600 11px system-ui, -apple-system, sans-serif";
-      ctx.fillText(vsStr, cardX + 14 + homeW, line2Y);
+        // LINEA 3: Pareja Visitante (con prefijo 'vs ')
+        const vsStr = "vs ";
+        ctx.fillStyle = "#64748b";
+        ctx.font = `600 ${Math.max(9, teamFontSize - 2.5)}px system-ui, -apple-system, sans-serif`;
+        ctx.fillText(vsStr, cardX + 14, line3Y);
+        const vsW = ctx.measureText(vsStr).width;
 
-      ctx.fillStyle = hasWinner ? (awayWon ? "#ffffff" : "#71717a") : "#f8fafc";
-      ctx.font = awayWon ? "bold 13px system-ui, -apple-system, sans-serif" : "600 13px system-ui, -apple-system, sans-serif";
-      ctx.fillText(awayText, cardX + 14 + homeW + vsW, line2Y);
+        ctx.font = awayWon
+          ? `bold ${teamFontSize}px system-ui, -apple-system, sans-serif`
+          : hasWinner
+            ? `500 ${teamFontSize}px system-ui, -apple-system, sans-serif`
+            : `bold ${teamFontSize}px system-ui, -apple-system, sans-serif`;
+        ctx.fillStyle = hasWinner ? (awayWon ? "#ffffff" : "#94a3b8") : "#f8fafc";
+        const awayText = truncateText(ctx, match.awayName, availableMatchupW - vsW);
+        ctx.fillText(awayText, cardX + 14 + vsW, line3Y);
+      } else {
+        // Modo compacto en 1 renglón si superan los 48 partidos
+        const line2Y = cardY + Math.round(cardHeight * 0.68);
+        const vsStr = " vs ";
+        ctx.font = "600 10px system-ui, -apple-system, sans-serif";
+        const vsW = ctx.measureText(vsStr).width;
+        const maxPerTeamW = Math.floor((availableMatchupW - vsW) / 2);
+
+        ctx.font = "bold 11.5px system-ui, -apple-system, sans-serif";
+        const homeText = truncateText(ctx, match.homeName, maxPerTeamW);
+        const homeW = ctx.measureText(homeText).width;
+        const awayText = truncateText(ctx, match.awayName, maxPerTeamW);
+
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = hasWinner ? (homeWon ? "#ffffff" : "#71717a") : "#f8fafc";
+        ctx.font = homeWon ? "bold 11.5px system-ui, -apple-system, sans-serif" : "600 11.5px system-ui, -apple-system, sans-serif";
+        ctx.fillText(homeText, cardX + 14, line2Y);
+
+        ctx.fillStyle = "#71717a";
+        ctx.font = "600 10px system-ui, -apple-system, sans-serif";
+        ctx.fillText(vsStr, cardX + 14 + homeW, line2Y);
+
+        ctx.fillStyle = hasWinner ? (awayWon ? "#ffffff" : "#71717a") : "#f8fafc";
+        ctx.font = awayWon ? "bold 11.5px system-ui, -apple-system, sans-serif" : "600 11.5px system-ui, -apple-system, sans-serif";
+        ctx.fillText(awayText, cardX + 14 + homeW + vsW, line2Y);
+      }
     }
 
     const rows = Math.ceil(group.items.length / cols);
@@ -405,7 +484,7 @@ function renderStandardFormat(
   const marginX = 48;
   const gapX = 20;
   const cardWidth = Math.floor((width - marginX * 2 - gapX) / 2); // ~542px
-  const cardHeight = 48;
+  const cardHeight = 64;
   const gapY = 8;
   const headerHeight = 175;
   const footerHeight = 55;
@@ -615,36 +694,32 @@ function renderStandardFormat(
         ctx.fillText(truncatedStage, rightOffset, line1Y);
       }
 
-      // LINEA 2
+      // LINEA 2 y 3 (Parejas en renglones separados con el ancho completo disponible)
       const line2Y = cardY + 34;
+      const line3Y = cardY + 50;
       const homeWon = Boolean(match.winnerTeamId && match.homeTeamId && match.winnerTeamId === match.homeTeamId);
       const awayWon = Boolean(match.winnerTeamId && match.awayTeamId && match.winnerTeamId === match.awayTeamId);
       const hasWinner = homeWon || awayWon;
 
       const availableMatchupW = cardWidth - 28;
-      const vsStr = " vs ";
-      ctx.font = "600 10.5px system-ui, -apple-system, sans-serif";
-      const vsW = ctx.measureText(vsStr).width;
-      const maxPerTeamW = Math.floor((availableMatchupW - vsW) / 2);
-
-      ctx.font = "bold 12.5px system-ui, -apple-system, sans-serif";
-      const homeText = truncateText(ctx, match.homeName, maxPerTeamW);
-      const homeW = ctx.measureText(homeText).width;
-      const awayText = truncateText(ctx, match.awayName, maxPerTeamW);
 
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = hasWinner ? (homeWon ? "#ffffff" : "#71717a") : "#f8fafc";
-      ctx.font = homeWon ? "bold 12.5px system-ui, -apple-system, sans-serif" : "600 12.5px system-ui, -apple-system, sans-serif";
+      ctx.fillStyle = hasWinner ? (homeWon ? "#ffffff" : "#94a3b8") : "#f8fafc";
+      ctx.font = homeWon ? "bold 12px system-ui, -apple-system, sans-serif" : hasWinner ? "500 12px system-ui, -apple-system, sans-serif" : "bold 12px system-ui, -apple-system, sans-serif";
+      const homeText = truncateText(ctx, match.homeName, availableMatchupW);
       ctx.fillText(homeText, cardX + 14, line2Y);
 
-      ctx.fillStyle = "#71717a";
-      ctx.font = "600 10.5px system-ui, -apple-system, sans-serif";
-      ctx.fillText(vsStr, cardX + 14 + homeW, line2Y);
+      const vsStr = "vs ";
+      ctx.fillStyle = "#64748b";
+      ctx.font = "600 9.5px system-ui, -apple-system, sans-serif";
+      ctx.fillText(vsStr, cardX + 14, line3Y);
+      const vsW = ctx.measureText(vsStr).width;
 
-      ctx.fillStyle = hasWinner ? (awayWon ? "#ffffff" : "#71717a") : "#f8fafc";
-      ctx.font = awayWon ? "bold 12.5px system-ui, -apple-system, sans-serif" : "600 12.5px system-ui, -apple-system, sans-serif";
-      ctx.fillText(awayText, cardX + 14 + homeW + vsW, line2Y);
+      ctx.fillStyle = hasWinner ? (awayWon ? "#ffffff" : "#94a3b8") : "#f8fafc";
+      ctx.font = awayWon ? "bold 12px system-ui, -apple-system, sans-serif" : hasWinner ? "500 12px system-ui, -apple-system, sans-serif" : "bold 12px system-ui, -apple-system, sans-serif";
+      const awayText = truncateText(ctx, match.awayName, availableMatchupW - vsW);
+      ctx.fillText(awayText, cardX + 14 + vsW, line3Y);
     }
 
     const rows = Math.ceil(group.items.length / 2);
@@ -697,7 +772,7 @@ export function renderMatchesToCanvas(
     let totalContentHeight = 0;
     for (const group of dayGroups) {
       const rows = Math.ceil(group.items.length / 2);
-      const gridHeight = rows * 48 + Math.max(0, rows - 1) * 8;
+      const gridHeight = rows * 64 + Math.max(0, rows - 1) * 8;
       totalContentHeight += 38 + 10 + gridHeight + 24;
     }
     const height = Math.max(580, 175 + totalContentHeight + 55);

@@ -2463,3 +2463,39 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
 
 
 
+
+
+### D-177 — Nombres completos en renglones separados y altura auto-adaptativa en póster de horarios (2026-10-27)
+- **Decisión:**
+  - En el generador de imágenes de cronograma y horarios (lib/graphics/matches-image.ts):
+    - **Estructura tipo Scoreboard en 2 renglones de parejas:** En lugar de forzar a ambas parejas a competir horizontalmente en un solo renglón de apenas ~200px (lo que cortaba los nombres compuestos de pádel con puntos suspensivos), cada tarjeta organiza a la Pareja Local en la Línea 2 y a la Pareja Visitante (con prefijo sutil s ) en la Línea 3, otorgando más de 420px de ancho disponible por pareja.
+    - **Escalado vertical auto-adaptativo:** El alto de tarjeta (cardHeight) y su espaciado se calculan dinámicamente en base al total de filas del cronograma:
+      - Hasta 12 filas (<= 24 partidos): 72px de alto (máximo aire y legibilidad).
+      - 13 a 16 filas (25 a 32 partidos, ej. 27 partidos): 68px de alto (entran todos con más de 450px de margen vertical libre).
+      - 17 a 20 filas (33 a 40 partidos): 62px de alto.
+      - 21 a 24 filas (41 a 48 partidos): 56px de alto.
+      - Más de 48 partidos: cálculo dinámico continuo con fallback a modo compacto en 1 renglón si supera los 50 partidos.
+    - **Formato Estándar (1200px):** Se actualizó también a estructura en 2 renglones con tarjetas de 64px de alto para garantizar legibilidad completa.
+    - **Modal de exportación:** Se agregó un tip contextual cuando el listado supera 32 partidos sugiriendo filtrar por día o categoría para apreciación óptima en WhatsApp.
+- **Motivo:** resolver la consulta y preocupación del usuario ('viste que en la imagen se puede ver los nombres cortados, hay alguna solucion?' y 'el tema que si hay muchos partidos quiza no entren todos en la foto').
+- **Cómo aplicar:** implementado en lib/graphics/matches-image.ts, lib/graphics/matches-image.test.ts, components/matches/export-matches-image-modal.tsx y docs/PROYECTO.md.
+
+### D-178 — Traslado de scheduleCustomMatchSchema a lib/validation/competition (2026-10-27)
+- **Decisión:**
+  - Se movió el esquema Zod `scheduleCustomMatchSchema` desde `app/(app)/torneos/[id]/partidos/actions.ts` a `lib/validation/competition.ts`.
+  - Se eliminó el `export` de dicho objeto en el archivo de acciones de servidor.
+- **Motivo:** Next.js (Server Actions) exige que los archivos con la directiva `"use server"` solo exporten funciones asíncronas (`async functions`). La exportación de un objeto de esquema Zod causaba el error de compilador `A "use server" file can only export async functions, found object`.
+- **Cómo aplicar:** implementado en `lib/validation/competition.ts`, `app/(app)/torneos/[id]/partidos/actions.ts` y `docs/PROYECTO.md`.
+
+### D-179 — Programación automática agrupada por zona (mismo día y horarios cercanos) (2026-10-27)
+- **Decisión:**
+  - En `lib/scheduling.ts`: Se modificó el criterio de ordenamiento del scheduler (`order`). En lugar de priorizar globalmente la ronda (`order = m.round`) —lo que colocaba la Fecha 1 de todos los grupos en el Día 1 y obligaba a que la Fecha 2 de todos los grupos se postergue al Día 2—, ahora se programan los partidos **agrupados por zona**:
+    - Cada grupo tiene asignado un bloque cronológico propio (`gIndex * 10 + m.round`).
+    - Las zonas se priorizan según la disponibilidad más temprana de sus parejas.
+    - Dentro de cada grupo, la Fecha 1 se agenda antes que la Fecha 2, pero inmediatamente seguida por la Fecha 2 del mismo grupo antes de pasar a la siguiente zona.
+  - En `lib/domain/scheduler.ts`:
+    - Se incorporó `day?: string` a `SchedulerSlot`, `FixedAssignment`, `Candidate` e `Interval` con la fecha local de cada turno.
+    - En `candidatePenalty`: Se implementó una **penalización estricta (+30.000 pts)** ante cualquier intento de dividir partidos del mismo grupo entre días distintos si existen franjas disponibles en la misma jornada.
+    - Proximidad horaria dentro del mismo día: se premia la continuidad de juego y descanso ideal (0 a 2.5 horas), logrando que la Fecha 2 (Gan vs Gan y Per vs Per) se juegue en turnos contiguos o cercanos el mismo día en que empezó la zona.
+- **Motivo:** Resolver la solicitud del usuario ("no me gusta nada como hace la programacion automatica, ya que arma los partidos la 1er fecha de cada pareja y la 2da fecha por ejemplo en el torneo que cree lo que hay muchos grupos de4 se juega ganvsgan y pervsper, los pone al otro dia, eso no me sirve yo quiero que cada grupo tenga un dia para terminar los partidos de ese grupo, es decir no me pongas 1 partido por dia, programalos que queden horarios cercanos el mismo dia").
+- **Cómo aplicar:** implementado en `lib/domain/scheduler.ts`, `lib/scheduling.ts`, `lib/domain/scheduler.test.ts` y `docs/PROYECTO.md`.

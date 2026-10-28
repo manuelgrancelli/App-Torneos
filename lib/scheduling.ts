@@ -1,4 +1,5 @@
 import "server-only";
+import { DEFAULT_TIMEZONE, localDateKey } from "@/lib/dates";
 import {
   type FixedAssignment,
   type SchedulerMatch,
@@ -30,16 +31,20 @@ export async function runAutoSchedule(
   mode: AutoScheduleMode,
   onlyMatchIds?: readonly string[],
 ): Promise<{ ok: true; outcome: AutoScheduleOutcome } | { ok: false; error: { code?: string; message?: string } }> {
-  const [matches, slots, courts, rows, groupTeams] = await Promise.all([
+  const [matches, slots, courts, rows, groupTeams, tournamentData, groupsData] = await Promise.all([
     supabase.from("matches").select("*").eq("tournament_id", tournamentId),
     supabase.from("time_slots").select("id, starts_at, ends_at, court_id").eq("tournament_id", tournamentId),
     supabase.from("courts").select("id").eq("tournament_id", tournamentId).order("position").order("name"),
     supabase.from("team_availability").select("team_id, slot_id").eq("tournament_id", tournamentId),
     supabase.from("group_teams").select("group_id, team_id").eq("tournament_id", tournamentId),
+    supabase.from("tournaments").select("timezone").eq("id", tournamentId).maybeSingle(),
+    supabase.from("tournament_groups").select("id, position, name").eq("tournament_id", tournamentId).order("position"),
   ]);
   for (const result of [matches, slots, courts, rows, groupTeams]) {
     if (result.error) return { ok: false, error: result.error };
   }
+  const tz = tournamentData.data?.timezone || DEFAULT_TIMEZONE;
+  const groupsList = groupsData.data ?? [];
 
   const all = matches.data ?? [];
   const groupTeamsMap = new Map<string, string[]>();
@@ -74,6 +79,7 @@ export async function runAutoSchedule(
       groupTeamIds: m.group_id ? groupTeamsMap.get(m.group_id) : undefined,
       groupId: m.group_id ?? undefined,
       round: m.round,
+      day: m.starts_at ? localDateKey(m.starts_at as string, tz) : undefined,
     }));
 
   const feederIdsMap = new Map<string, string[]>();
@@ -129,24 +135,61 @@ export async function runAutoSchedule(
     }
   }
 
+  const availability: Record<string, string[]> = {};
+  for (const row of rows.data ?? []) (availability[row.team_id] ??= []).push(row.slot_id);
+
+  // Mapear cada grupo a su franja más temprana viable según disponibilidad de sus equipos
+  const groupEarliestSlot = new Map<string, number>();
+  for (const [groupId, teamIds] of groupTeamsMap) {
+    let earliest = Number.POSITIVE_INFINITY;
+    for (const slot of slots.data ?? []) {
+      const slotStart = Date.parse(slot.starts_at);
+      const availCount = teamIds.filter((t) => (availability[t] ?? []).includes(slot.id)).length;
+      if (availCount >= Math.min(2, teamIds.length)) {
+        if (slotStart < earliest) earliest = slotStart;
+      }
+    }
+    groupEarliestSlot.set(groupId, earliest);
+  }
+
+  const sortedGroups = [...groupsList].sort((a, b) => {
+    const ea = groupEarliestSlot.get(a.id) ?? Number.POSITIVE_INFINITY;
+    const eb = groupEarliestSlot.get(b.id) ?? Number.POSITIVE_INFINITY;
+    return ea - eb || a.position - b.position || a.name.localeCompare(b.name);
+  });
+
+  const groupOrderMap = new Map<string, number>();
+  sortedGroups.forEach((g, idx) => {
+    groupOrderMap.set(g.id, idx);
+  });
+
   const schedulerMatches: SchedulerMatch[] = toSchedule.map((m) => {
     const gTeams = m.group_id ? groupTeamsMap.get(m.group_id) : undefined;
+    let matchOrder: number;
+    if (m.stage === "group" && m.group_id) {
+      const gIndex = groupOrderMap.get(m.group_id) ?? 0;
+      // Cada grupo se procesa en su propio bloque continuo (Grupo 0 = 0..9, Grupo 1 = 10..19, etc.)
+      // Dentro de la zona, Fecha 1 (round 1) va antes de Fecha 2 (round 2)
+      matchOrder = gIndex * 10 + m.round;
+    } else if (m.stage === "group") {
+      matchOrder = m.round;
+    } else {
+      // Playoffs van después de los grupos
+      matchOrder = 10_000 + m.round * 100 + m.position;
+    }
+
     return {
       id: m.id,
       homeTeamId: m.home_team_id,
       awayTeamId: m.away_team_id,
       notBefore: feedersEnd.get(m.id),
-      // Grupos primero por fecha; playoffs después, por ronda.
-      order: (m.stage === "group" ? 0 : 100) + m.round,
+      order: matchOrder,
       feederMatchIds: feederIdsMap.get(m.id),
       groupTeamIds: (!m.home_team_id || !m.away_team_id) && gTeams && gTeams.length === 4 ? gTeams : undefined,
       groupId: m.group_id ?? undefined,
       round: m.round,
     };
   });
-
-  const availability: Record<string, string[]> = {};
-  for (const row of rows.data ?? []) (availability[row.team_id] ??= []).push(row.slot_id);
 
   const result = scheduleMatches({
     matches: schedulerMatches,
@@ -155,6 +198,7 @@ export async function runAutoSchedule(
       start: Date.parse(s.starts_at),
       end: Date.parse(s.ends_at),
       courtId: s.court_id,
+      day: localDateKey(s.starts_at, tz),
     })),
     courtIds: (courts.data ?? []).map((c) => c.id),
     availability,

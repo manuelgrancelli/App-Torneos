@@ -23,6 +23,7 @@ export type SchedulerSlot = {
   end: number;
   /** null = la franja sirve para cualquier cancha. */
   courtId: string | null;
+  day?: string;
 };
 
 export type SchedulerMatch = {
@@ -56,6 +57,7 @@ export type FixedAssignment = {
   groupTeamIds?: readonly string[];
   groupId?: string;
   round?: number;
+  day?: string;
 };
 
 export type ScheduleInput = {
@@ -98,13 +100,14 @@ export const UNSCHEDULED_REASON_LABELS: Record<UnscheduledReason, string> = {
   no_capacity: "Las franjas en común ya están ocupadas.",
 };
 
-type Candidate = { slotId: string; courtId: string; start: number; end: number };
+type Candidate = { slotId: string; courtId: string; start: number; end: number; day?: string };
 type Interval = {
   start: number;
   end: number;
   matchId?: string;
   groupId?: string;
   round?: number;
+  day?: string;
 };
 
 const DEFAULT_MAX_ITERATIONS = 150_000;
@@ -276,6 +279,53 @@ function candidatePenalty(
     penalty += computeGapPenalty(candidate.start - match.idealAfter);
   }
 
+  // Si el partido pertenece a un grupo, asegurar que TODOS los partidos del mismo grupo
+  // se jueguen en el MISMO DÍA y en horarios contiguos/cercanos (sin dividirlos entre días distintos).
+  if (match.groupId) {
+    let diffDayMatches = 0;
+    let groupPrevEnd: number | null = null;
+    let groupNextStart: number | null = null;
+
+    const checkGroupInterval = (iv: Interval) => {
+      if (iv.groupId !== match.groupId || iv.matchId === match.id) return;
+
+      const isDiffDay =
+        candidate.day && iv.day
+          ? candidate.day !== iv.day
+          : Math.abs(candidate.start - iv.start) > 12 * 60 * 60 * 1000;
+
+      if (isDiffDay) {
+        diffDayMatches++;
+      } else {
+        if (iv.end <= candidate.start) {
+          if (groupPrevEnd === null || iv.end > groupPrevEnd) groupPrevEnd = iv.end;
+        }
+        if (iv.start >= candidate.end) {
+          if (groupNextStart === null || iv.start < groupNextStart) groupNextStart = iv.start;
+        }
+      }
+    };
+
+    for (const iv of assignedIntervals.values()) {
+      checkGroupInterval(iv);
+    }
+    for (const iv of fixedIntervals.values()) {
+      checkGroupInterval(iv);
+    }
+
+    if (diffDayMatches > 0) {
+      // Penalización severa por mandar partidos de la misma zona a días diferentes
+      penalty += diffDayMatches * 30_000;
+    }
+
+    if (groupPrevEnd !== null) {
+      penalty += computeGapPenalty(candidate.start - groupPrevEnd);
+    }
+    if (groupNextStart !== null) {
+      penalty += computeGapPenalty(groupNextStart - candidate.end);
+    }
+  }
+
   return penalty;
 }
 
@@ -294,6 +344,7 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
       matchId: fixed.matchId,
       groupId: fixed.groupId,
       round: fixed.round,
+      day: fixed.day,
     };
     fixedIntervals.set(fixed.matchId, interval);
     if (fixed.homeTeamId) teams.add(fixed.homeTeamId, interval);
@@ -360,7 +411,7 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
       if (match.notBefore !== undefined && slot.start < match.notBefore) continue;
       const slotCourts = slot.courtId ? [slot.courtId] : input.courtIds;
       for (const courtId of slotCourts) {
-        list.push({ slotId: slot.id, courtId, start: slot.start, end: slot.end });
+        list.push({ slotId: slot.id, courtId, start: slot.start, end: slot.end, day: slot.day });
       }
     }
 
@@ -442,6 +493,7 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
         matchId: match.id,
         groupId: match.groupId,
         round: match.round,
+        day: candidate.day,
       };
       if (!courts.isFree(candidate.courtId, interval)) continue;
 

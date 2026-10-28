@@ -65,4 +65,12 @@ export const respondResultSchema = z
     path: ["comment"],
   });
 
+export const scheduleCustomMatchSchema = z.object({
+  tournamentId: z.uuid(),
+  matchId: z.uuid(),
+  startsAt: z.string(),
+  endsAt: z.string(),
+  courtId: z.uuid(),
+});
+
 export type RecordResultInput = z.input<typeof recordResultSchema>;

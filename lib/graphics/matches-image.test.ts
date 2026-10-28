@@ -124,6 +124,36 @@ describe("matches-image Canvas generator", () => {
     expect(texts.some((t) => t.includes("LM Torneos"))).toBe(true);
   });
 
+  it("renderiza 28 partidos en formato Historia adaptando la altura sin desbordar", () => {
+    const calls: string[] = [];
+    const texts: string[] = [];
+    const { mockCanvas } = createMockCanvas(calls, texts);
+
+    const manyMatches: MatchExportData[] = Array.from({ length: 28 }, (_, i) => ({
+      id: `match-${i}`,
+      homeName: `Pareja Local ${i + 1} de Pádel`,
+      awayName: `Pareja Visitante ${i + 1} de Pádel`,
+      startsAt: "2026-10-30T16:00:00.000Z",
+      endsAt: "2026-10-30T17:30:00.000Z",
+      courtName: `Cancha ${(i % 3) + 1}`,
+      section: "Zona A",
+      categoryName: "5ta",
+      resultText: null,
+    }));
+
+    renderMatchesToCanvas(mockCanvas, {
+      tournamentName: "Torneo 28 Partidos",
+      matches: manyMatches,
+      format: "story",
+    });
+
+    expect(mockCanvas.width).toBe(1080);
+    expect(mockCanvas.height).toBe(1920);
+    // Cada partido debe tener textos renderizados
+    expect(texts.filter((t) => t.includes("Pareja Local")).length).toBe(28);
+    expect(texts.filter((t) => t.includes("Pareja Visitante")).length).toBe(28);
+  });
+
   it("no falla si la lista de partidos está vacía", () => {
     const mockCanvas = {
       width: 0,

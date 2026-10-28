@@ -20,6 +20,7 @@ import {
   autoScheduleSchema,
   matchActionSchema,
   recordResultSchema,
+  scheduleCustomMatchSchema,
 } from "@/lib/validation/competition";
 import { ensurePlayoffBracket } from "../cuadro/actions";
 
@@ -116,14 +117,6 @@ export const assignSlot = createAction(assignSlotSchema, async (input, { supabas
 
   revalidate(input.tournamentId);
   return actionOk(undefined, input.slotId ? "Guardamos el horario." : "Quitamos el horario.");
-});
-
-export const scheduleCustomMatchSchema = z.object({
-  tournamentId: z.string().uuid(),
-  matchId: z.string().uuid(),
-  startsAt: z.string(),
-  endsAt: z.string(),
-  courtId: z.string().uuid(),
 });
 
 /**
