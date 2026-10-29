@@ -102,20 +102,23 @@ export const getCompetition = cache(async (tournamentId: string): Promise<Compet
       .from("teams")
       .select("*, team_members(id, display_name, email, profiles(full_name))")
       .eq("tournament_id", tournamentId)
-      .order("name"),
+      .order("name")
+      .limit(5000),
     supabase
       .from("tournament_groups")
       .select("*, group_teams(team_id, position)")
       .eq("tournament_id", tournamentId)
-      .order("position"),
+      .order("position")
+      .limit(5000),
     supabase
       .from("matches")
       .select("*")
       .eq("tournament_id", tournamentId)
       .order("stage")
       .order("round")
-      .order("position"),
-    supabase.from("match_confirmations").select("match_id, team_id, response, comment").eq("tournament_id", tournamentId),
+      .order("position")
+      .limit(5000),
+    supabase.from("match_confirmations").select("match_id, team_id, response, comment").eq("tournament_id", tournamentId).limit(5000),
     getTournamentCategories(tournamentId),
   ]);
   for (const result of [teams, groups, matches, confirmations]) {
@@ -188,17 +191,19 @@ export type SchedulingData = {
 /** Franjas, canchas y disponibilidad (por equipo) para programar partidos. */
 export const getSchedulingData = cache(async (tournamentId: string): Promise<SchedulingData> => {
   const supabase = await createClient();
-  const [slots, courts, rows] = await Promise.all([
-    supabase.from("time_slots").select("id, starts_at, ends_at, court_id, stage").eq("tournament_id", tournamentId).order("starts_at"),
-    supabase.from("courts").select("id, name, venue").eq("tournament_id", tournamentId).order("position").order("name"),
-    supabase.from("team_availability").select("team_id, slot_id").eq("tournament_id", tournamentId),
+  const [slots, courts, teamRows] = await Promise.all([
+    supabase.from("time_slots").select("id, starts_at, ends_at, court_id, stage").eq("tournament_id", tournamentId).order("starts_at").limit(5000),
+    supabase.from("courts").select("id, name, venue").eq("tournament_id", tournamentId).order("position").order("name").limit(500),
+    (supabase as any).from("teams").select("id, team_availability(slot_id)").eq("tournament_id", tournamentId).limit(5000),
   ]);
   if (slots.error) throw slots.error;
   if (courts.error) throw courts.error;
-  if (rows.error) throw rows.error;
+  if (teamRows.error) throw teamRows.error;
 
   const availability: Record<string, string[]> = {};
-  for (const row of rows.data) (availability[row.team_id] ??= []).push(row.slot_id);
+  for (const t of (teamRows.data ?? []) as Array<{ id: string; team_availability?: Array<{ slot_id: string }> }>) {
+    availability[t.id] = (t.team_availability ?? []).map((a) => a.slot_id);
+  }
 
   return {
     slots: slots.data.map((s) => ({ id: s.id, startsAt: s.starts_at, endsAt: s.ends_at, courtId: s.court_id, stage: ((s as any).stage ?? "group") as "group" | "playoff" })),

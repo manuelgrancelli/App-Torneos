@@ -165,23 +165,19 @@ export const initializeTournamentTeamsAvailability = createAction(
 
     const slotIds = slots.map((s) => s.id);
 
-    // Obtener parejas aprobadas
+    // Obtener parejas aprobadas con su disponibilidad
     const { data: teams, error: teamsError } = await (supabase as any)
       .from("teams")
-      .select("id, name")
+      .select("id, name, team_availability(slot_id)")
       .eq("tournament_id", tournamentId)
-      .eq("status", "approved");
+      .eq("status", "approved")
+      .limit(5000);
 
     if (teamsError) return actionError(dbErrorMessage(teamsError));
 
-    // Obtener disponibilidad existente
-    const { data: existingAvail } = await (supabase as any)
-      .from("team_availability")
-      .select("team_id")
-      .eq("tournament_id", tournamentId);
-
-    const teamWithAvailSet = new Set((existingAvail ?? []).map((r: { team_id: string }) => r.team_id));
-    const teamsWithoutAvail = (teams ?? []).filter((t: { id: string }) => !teamWithAvailSet.has(t.id));
+    const teamsWithoutAvail = (teams ?? []).filter(
+      (t: any) => !t.team_availability || t.team_availability.length === 0
+    );
 
     if (teamsWithoutAvail.length === 0) {
       return actionOk({ count: 0 }, "Todas las parejas ya tienen horarios asignados.");

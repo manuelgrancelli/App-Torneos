@@ -2574,3 +2574,26 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
     - En el desglose de turnos (cuando está expandido), cada turno individual cuenta con un botón rápido para pasarlo a Grupos o Cuadro individualmente.
 - **Motivo:** atender el problema reportado por el usuario ("yo puse una franja de grupos sabado de 9 a 15, y quedo en verde esta bien, pero despues puse una el mismo dia de 15 a 21 y lo identifico como color verde, es decir de grupos y actualizo la franja verde y la paso de 9 a 21, pero a mi me interesa que el programa identifique entre franjas de grupos y de play offs").
 - **Cómo aplicar:** implementado en `lib/domain/availability.ts`, `lib/domain/availability.test.ts`, `lib/validation/tournament.ts`, `app/(app)/torneos/[id]/canchas-franjas/actions.ts`, `components/tournaments/slots-manager.tsx`, `components/tournaments/configured-slots-list.tsx` y `docs/PROYECTO.md`.
+
+
+### D-183 - Eliminación de truncamiento de disponibilidad por límite de filas PostgREST en torneos multicategoría (2026-10-28)
+- **Decisión:**
+  - **Diagnóstico del problema:**
+    - En torneos con múltiples categorías o alto volumen de parejas (ej. 30 a 50 parejas con 25 a 35 franjas cada una), la tabla plana `team_availability` acumula fácilmente entre 1.200 y 2.000 filas.
+    - PostgREST en Supabase tiene configurado por defecto un límite máximo duro de 1.000 filas por consulta (`max-rows: 1000`).
+    - Las consultas planas directas `supabase.from("team_availability").select("team_id, slot_id").eq("tournament_id", tournamentId)` en `getSchedulingData` (`lib/data/competition.ts`) y `runAutoSchedule` (`lib/scheduling.ts`) retornaban únicamente las primeras 1.000 filas.
+    - Como resultado, las parejas de las categorías 1 y 2 consumían las primeras 1.000 filas, y al llegar a la categoría 3 (por ejemplo, mitad del Grupo B y todo el Grupo C), la consulta se truncaba silenciosamente.
+    - En consecuencia, para esas parejas `availability[team.id]` quedaba vacía (`undefined`), y en la pantalla de grupos (`GroupBuilder`) se mostraban con el botón `[Sin horarios]` y sin coincidencia horaria, a pesar de que en la pantalla de Inscripciones sí tenían sus franjas guardadas (debido a que Inscripciones consulta `teams` con `team_availability(slot_id)` anidado).
+  - **Solución arquitectónica implementada:**
+    - Se reemplazaron todas las lecturas planas de `team_availability` en el backend por consultas anidadas a través de la entidad `teams`:
+      `(supabase as any).from("teams").select("id, team_availability(slot_id)").eq("tournament_id", tournamentId).limit(5000)`.
+    - Al consultar las parejas (que son típicamente 20-80 por torneo, muy lejos del límite de 1.000), PostgREST embebe el array de `team_availability(slot_id)` completo por pareja sin truncamiento.
+    - Se mapeó directamente `availability[team.id] = team.team_availability.map(a => a.slot_id)` en:
+      - `lib/data/competition.ts` (`getSchedulingData` y `getCompetition`).
+      - `lib/scheduling.ts` (`runAutoSchedule`).
+      - `app/(app)/torneos/[id]/grupos/actions.ts` (`drawAllCategories`).
+      - `app/(app)/torneos/[id]/inscripciones/actions.ts` (`initializeTournamentTeamsAvailability`).
+      - `lib/data/teams.ts` (`getAvailabilityMatrix`).
+    - Se agregaron además límites explícitos seguros (`.limit(5000)`) en consultas de `time_slots`, `matches` y `tournament_groups`.
+- **Motivo:** atender el bug crítico reportado por el usuario con capturas ("hay un problema y no se cual puede ser, en el torneo que cree hay unas parejas de la 3er categoria que le carga el horario en inscripciones pero en la parte que ves los horarios en lo que te aparece en fase de grupos no aparecen los horarios cargados").
+- **Cómo aplicar:** implementado en `lib/data/competition.ts`, `lib/scheduling.ts`, `app/(app)/torneos/[id]/grupos/actions.ts`, `app/(app)/torneos/[id]/inscripciones/actions.ts`, `lib/data/teams.ts` y `docs/PROYECTO.md`.

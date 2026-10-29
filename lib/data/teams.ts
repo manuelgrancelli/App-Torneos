@@ -217,23 +217,29 @@ export type AvailabilityMatrix = {
 /** Datos para el resumen de disponibilidad del organizador (inscripciones no rechazadas). */
 export const getAvailabilityMatrix = cache(async (tournamentId: string): Promise<AvailabilityMatrix> => {
   const supabase = await createClient();
-  const [teams, slots, rows] = await Promise.all([
-    supabase
+  const [teamsRes, slots] = await Promise.all([
+    (supabase as any)
       .from("teams")
-      .select("id, name, status")
+      .select("id, name, status, team_availability(slot_id)")
       .eq("tournament_id", tournamentId)
       .neq("status", "rejected")
-      .order("name"),
-    supabase.from("time_slots").select("id, starts_at, ends_at, court_id, stage").eq("tournament_id", tournamentId).order("starts_at"),
-    supabase.from("team_availability").select("team_id, slot_id").eq("tournament_id", tournamentId),
+      .order("name")
+      .limit(5000),
+    supabase.from("time_slots").select("id, starts_at, ends_at, court_id, stage").eq("tournament_id", tournamentId).order("starts_at").limit(5000),
   ]);
-  if (teams.error) throw teams.error;
+  if (teamsRes.error) throw teamsRes.error;
   if (slots.error) throw slots.error;
-  if (rows.error) throw rows.error;
+
+  const rows = (teamsRes.data ?? []).flatMap((t: any) =>
+    ((t.team_availability as Array<{ slot_id: string }>) ?? []).map((a) => ({
+      teamId: t.id,
+      slotId: a.slot_id,
+    }))
+  );
 
   return {
-    teams: teams.data,
+    teams: (teamsRes.data ?? []).map((t: any) => ({ id: t.id, name: t.name, status: t.status })),
     slots: slots.data.filter((s: any) => s.stage !== "playoff").map((s) => ({ id: s.id, startsAt: s.starts_at, endsAt: s.ends_at, courtId: s.court_id })),
-    rows: rows.data.map((r) => ({ teamId: r.team_id, slotId: r.slot_id })),
+    rows,
   };
 });

@@ -31,17 +31,17 @@ export async function runAutoSchedule(
   mode: AutoScheduleMode,
   onlyMatchIds?: readonly string[],
 ): Promise<{ ok: true; outcome: AutoScheduleOutcome } | { ok: false; error: { code?: string; message?: string } }> {
-  const [matches, slots, courts, rows, groupTeams, tournamentData, groupsData, categoriesData] = await Promise.all([
-    supabase.from("matches").select("*").eq("tournament_id", tournamentId),
-    supabase.from("time_slots").select("id, starts_at, ends_at, court_id, stage").eq("tournament_id", tournamentId),
-    supabase.from("courts").select("id").eq("tournament_id", tournamentId).order("position").order("name"),
-    supabase.from("team_availability").select("team_id, slot_id").eq("tournament_id", tournamentId),
-    supabase.from("group_teams").select("group_id, team_id").eq("tournament_id", tournamentId),
+  const [matches, slots, courts, teamRows, groupTeams, tournamentData, groupsData, categoriesData] = await Promise.all([
+    supabase.from("matches").select("*").eq("tournament_id", tournamentId).limit(5000),
+    supabase.from("time_slots").select("id, starts_at, ends_at, court_id, stage").eq("tournament_id", tournamentId).limit(5000),
+    supabase.from("courts").select("id").eq("tournament_id", tournamentId).order("position").order("name").limit(500),
+    (supabase as any).from("teams").select("id, team_availability(slot_id)").eq("tournament_id", tournamentId).limit(5000),
+    supabase.from("group_teams").select("group_id, team_id").eq("tournament_id", tournamentId).limit(5000),
     supabase.from("tournaments").select("timezone").eq("id", tournamentId).maybeSingle(),
-    supabase.from("tournament_groups").select("id, position, name").eq("tournament_id", tournamentId).order("position"),
-    (supabase as any).from("tournament_categories").select("id, position, name").eq("tournament_id", tournamentId).order("position"),
+    supabase.from("tournament_groups").select("id, position, name").eq("tournament_id", tournamentId).order("position").limit(500),
+    (supabase as any).from("tournament_categories").select("id, position, name").eq("tournament_id", tournamentId).order("position").limit(500),
   ]);
-  for (const result of [matches, slots, courts, rows, groupTeams]) {
+  for (const result of [matches, slots, courts, teamRows, groupTeams]) {
     if (result.error) return { ok: false, error: result.error };
   }
   const tz = tournamentData.data?.timezone || DEFAULT_TIMEZONE;
@@ -145,7 +145,9 @@ export async function runAutoSchedule(
   }
 
   const availability: Record<string, string[]> = {};
-  for (const row of rows.data ?? []) (availability[row.team_id] ??= []).push(row.slot_id);
+  for (const t of (teamRows.data ?? []) as Array<{ id: string; team_availability?: Array<{ slot_id: string }> }>) {
+    availability[t.id] = (t.team_availability ?? []).map((a) => a.slot_id);
+  }
 
   // Mapear cada grupo a su franja más temprana viable según disponibilidad de sus equipos
   const groupEarliestSlot = new Map<string, number>();

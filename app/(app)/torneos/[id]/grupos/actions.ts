@@ -125,11 +125,10 @@ export const saveGroups = createAction(saveGroupsSchema, async ({ tournamentId, 
 export const drawAllCategories = createAction(
   drawAllCategoriesSchema,
   async ({ tournamentId, categoryConfigs }, { supabase }) => {
-    const [categoriesRes, teamsRes, matchesRes, availRes] = await Promise.all([
-      (supabase as any).from("tournament_categories").select("*").eq("tournament_id", tournamentId).order("position"),
-      (supabase as any).from("teams").select("id, name, category_id, status").eq("tournament_id", tournamentId).eq("status", "approved"),
-      (supabase as any).from("matches").select("id, category_id, result_status").eq("tournament_id", tournamentId),
-      (supabase as any).from("team_availability").select("team_id, slot_id").eq("tournament_id", tournamentId),
+    const [categoriesRes, teamsRes, matchesRes] = await Promise.all([
+      (supabase as any).from("tournament_categories").select("*").eq("tournament_id", tournamentId).order("position").limit(500),
+      (supabase as any).from("teams").select("id, name, category_id, status, team_availability(slot_id)").eq("tournament_id", tournamentId).eq("status", "approved").limit(5000),
+      (supabase as any).from("matches").select("id, category_id, result_status").eq("tournament_id", tournamentId).limit(5000),
     ]);
 
     if (categoriesRes.error) return actionError(dbErrorMessage(categoriesRes.error));
@@ -146,8 +145,8 @@ export const drawAllCategories = createAction(
 
     // Mapa de disponibilidad teamId -> slotIds
     const availability: Record<string, string[]> = {};
-    for (const row of availRes.data ?? []) {
-      (availability[row.team_id] ??= []).push(row.slot_id);
+    for (const t of teams) {
+      availability[t.id] = ((t.team_availability as Array<{ slot_id: string }>) ?? []).map((a: any) => a.slot_id);
     }
 
     // Categorías con resultados ya cargados (no deben re-sortearse para no alterar resultados jugados)
