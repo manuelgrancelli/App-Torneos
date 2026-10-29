@@ -43,7 +43,8 @@ export const registerTeam = createAction(registerTeamSchema, async (input, { sup
       const { data: slots } = await supabase
         .from("time_slots")
         .select("id")
-        .eq("tournament_id", teamRow.tournament_id);
+        .eq("tournament_id", teamRow.tournament_id)
+        .neq("stage", "playoff");
 
       if (slots && slots.length > 0) {
         await (supabase.rpc as any)("set_team_availability", {

@@ -62,7 +62,7 @@ export default async function BracketPage({
     const res = await ensurePlayoffBracket(
       supabase,
       tournament.id,
-      { ...(activeCategory ? { categoryId: activeCategory.id } : {}), revalidate: false }
+      { revalidate: false }
     );
     if (res.ok && (res.count ?? 0) > 0) {
       competition = await getCompetition(tournament.id);
@@ -251,6 +251,7 @@ export default async function BracketPage({
             {playoffMatches.length > 0 ? (
               <AutoScheduleBracketButton
                 tournamentId={tournament.id}
+                categoryId={activeCategory?.id}
                 hasUnscheduledMatches={hasUnscheduledPlayoffMatches}
               />
             ) : null}

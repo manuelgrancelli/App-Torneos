@@ -10,11 +10,13 @@ import { Spinner } from "@/components/ui/spinner";
 
 type AutoScheduleBracketButtonProps = {
   tournamentId: string;
+  categoryId?: string;
   hasUnscheduledMatches: boolean;
 };
 
 export function AutoScheduleBracketButton({
   tournamentId,
+  categoryId,
   hasUnscheduledMatches,
 }: AutoScheduleBracketButtonProps) {
   const router = useRouter();
@@ -24,6 +26,7 @@ export function AutoScheduleBracketButton({
     startTransition(async () => {
       const result = await autoSchedule({
         tournamentId,
+        categoryId,
         mode: hasUnscheduledMatches ? "unscheduled" : "all",
       });
 

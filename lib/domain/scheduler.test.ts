@@ -848,4 +848,71 @@ describe("Programación automática de cuadro / playoffs", () => {
     const minStart5ta = Math.min(...assigns5ta.map((a) => a.start));
     expect(minStart5ta).toBeGreaterThanOrEqual(maxEnd6ta);
   });
+  it("en torneo multicategoría (3 categorías), los cruces de playoff de todas las categorías se programan si hay franjas suficientes", () => {
+    // 3 canchas y 8 turnos de playoff (24 slots)
+    const courtIds = ["c1", "c2", "c3"];
+    const slots: any[] = [];
+    for (let turn = 0; turn < 8; turn++) {
+      const start = T0 + (4 + turn) * H;
+      const end = start + 1 * H;
+      slots.push({ id: `sp_${turn}_c1`, start, end, courtId: "c1", stage: "playoff" });
+      slots.push({ id: `sp_${turn}_c2`, start, end, courtId: "c2", stage: "playoff" });
+      slots.push({ id: `sp_${turn}_c3`, start, end, courtId: "c3", stage: "playoff" });
+    }
+
+    const cats = ["cat-6ta", "cat-suma10", "cat-suma13"];
+    const matches: any[] = [];
+    cats.forEach((catId, catIdx) => {
+      // 4 partidos de cuartos, 2 semis, 1 final
+      for (let p = 1; p <= 4; p++) {
+        matches.push({
+          id: `${catId}_cto_${p}`,
+          stage: "playoff" as const,
+          allAvailable: true,
+          categoryId: catId,
+          round: 1,
+          position: p,
+          order: 100_000 + 10_000 + catIdx * 100 + p,
+        });
+      }
+      for (let p = 1; p <= 2; p++) {
+        matches.push({
+          id: `${catId}_sem_${p}`,
+          stage: "playoff" as const,
+          allAvailable: true,
+          categoryId: catId,
+          round: 2,
+          position: p,
+          feederMatchIds: [`${catId}_cto_${p * 2 - 1}`, `${catId}_cto_${p * 2}`],
+          order: 100_000 + 20_000 + catIdx * 100 + p,
+        });
+      }
+      matches.push({
+        id: `${catId}_fin_1`,
+        stage: "playoff" as const,
+        allAvailable: true,
+        categoryId: catId,
+        round: 3,
+        position: 1,
+        feederMatchIds: [`${catId}_sem_1`, `${catId}_sem_2`],
+        order: 100_000 + 30_000 + catIdx * 100 + 1,
+      });
+    });
+
+    const data = input({
+      courtIds,
+      slots,
+      matches,
+      availability: {},
+    });
+
+    const result = scheduleMatches(data);
+    expect(result.unscheduled).toEqual([]);
+    expect(result.assignments).toHaveLength(matches.length);
+
+    for (const catId of cats) {
+      const catAssignments = result.assignments.filter((a) => a.matchId.startsWith(catId));
+      expect(catAssignments).toHaveLength(7);
+    }
+  });
 });

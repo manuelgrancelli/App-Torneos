@@ -25,6 +25,7 @@ export const drawAllCategoriesSchema = z.object({
 export const autoScheduleSchema = z.object({
   tournamentId: z.uuid(),
   mode: z.enum(["unscheduled", "all"]),
+  categoryId: z.uuid().optional(),
 });
 
 export const assignSlotSchema = z.object({

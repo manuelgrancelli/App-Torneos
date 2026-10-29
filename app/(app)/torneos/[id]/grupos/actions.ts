@@ -125,10 +125,11 @@ export const saveGroups = createAction(saveGroupsSchema, async ({ tournamentId, 
 export const drawAllCategories = createAction(
   drawAllCategoriesSchema,
   async ({ tournamentId, categoryConfigs }, { supabase }) => {
-    const [categoriesRes, teamsRes, matchesRes] = await Promise.all([
+    const [categoriesRes, teamsRes, matchesRes, slotsRes] = await Promise.all([
       (supabase as any).from("tournament_categories").select("*").eq("tournament_id", tournamentId).order("position").limit(500),
       (supabase as any).from("teams").select("id, name, category_id, status, team_availability(slot_id)").eq("tournament_id", tournamentId).eq("status", "approved").limit(5000),
       (supabase as any).from("matches").select("id, category_id, result_status").eq("tournament_id", tournamentId).limit(5000),
+      supabase.from("time_slots").select("id, stage").eq("tournament_id", tournamentId).limit(5000),
     ]);
 
     if (categoriesRes.error) return actionError(dbErrorMessage(categoriesRes.error));
@@ -143,10 +144,18 @@ export const drawAllCategories = createAction(
       return actionError("El torneo no tiene categorías creadas.");
     }
 
-    // Mapa de disponibilidad teamId -> slotIds
+    const groupSlotIdSet = new Set(
+      (slotsRes.data ?? [])
+        .filter((s: any) => (s.stage ?? "group") === "group")
+        .map((s: any) => s.id),
+    );
+
+    // Mapa de disponibilidad teamId -> slotIds (estrictamente fase de grupos)
     const availability: Record<string, string[]> = {};
     for (const t of teams) {
-      availability[t.id] = ((t.team_availability as Array<{ slot_id: string }>) ?? []).map((a: any) => a.slot_id);
+      availability[t.id] = ((t.team_availability as Array<{ slot_id: string }>) ?? [])
+        .map((a: any) => a.slot_id)
+        .filter((id) => groupSlotIdSet.has(id));
     }
 
     // Categorías con resultados ya cargados (no deben re-sortearse para no alterar resultados jugados)

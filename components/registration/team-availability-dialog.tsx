@@ -54,13 +54,18 @@ export function TeamAvailabilityDialog({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  // Conjunto inicial guardado de la pareja seleccionada
-  const initialSlotIds = useMemo(() => team?.availabilitySlotIds ?? [], [team]);
+  // IDs válidos de franjas pasadas al diálogo (excluyendo cualquier turno de playoff)
+  const validSlotIdSet = useMemo(() => new Set(slots.map((s) => s.id)), [slots]);
+
+  // Conjunto inicial guardado de la pareja seleccionada (solo franjas válidas de grupo)
+  const initialSlotIds = useMemo(() => {
+    return (team?.availabilitySlotIds ?? []).filter((id) => validSlotIdSet.has(id));
+  }, [team, validSlotIdSet]);
   const savedSet = useMemo(() => new Set(initialSlotIds), [initialSlotIds]);
 
-  // Selección actual en edición (si no tiene ninguna, se preseleccionan todas las del torneo por defecto)
+  // Selección actual en edición (si no tiene ninguna, se preseleccionan todas las de grupo por defecto)
   const [currentSelected, setCurrentSelected] = useState<Set<string>>(() => {
-    if (team && team.availabilitySlotIds.length === 0 && slots.length > 0) {
+    if (team && initialSlotIds.length === 0 && slots.length > 0) {
       return new Set(slots.map((s) => s.id));
     }
     return new Set(initialSlotIds);
@@ -69,13 +74,14 @@ export function TeamAvailabilityDialog({
   // Resetear la selección al abrir el diálogo o cambiar de equipo
   useEffect(() => {
     if (open && team) {
-      if (team.availabilitySlotIds.length === 0 && slots.length > 0) {
+      const validIds = team.availabilitySlotIds.filter((id) => validSlotIdSet.has(id));
+      if (validIds.length === 0 && slots.length > 0) {
         setCurrentSelected(new Set(slots.map((s) => s.id)));
       } else {
-        setCurrentSelected(new Set(team.availabilitySlotIds));
+        setCurrentSelected(new Set(validIds));
       }
     }
-  }, [open, team, slots]);
+  }, [open, team, slots, validSlotIdSet]);
 
   // Agrupación de turnos por día y franjas continuas
   const dayWindows = useMemo(

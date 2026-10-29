@@ -200,9 +200,17 @@ export const getSchedulingData = cache(async (tournamentId: string): Promise<Sch
   if (courts.error) throw courts.error;
   if (teamRows.error) throw teamRows.error;
 
+  // La disponibilidad de las parejas aplica estrictamente a la fase de grupos.
+  // Las franjas de playoffs nunca se mezclan con la disponibilidad de zonas.
+  const groupSlotIdSet = new Set(
+    slots.data.filter((s: any) => (s.stage ?? "group") === "group").map((s) => s.id),
+  );
+
   const availability: Record<string, string[]> = {};
   for (const t of (teamRows.data ?? []) as Array<{ id: string; team_availability?: Array<{ slot_id: string }> }>) {
-    availability[t.id] = (t.team_availability ?? []).map((a) => a.slot_id);
+    availability[t.id] = (t.team_availability ?? [])
+      .map((a) => a.slot_id)
+      .filter((id) => groupSlotIdSet.has(id));
   }
 
   return {

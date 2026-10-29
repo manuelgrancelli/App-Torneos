@@ -157,10 +157,11 @@ export const initializeTournamentTeamsAvailability = createAction(
     const { data: slots, error: slotsError } = await supabase
       .from("time_slots")
       .select("id")
-      .eq("tournament_id", tournamentId);
+      .eq("tournament_id", tournamentId)
+      .neq("stage", "playoff");
 
     if (slotsError || !slots || slots.length === 0) {
-      return actionError("El torneo no tiene franjas horarias creadas.");
+      return actionError("El torneo no tiene franjas horarias de grupos creadas.");
     }
 
     const slotIds = slots.map((s) => s.id);
@@ -225,11 +226,12 @@ export const bulkImportTeams = createAction(
       return actionError("La inscripción de este torneo no está abierta. Abrí la inscripción antes de importar.");
     }
 
-    // 2. Obtener franjas horarias
+    // 2. Obtener franjas horarias (exclusivamente fase de grupos)
     const { data: slots, error: slotsError } = await supabase
       .from("time_slots")
       .select("id")
-      .eq("tournament_id", tournamentId);
+      .eq("tournament_id", tournamentId)
+      .neq("stage", "playoff");
 
     const availableSlotIds = (slots ?? []).map((s) => s.id);
     const slotIdsToUse = allSlots

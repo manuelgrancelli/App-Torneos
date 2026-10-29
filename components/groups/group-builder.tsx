@@ -3,7 +3,7 @@
 import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
 import { ArrowLeftRight, CalendarClock, GripVertical, Shuffle, Sparkles, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { saveGroups } from "@/app/(app)/torneos/[id]/grupos/actions";
 import {
@@ -83,87 +83,98 @@ function TeamChip({
     <li
       ref={ref}
       className={cn(
-        "flex items-center gap-1.5 sm:gap-2 rounded-lg border bg-background px-2 py-1.5 text-sm transition-colors",
-        isDragging && "opacity-60 shadow",
-        hasConflict && "border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20",
+        "rounded-xl border bg-card p-2.5 text-sm transition-all shadow-xs hover:border-foreground/30 space-y-2",
+        isDragging && "opacity-60 shadow-md ring-2 ring-primary/40",
+        hasConflict && "border-amber-400/80 bg-amber-50/70 dark:border-amber-800 dark:bg-amber-950/30",
       )}
     >
-      {/* Agarre para arrastrar (mouse/touch); con teclado se usa el selector. */}
-      <button
-        ref={handleRef}
-        type="button"
-        className="cursor-grab touch-none rounded p-1 text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        aria-label={`Arrastrar ${team.name}`}
-      >
-        <GripVertical className="size-4" aria-hidden="true" />
-      </button>
-
-      <span className="min-w-0 flex-1 truncate font-medium">{team.name}</span>
-
-      {/* Badges de horarios / coincidencia */}
-      {hasConflict ? (
+      {/* Fila 1: Agarre + Nombre completo y visible de la pareja */}
+      <div className="flex items-center gap-2 min-w-0">
         <button
+          ref={handleRef}
           type="button"
-          onClick={() => onOpenDetails?.(team.id)}
-          className="inline-flex items-center gap-1 rounded bg-amber-100 hover:bg-amber-200/80 px-1.5 py-0.5 text-[11px] font-medium text-amber-900 dark:bg-amber-900/50 dark:hover:bg-amber-900/70 dark:text-amber-200 transition-colors cursor-pointer shrink-0"
-          title="Ver detalle de conflicto horario con parejas de este grupo"
+          className="cursor-grab touch-none rounded p-1 text-muted-foreground hover:text-foreground shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={`Arrastrar ${team.name}`}
+          title="Arrastrar para mover de grupo"
         >
-          <TriangleAlert className="size-3 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-          <span className="hidden sm:inline">Sin coincidencia</span>
-          <span className="sm:hidden">Conflicto</span>
+          <GripVertical className="size-4" aria-hidden="true" />
         </button>
-      ) : hasAvailability ? (
-        <button
-          type="button"
-          onClick={() => onOpenDetails?.(team.id)}
-          className="inline-flex items-center gap-1 rounded border border-border/60 bg-muted/40 hover:bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
-          title="Ver franjas y coincidencia horaria con rivales de la zona"
-        >
-          <CalendarClock className="size-3 shrink-0 text-primary" aria-hidden="true" />
-          <span className="hidden sm:inline">Horarios</span>
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={() => onOpenDetails?.(team.id)}
-          className="inline-flex items-center gap-1 rounded border border-dashed border-muted-foreground/40 bg-muted/20 hover:bg-muted/50 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
-          title="No tiene horarios asignados. Clic para ver o habilitar todos los horarios del torneo."
-        >
-          <CalendarClock className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span className="hidden sm:inline">Sin horarios</span>
-          <span className="sm:hidden">Sin hor.</span>
-        </button>
-      )}
 
-      {/* Botón de Intercambio directo (Swap) */}
-      {groupCount > 1 && onSwap ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => onSwap(team.id)}
-          className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted"
-          title={`Intercambiar ${team.name} con pareja de otro grupo`}
-          aria-label={`Intercambiar ${team.name} con pareja de otro grupo`}
+        <span
+          className="font-semibold text-foreground text-sm leading-snug line-clamp-2 select-text"
+          title={team.name}
         >
-          <ArrowLeftRight className="size-3.5" />
-        </Button>
-      ) : null}
+          {team.name}
+        </span>
+      </div>
 
-      {/* Selector de mover a otro grupo */}
-      <NativeSelect
-        size="sm"
-        aria-label={`Mover ${team.name} a…`}
-        value={String(groupIndex)}
-        onChange={(e) => onMove(team.id, Number(e.target.value))}
-        className="w-20 sm:w-24 shrink-0 text-xs h-7"
-      >
-        {Array.from({ length: groupCount }, (_, i) => (
-          <NativeSelectOption key={i} value={String(i)}>
-            {groupName(i)}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
+      {/* Fila 2: Botón de horarios a la izquierda y acciones (swap + mover) a la derecha */}
+      <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-border/40">
+        {/* Badges de horarios / coincidencia */}
+        {hasConflict ? (
+          <button
+            type="button"
+            onClick={() => onOpenDetails?.(team.id)}
+            className="inline-flex items-center gap-1 rounded-md bg-amber-100 hover:bg-amber-200/90 px-2 py-1 text-[11px] font-semibold text-amber-900 dark:bg-amber-900/60 dark:hover:bg-amber-900/80 dark:text-amber-200 transition-colors cursor-pointer shrink-0 shadow-2xs"
+            title={`Atención: ver conflicto horario de ${team.name}`}
+          >
+            <TriangleAlert className="size-3 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+            <span>Sin coincidencia</span>
+          </button>
+        ) : hasAvailability ? (
+          <button
+            type="button"
+            onClick={() => onOpenDetails?.(team.id)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300 transition-colors cursor-pointer shrink-0 shadow-2xs"
+            title={`Ver franjas y coincidencias de ${team.name} con sus rivales`}
+          >
+            <CalendarClock className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+            <span>Ver horarios</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onOpenDetails?.(team.id)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-muted-foreground/40 bg-muted/40 hover:bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
+            title={`Sin horarios cargados para ${team.name}. Clic para ver o habilitar todos los turnos.`}
+          >
+            <CalendarClock className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span>Sin horarios</span>
+          </button>
+        )}
+
+        {/* Acciones: Swap e intercambio rápido */}
+        <div className="flex items-center gap-1 shrink-0">
+          {groupCount > 1 && onSwap ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onSwap(team.id)}
+              className="h-6.5 w-6.5 p-0 text-muted-foreground hover:text-foreground border-border/60"
+              title={`Intercambiar ${team.name} con pareja de otro grupo`}
+              aria-label={`Intercambiar ${team.name} con pareja de otro grupo`}
+            >
+              <ArrowLeftRight className="size-3" />
+            </Button>
+          ) : null}
+
+          {/* Selector de mover a otro grupo */}
+          <NativeSelect
+            size="sm"
+            aria-label={`Mover ${team.name} a…`}
+            value={String(groupIndex)}
+            onChange={(e) => onMove(team.id, Number(e.target.value))}
+            className="w-20 text-[11px] h-6.5 px-1.5 py-0 bg-background"
+          >
+            {Array.from({ length: groupCount }, (_, i) => (
+              <NativeSelectOption key={i} value={String(i)}>
+                {groupName(i)}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </div>
+      </div>
     </li>
   );
 }
@@ -257,29 +268,46 @@ export function GroupBuilder({
   const [detailsTeamId, setDetailsTeamId] = useState<string | null>(null);
   const [isAssigningSlots, setIsAssigningSlots] = useState(false);
 
+  // Franjas horarias exclusivas para fase de grupos (aislando completamente playoffs)
+  const groupSlots = useMemo(() => slots.filter((s) => ((s as any).stage ?? "group") === "group"), [slots]);
+  const groupSlotIdSet = useMemo(() => new Set(groupSlots.map((s) => s.id)), [groupSlots]);
+
+  // Sanitizar disponibilidad para que en zonas solo se consideren turnos de fase de grupos
+  const sanitizeAvailability = useCallback(
+    (avail?: Record<string, string[]>) => {
+      if (!avail) return undefined;
+      const sanitized: Record<string, string[]> = {};
+      for (const [tId, sIds] of Object.entries(avail)) {
+        sanitized[tId] = sIds.filter((id) => groupSlotIdSet.has(id));
+      }
+      return sanitized;
+    },
+    [groupSlotIdSet],
+  );
+
   // Disponibilidad local sincronizada para actualización inmediata en UI
-  const [localAvailability, setLocalAvailability] = useState(availability);
+  const [localAvailability, setLocalAvailability] = useState(() => sanitizeAvailability(availability));
 
   useEffect(() => {
-    setLocalAvailability(availability);
-  }, [availability]);
+    setLocalAvailability(sanitizeAvailability(availability));
+  }, [availability, sanitizeAvailability]);
 
   const teamsWithoutAvailability = useMemo(() => {
     return teams.filter((t) => !localAvailability?.[t.id] || localAvailability[t.id]!.length === 0);
   }, [teams, localAvailability]);
 
   async function handleAssignAllSlots(teamId: string) {
-    if (slots.length === 0) {
-      toast.error("El torneo aún no tiene franjas horarias configuradas.");
+    if (groupSlots.length === 0) {
+      toast.error("El torneo aún no tiene franjas horarias de grupos configuradas.");
       return;
     }
     setIsAssigningSlots(true);
     try {
-      const allSlotIds = slots.map((s) => s.id);
+      const allGroupSlotIds = groupSlots.map((s) => s.id);
       const res = await setTeamAvailabilityByOrganizer({
         tournamentId,
         teamId,
-        slotIds: allSlotIds,
+        slotIds: allGroupSlotIds,
       });
       if (!res.ok) {
         toast.error(res.error);
@@ -287,9 +315,9 @@ export function GroupBuilder({
       }
       setLocalAvailability((prev) => ({
         ...(prev ?? {}),
-        [teamId]: allSlotIds,
+        [teamId]: allGroupSlotIds,
       }));
-      toast.success(res.message ?? "Se asignaron todos los horarios a la pareja.");
+      toast.success(res.message ?? "Se asignaron todos los horarios de grupos a la pareja.");
       router.refresh();
     } finally {
       setIsAssigningSlots(false);
@@ -304,13 +332,13 @@ export function GroupBuilder({
         toast.error(res.error);
         return;
       }
-      const allSlotIds = slots.map((s) => s.id);
+      const allGroupSlotIds = groupSlots.map((s) => s.id);
       setLocalAvailability((prev) => {
         const next = { ...(prev ?? {}) };
         for (const t of teams) {
           const existing = next[t.id];
           if (!existing || existing.length === 0) {
-            next[t.id] = allSlotIds;
+            next[t.id] = allGroupSlotIds;
           }
         }
         return next;
@@ -526,7 +554,7 @@ export function GroupBuilder({
               if (source && Number.isInteger(toGroup)) move(String(source.id), toGroup);
             }}
           >
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
               {groups.map((group, index) => (
                 <GroupColumn
                   key={index}
@@ -616,7 +644,7 @@ export function GroupBuilder({
         groupIndex={detailsGroupIndex}
         rivals={detailsRivals}
         availability={localAvailability}
-        slots={slots}
+        slots={groupSlots}
         courts={courts}
         timezone={timezone}
         onOpenSwap={(tId) => setSwapTeamId(tId)}

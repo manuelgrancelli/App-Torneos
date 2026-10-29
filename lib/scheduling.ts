@@ -30,6 +30,7 @@ export async function runAutoSchedule(
   tournamentId: string,
   mode: AutoScheduleMode,
   onlyMatchIds?: readonly string[],
+  categoryId?: string,
 ): Promise<{ ok: true; outcome: AutoScheduleOutcome } | { ok: false; error: { code?: string; message?: string } }> {
   const [matches, slots, courts, teamRows, groupTeams, tournamentData, groupsData, categoriesData] = await Promise.all([
     supabase.from("matches").select("*").eq("tournament_id", tournamentId).limit(5000),
@@ -67,6 +68,7 @@ export async function runAutoSchedule(
     ((m.home_team_id !== null && m.away_team_id !== null) ||
       (m.stage === "group" && m.round === 2 && m.group_id !== null && groupTeamsMap.get(m.group_id)?.length === 4) ||
       m.stage === "playoff") &&
+    (!categoryId || m.category_id === categoryId) &&
     (mode === "all" || m.slot_id === null) &&
     (!onlyMatchIds || onlyMatchIds.includes(m.id));
 
@@ -154,6 +156,7 @@ export async function runAutoSchedule(
   for (const [groupId, teamIds] of groupTeamsMap) {
     let earliest = Number.POSITIVE_INFINITY;
     for (const slot of slots.data ?? []) {
+      if ((slot as any).stage === "playoff") continue;
       const slotStart = Date.parse(slot.starts_at);
       const availCount = teamIds.filter((t) => (availability[t] ?? []).includes(slot.id)).length;
       if (availCount >= Math.min(2, teamIds.length)) {
@@ -221,10 +224,11 @@ export async function runAutoSchedule(
       matchOrder = 100_000 + (m.round * 10_000) + (catIndex * 100) + m.position;
     }
 
+    const hasPlayoffSlots = (slots.data ?? []).some((s: any) => s.stage === "playoff");
     let playoffNotBefore: number | undefined = undefined;
     if (m.stage === "playoff") {
       const catEnd = m.category_id ? latestGroupEndByCat.get(m.category_id) : undefined;
-      playoffNotBefore = catEnd ?? latestGroupEndGlobal;
+      playoffNotBefore = catEnd ?? (hasPlayoffSlots ? undefined : latestGroupEndGlobal);
     }
 
     return {
@@ -258,11 +262,21 @@ export async function runAutoSchedule(
     fixed,
   });
 
+  if (mode === "all" && categoryId && !onlyMatchIds) {
+    await (supabase as any)
+      .from("matches")
+      .update({ slot_id: null, court_id: null })
+      .eq("tournament_id", tournamentId)
+      .eq("category_id", categoryId)
+      .eq("schedule_locked", false)
+      .is("result_status", null);
+  }
+
   if (result.assignments.length > 0 || mode === "all") {
     const { error } = await supabase.rpc("apply_schedule", {
       p_tournament_id: tournamentId,
       p_assignments: result.assignments.map((a) => ({ matchId: a.matchId, slotId: a.slotId, courtId: a.courtId })),
-      p_clear_unlocked: mode === "all" && !onlyMatchIds,
+      p_clear_unlocked: mode === "all" && !onlyMatchIds && !categoryId,
     });
     if (error) return { ok: false, error };
   }

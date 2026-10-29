@@ -32,8 +32,9 @@ function revalidate(tournamentId: string) {
 }
 
 /** Programación automática de los partidos (scheduler de lib/domain). */
-export const autoSchedule = createAction(autoScheduleSchema, async ({ tournamentId, mode }, { supabase }) => {
-  const result = await runAutoSchedule(supabase, tournamentId, mode);
+export const autoSchedule = createAction(autoScheduleSchema, async ({ tournamentId, mode, categoryId }, { supabase }) => {
+  await ensurePlayoffBracket(supabase, tournamentId, { revalidate: false });
+  const result = await runAutoSchedule(supabase, tournamentId, mode, undefined, categoryId);
   if (!result.ok) return actionError(dbErrorMessage(result.error));
   revalidate(tournamentId);
 

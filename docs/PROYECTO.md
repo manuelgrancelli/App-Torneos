@@ -2597,3 +2597,62 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
     - Se agregaron además límites explícitos seguros (`.limit(5000)`) en consultas de `time_slots`, `matches` y `tournament_groups`.
 - **Motivo:** atender el bug crítico reportado por el usuario con capturas ("hay un problema y no se cual puede ser, en el torneo que cree hay unas parejas de la 3er categoria que le carga el horario en inscripciones pero en la parte que ves los horarios en lo que te aparece en fase de grupos no aparecen los horarios cargados").
 - **Cómo aplicar:** implementado en `lib/data/competition.ts`, `lib/scheduling.ts`, `app/(app)/torneos/[id]/grupos/actions.ts`, `app/(app)/torneos/[id]/inscripciones/actions.ts`, `lib/data/teams.ts` y `docs/PROYECTO.md`.
+
+
+### D-184 - Rediseño de tarjetas de parejas en armado de grupos y agrupación de horarios por franjas completas (2026-10-29)
+- **Decisión:**
+  - **Rediseño de tarjetas de pareja en Armado de Grupos (`components/groups/group-builder.tsx`):**
+    - En la versión anterior, el nombre de la pareja compartía una única fila horizontal estrecha junto al icono de arrastre, el botón de horarios, el botón de intercambio (swap) y el selector desplegable de grupo. En grillas de 3 columnas o pantallas estándar, el nombre quedaba comprimido a apenas 1 o 2 letras con puntos suspensivos (ej. `Z...` o `U...`), impidiendo al organizador identificar a qué pareja pertenecía cada botón.
+    - Se rediseñó el componente `TeamChip` con estructura en dos niveles:
+      - **Nivel superior (identificación clara):** Agarre de arrastre junto al **nombre completo de la pareja** en tipografía destacada (`font-semibold text-foreground`), con salto de línea controlado (`line-clamp-2`), ocupando todo el ancho de la tarjeta para visibilidad absoluta.
+      - **Nivel inferior (acciones y estado):** Botón de estado de disponibilidad a la izquierda (`[ Ver horarios ]` en verde esmeralda con icono de calendario, `[ Sin coincidencia ]` en ámbar de alerta o `[ Sin horarios ]` en gris punteado con tooltip contextual) y controles de grupo a la derecha (botón `<->` para intercambio directo y selector compacto `[ Mover a grupo ]`).
+  - **Agrupación por franjas completas en Detalle de Horarios y Coincidencias (`components/groups/slot-matches-modal.tsx`):**
+    - En lugar de renderizar turnos atómicos individuales de 1 hora (lo que generaba listas kilométricas de más de 25 pastillas repetitivas por día), los turnos comunes y los turnos de la pareja ahora se agrupan automáticamente mediante `groupSlotsIntoDayWindows` de `lib/domain/availability.ts`.
+    - Turnos continuos de un mismo día (ej. de 13:00 a 22:00) se presentan como una única franja comprensible: `Jue 29/10 · 13:00–22:00`.
+    - Los badges de coincidencia ("X franjas en común") y el contador de franjas declaradas reflejan la cantidad real de franjas continuas (ej. 3 franjas en común en lugar de 27 turnos fragmentados), dejando la interfaz limpia, compacta y legible al instante.
+- **Motivo:** atender la solicitud del usuario ("eso de que aparezca por hora de que tienen disponible no queda bien queda re largo, solo poner las franjas que se crean, por ejemplo si hay una franja jueves de 13 a 22 no pongas juesves de 13 a 14, jueves de 14 a 15, pone jueves de 13 a 22, se entiende el lapso en que puede jugar, ademas habria que hacer un cambio de diseño en esa parte, porque te aparece para ver los horarios de cada pareja en el sorteo, pero, no se pueden ver los nombres de la pareja, es decir, yo entro en horarios de alguna pareja, pero no se en cual voy a entrar ya que no se puede ver de antemano").
+- **Cómo aplicar:** implementado en `components/groups/group-builder.tsx`, `components/groups/slot-matches-modal.tsx` y `docs/PROYECTO.md`.
+
+
+### D-185 - Aislamiento estricto de disponibilidad a la fase de grupos y exclusión total de franjas de playoffs (2026-10-29)
+- **Decisión:**
+  - **Diagnóstico del problema:**
+    - Las franjas horarias marcadas como `stage = 'playoff'` (por ejemplo, Domingo de 14:00 a 22:00) estaban siendo incluidas en la disponibilidad de los equipos (`team_availability`), ya sea por autoinserción masiva o consultas sin filtro de etapa.
+    - Como resultado:
+      1. Parejas que solo podían jugar en una franja de grupo (ej. Jueves) aparecían con franjas adicionales (o disponibilidad total) porque acumulaban las franjas de playoffs.
+      2. En el sorteo de zonas (`drawGroups` / `drawAllCategories`) y en el detector de conflictos (`getGroupAvailabilityConflicts`), parejas que no compartían ningún horario de grupos eran consideradas compatibles por compartir la franja de playoffs (generando grupos inviables en días de grupos).
+      3. En `SwapTeamsModal`, parejas incompatibles en grupos figuraban como intercambiables sin conflicto por el falso solapamiento en playoffs.
+      4. En `SlotMatchesModal`, aparecían las franjas de playoff como "Horarios posibles para este partido" entre rivales de zona.
+  - **Aislamiento absoluto implementado:**
+    - **`lib/data/competition.ts` (`getSchedulingData`):** `availability` filtra estrictamente a `stage === 'group'`. Cualquier ID de turno de playoff queda 100% excluido del mapa de disponibilidad.
+    - **`app/(app)/torneos/[id]/grupos/page.tsx` & `GroupBuilder`:** Las zonas reciben únicamente `groupSlots` (`stage === 'group'`) y disponibilidad sanitizada contra esos turnos.
+    - **`SlotMatchesModal` & `SwapTeamsModal`:** Validan únicamente turnos de grupo.
+    - **Sorteo masivo (`drawAllCategories`):** Solo balancea y calcula compatibilidad con turnos de grupo.
+    - **Inicialización e importación masiva (`initializeTournamentTeamsAvailability`, `bulkImportTeams`, `registerTeam`):** Consultan `time_slots` con `.neq("stage", "playoff")`.
+    - **Diálogo de edición de franjas (`TeamAvailabilityDialog`):** Filtra los IDs guardados contra los turnos de grupo pasados al diálogo, eliminando cualquier residuo de playoffs al editar.
+    - **Base de datos (`20261029190000_exclude_playoff_from_team_availability.sql`):**
+      - Se eliminan de `public.team_availability` todas las filas correspondientes a `time_slots.stage = 'playoff'`.
+      - Se actualiza `set_team_availability` para restringir las inserciones a `ts.stage = 'group'`.
+- **Motivo:** atender el problema reportado por el usuario ("otro problema que hay es que en esos horarios disponibles que aparecen, no estan bien ya que, por ejemplo una pareja solo podia jugar en una de las franjas y aparecia como que tenia disponibilidad completa, eso pasa con varias parejas, o tambien mete las franjas que son para play offs ahi, y eso no sirve, ya que es info demas, porque se estan enfrentando en grupos y por mas que les coincida los horarios de las franjas de play offs es dificil que se vuelvan a enfrentar en play offs, ademas en esa instancia todas las parejas tienen completa disponibilidad, porque ademas si queres hacer un cambio de parejas aparece como compatible porque se mezclan las franjas de play off, cuando en realidad no tienen franjas en comun en grupos, por lo que no seria compatible").
+- **Cómo aplicar:** implementado en `supabase/migrations/20261029190000_exclude_playoff_from_team_availability.sql`, `lib/data/competition.ts`, `app/(app)/torneos/[id]/grupos/page.tsx`, `components/groups/group-builder.tsx`, `components/groups/slot-matches-modal.tsx`, `app/(app)/torneos/[id]/grupos/actions.ts`, `app/(app)/torneos/[id]/inscripciones/actions.ts`, `app/(app)/unirse/[code]/actions.ts`, `lib/scheduling.ts`, `components/registration/team-availability-dialog.tsx` y `docs/PROYECTO.md`.
+
+
+### D-186 — Generación global de cuadros multicategoría y desacoplamiento de notBefore en playoffs (2026-10-29)
+- **Decisión:**
+  - **Diagnóstico del problema:**
+    - En torneos con múltiples categorías (ej. "6ta", "Suma 10 Cab", "Suma 13 Damas"), al ingresar a `/cuadro`, la página llamaba a `ensurePlayoffBracket(supabase, tournament.id, { categoryId: activeCategory.id })` pasando únicamente la categoría activa de la pestaña actual.
+    - Como resultado, las categorías posteriores (como "Suma 13 Damas") no tenían sus partidos de playoff (`matches` con `stage = 'playoff'`) generados en la base de datos hasta que el organizador ingresaba explícitamente a su pestaña.
+    - Al disparar la programación automática (`runAutoSchedule` / `autoSchedule`) desde `/partidos` o desde el botón de cuadro en otra categoría, los cruces de la 3ra categoría no existían en la base de datos y por ende quedaban sin programar.
+    - Al ingresar posteriormente a la pestaña de la 3ra categoría, los partidos se generaban en ese momento con `slot_id = null`.
+    - Adicionalmente, en `runAutoSchedule`, si una categoría no tenía horarios de grupos asignados aún o sus grupos se jugaban en días previos, el cálculo de `playoffNotBefore` recurría a `latestGroupEndGlobal` (el fin del grupo más tardío de cualquier otra categoría del torneo, ej. Domingo por la noche), bloqueando artificialmente las franjas de playoff de Domingo temprano para esa categoría (`slot.start < match.notBefore`).
+  - **Corrección implementada:**
+    1. **Generación unificada de cuadros en `/cuadro` y `/partidos`:**
+       - En `app/(app)/torneos/[id]/cuadro/page.tsx` y `app/(app)/torneos/[id]/partidos/page.tsx`, se invoca `ensurePlayoffBracket(supabase, tournament.id, { revalidate: false })` sin restringir por `categoryId`. Dado que `ensurePlayoffBracket` ya itera internamente sobre todas las categorías cuando no recibe una específica, se generan de forma atómica e idempotente los cruces de playoffs para todas las categorías del torneo en cuanto existen grupos.
+    2. **Garantía previa en `autoSchedule`:**
+       - En la acción de servidor `autoSchedule` (`app/(app)/torneos/[id]/partidos/actions.ts`), se asegura la existencia de los cuadros de todas las categorías llamando a `ensurePlayoffBracket` antes de invocar `runAutoSchedule`.
+    3. **Soporte de `categoryId` en programación automática:**
+       - Se añadió `categoryId?: string` a `autoScheduleSchema` y `runAutoSchedule`. El botón `AutoScheduleBracketButton` en la vista de cuadro pasa la categoría activa (`categoryId: activeCategory?.id`), permitiendo auto-programar o reprogramar los cruces de una categoría específica sin tocar ni borrar los horarios ya fijados de las demás categorías.
+    4. **Desacoplamiento de `notBefore` en presencia de franjas dedicadas de playoff:**
+       - En `lib/scheduling.ts`, cuando existen franjas con `stage === 'playoff'`, `playoffNotBefore` solo restringe si esa categoría específica tiene partidos de grupo con fin (`catEnd`). Ya no hereda el fin tardío de grupos de otras categorías (`latestGroupEndGlobal`), permitiendo que todas las categorías dispongan de las franjas de playoff asignadas.
+- **Motivo:** solucionar el error reportado por el usuario ("fijate que problema hay en la tercer categoria, porque me programo todos los horarios hasta los cruces de la categoria 6ta y suma 10 cab y en suma13 damas no configuro los horarios de play offs, no se que problema hay").
+- **Cómo aplicar:** implementado en `app/(app)/torneos/[id]/cuadro/page.tsx`, `app/(app)/torneos/[id]/partidos/page.tsx`, `app/(app)/torneos/[id]/partidos/actions.ts`, `components/bracket/auto-schedule-bracket-button.tsx`, `lib/scheduling.ts`, `lib/validation/competition.ts`, `lib/domain/scheduler.test.ts` y `docs/PROYECTO.md`.

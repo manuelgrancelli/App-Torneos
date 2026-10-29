@@ -1,6 +1,7 @@
 "use client";
 
-import { AlertCircle, ArrowLeftRight, Calendar, CalendarClock, CheckCircle2, Clock, MapPin, Sparkles, TriangleAlert } from "lucide-react";
+import { useMemo } from "react";
+import { AlertCircle, ArrowLeftRight, Calendar, CalendarClock, CheckCircle2, Clock, Sparkles, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +13,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { DEFAULT_TIMEZONE, formatInTimeZone, formatTimeRange } from "@/lib/dates";
+import { DEFAULT_TIMEZONE, formatInTimeZone, formatTimeRange, localDateKey } from "@/lib/dates";
+import { groupSlotsIntoDayWindows } from "@/lib/domain/availability";
 import { groupName } from "@/lib/domain/groups";
 
 type Slot = {
@@ -20,6 +22,7 @@ type Slot = {
   startsAt: string;
   endsAt: string;
   courtId: string | null;
+  stage?: "group" | "playoff" | string;
 };
 
 type Court = {
@@ -59,39 +62,57 @@ export function SlotMatchesModal({
 }: SlotMatchesModalProps) {
   if (!team) return null;
 
-  const slotMap = new Map(slots.map((s) => [s.id, s]));
-  const courtMap = new Map(courts.map((c) => [c.id, c]));
+  // En fase de grupos solo se evalúan franjas de grupo (se excluyen 100% las de playoff)
+  const groupSlots = useMemo(() => slots.filter((s) => (s.stage ?? "group") === "group"), [slots]);
+  const slotMap = useMemo(() => new Map(groupSlots.map((s) => [s.id, s])), [groupSlots]);
+  const courtMap = useMemo(() => new Map(courts.map((c) => [c.id, c])), [courts]);
 
-  const teamSlotIds = availability?.[team.id] ?? [];
-  const teamSlotList = teamSlotIds
-    .map((id) => slotMap.get(id))
-    .filter((s): s is Slot => Boolean(s))
-    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  const teamSlotIds = useMemo(() => {
+    return (availability?.[team.id] ?? []).filter((id) => slotMap.has(id));
+  }, [availability, team.id, slotMap]);
 
-  // Coincidencias por cada rival en el grupo
-  const rivalComparisons = rivals.map((rival) => {
-    const rivalSlotIds = availability?.[rival.id] ?? [];
-    const rivalSet = new Set(rivalSlotIds);
-
-    // Si ambos tienen disponibilidad declarada
-    const hasBothAvailability = teamSlotIds.length > 0 && rivalSlotIds.length > 0;
-    const commonSlotIds = teamSlotIds.filter((id) => rivalSet.has(id));
-    const commonSlots = commonSlotIds
+  const teamSlotList = useMemo(() => {
+    return teamSlotIds
       .map((id) => slotMap.get(id))
       .filter((s): s is Slot => Boolean(s))
       .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  }, [teamSlotIds, slotMap]);
 
-    const isConflict = hasBothAvailability && commonSlotIds.length === 0;
+  // Agrupar los turnos continuos de la pareja en franjas completas de grupo (ej. 13:00 a 22:00)
+  const teamWindows = useMemo(() => {
+    return groupSlotsIntoDayWindows(teamSlotList, (s) => localDateKey(s.startsAt, timezone)).flatMap((d) => d.windows);
+  }, [teamSlotList, timezone]);
 
-    return {
-      rival,
-      hasBothAvailability,
-      teamSlotCount: teamSlotIds.length,
-      rivalSlotCount: rivalSlotIds.length,
-      commonSlots,
-      isConflict,
-    };
-  });
+  // Coincidencias por cada rival en el grupo agrupadas por franjas completas de grupo
+  const rivalComparisons = useMemo(() => {
+    return rivals.map((rival) => {
+      const rivalSlotIds = (availability?.[rival.id] ?? []).filter((id) => slotMap.has(id));
+      const rivalSet = new Set(rivalSlotIds);
+
+      // Si ambos tienen disponibilidad declarada
+      const hasBothAvailability = teamSlotIds.length > 0 && rivalSlotIds.length > 0;
+      const commonSlotIds = teamSlotIds.filter((id) => rivalSet.has(id));
+      const commonSlots = commonSlotIds
+        .map((id) => slotMap.get(id))
+        .filter((s): s is Slot => Boolean(s))
+        .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+
+      // Agrupar los turnos comunes continuos en franjas completas
+      const commonWindows = groupSlotsIntoDayWindows(commonSlots, (s) => localDateKey(s.startsAt, timezone)).flatMap((d) => d.windows);
+
+      const isConflict = hasBothAvailability && commonSlotIds.length === 0;
+
+      return {
+        rival,
+        hasBothAvailability,
+        teamSlotCount: teamSlotIds.length,
+        rivalSlotCount: rivalSlotIds.length,
+        commonSlots,
+        commonWindows,
+        isConflict,
+      };
+    });
+  }, [rivals, availability, teamSlotIds, slotMap, timezone]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -102,16 +123,16 @@ export function SlotMatchesModal({
             <Badge variant="outline" className="font-semibold text-xs">
               {groupName(groupIndex)}
             </Badge>
-            <DialogTitle className="text-sm sm:text-base font-semibold truncate">
+            <DialogTitle className="text-sm sm:text-base font-semibold truncate" title={team.name}>
               {team.name}
             </DialogTitle>
           </div>
           <DialogDescription className="text-xs text-muted-foreground mt-1 leading-snug">
-            {teamSlotList.length === 0 ? (
+            {teamWindows.length === 0 ? (
               "Esta pareja no tiene franjas horarias cargadas todavía (inscripción online o sin franjas asignadas)."
             ) : (
               <span>
-                Tiene <strong>{teamSlotList.length}</strong> {teamSlotList.length === 1 ? "franja horaria declarada" : "franjas horarias declaradas"}.
+                Tiene <strong>{teamWindows.length}</strong> {teamWindows.length === 1 ? "franja horaria declarada" : "franjas horarias declaradas"}.
                 A continuación podés ver la coincidencia exacta con cada rival de la zona.
               </span>
             )}
@@ -121,7 +142,7 @@ export function SlotMatchesModal({
         {/* Contenido con scroll vertical únicamente */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 space-y-3.5 min-w-0">
           {/* Aviso para asignar horarios si la pareja tiene 0 franjas */}
-          {teamSlotList.length === 0 ? (
+          {teamWindows.length === 0 ? (
             <div className="rounded-lg border border-amber-300/80 bg-amber-50/70 p-3 text-xs text-amber-950 dark:border-amber-800/80 dark:bg-amber-950/20 dark:text-amber-200 space-y-2">
               <div className="flex items-start gap-2">
                 <AlertCircle className="size-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
@@ -162,7 +183,7 @@ export function SlotMatchesModal({
               </p>
             ) : (
               rivalComparisons.map(
-                ({ rival, hasBothAvailability, commonSlots, isConflict, rivalSlotCount }) => (
+                ({ rival, commonWindows, isConflict, rivalSlotCount }) => (
                   <div
                     key={rival.id}
                     className={`rounded-lg border p-3 space-y-2 transition-colors ${
@@ -175,23 +196,23 @@ export function SlotMatchesModal({
                       <div className="flex items-center gap-2 min-w-0">
                         {isConflict ? (
                           <TriangleAlert className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                        ) : commonSlots.length > 0 ? (
+                        ) : commonWindows.length > 0 ? (
                           <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                         ) : (
                           <Clock className="size-4 shrink-0 text-muted-foreground" />
                         )}
-                        <span className="font-medium text-sm truncate">
+                        <span className="font-semibold text-sm truncate" title={rival.name}>
                           vs {rival.name}
                         </span>
                       </div>
 
                       {isConflict ? (
-                        <Badge variant="destructive" className="shrink-0 text-[11px] bg-amber-600 hover:bg-amber-600 text-white">
+                        <Badge variant="destructive" className="shrink-0 text-[11px] bg-amber-600 hover:bg-amber-600 text-white font-semibold">
                           Sin coincidencia
                         </Badge>
-                      ) : commonSlots.length > 0 ? (
-                        <Badge variant="outline" className="shrink-0 text-[11px] border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-                          {commonSlots.length} {commonSlots.length === 1 ? "franja en común" : "franjas en común"}
+                      ) : commonWindows.length > 0 ? (
+                        <Badge variant="outline" className="shrink-0 text-[11px] border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-semibold">
+                          {commonWindows.length} {commonWindows.length === 1 ? "franja en común" : "franjas en común"}
                         </Badge>
                       ) : (
                         <Badge variant="secondary" className="shrink-0 text-[11px]">
@@ -204,29 +225,23 @@ export function SlotMatchesModal({
                       <p className="text-xs text-amber-800 dark:text-amber-300">
                         Ambas parejas cargaron restricciones pero no comparten ningún horario. Te sugerimos intercambiarla de grupo o ampliar sus franjas.
                       </p>
-                    ) : commonSlots.length > 0 ? (
+                    ) : commonWindows.length > 0 ? (
                       <div className="pt-1">
                         <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">
                           Horarios posibles para este partido:
                         </p>
                         <div className="flex flex-wrap gap-1.5">
-                          {commonSlots.map((slot) => {
-                            const court = slot.courtId ? courtMap.get(slot.courtId) : null;
-                            const dayText = formatInTimeZone(slot.startsAt, timezone, "EEE d/M");
-                            const timeText = formatTimeRange(slot.startsAt, slot.endsAt, timezone);
+                          {commonWindows.map((win) => {
+                            const dayText = formatInTimeZone(win.startsAt, timezone, "EEE d/M");
+                            const timeText = formatTimeRange(win.startsAt, win.endsAt, timezone);
                             return (
                               <span
-                                key={slot.id}
-                                className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-50/70 px-2 py-0.5 text-xs text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+                                key={win.id}
+                                className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/35 bg-emerald-50/80 dark:bg-emerald-950/40 px-2.5 py-1 text-xs text-emerald-900 dark:text-emerald-200"
                               >
-                                <Calendar className="size-3 text-emerald-600" />
-                                <span className="capitalize">{dayText}</span>
+                                <Calendar className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                <span className="capitalize font-medium">{dayText}</span>
                                 <span className="font-semibold">{timeText}</span>
-                                {court ? (
-                                  <span className="text-[10px] text-emerald-700 dark:text-emerald-400">
-                                    ({court.name})
-                                  </span>
-                                ) : null}
                               </span>
                             );
                           })}
@@ -248,30 +263,24 @@ export function SlotMatchesModal({
           </div>
 
           {/* Todas las franjas declaradas por este equipo */}
-          {teamSlotList.length > 0 ? (
+          {teamWindows.length > 0 ? (
             <div className="space-y-2 pt-2 border-t">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <CalendarClock className="size-3.5" />
-                Todas las franjas declaradas por {team.name} ({teamSlotList.length})
+                Todas las franjas declaradas por {team.name} ({teamWindows.length})
               </h4>
               <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1">
-                {teamSlotList.map((slot) => {
-                  const court = slot.courtId ? courtMap.get(slot.courtId) : null;
-                  const dayText = formatInTimeZone(slot.startsAt, timezone, "EEE d/M");
-                  const timeText = formatTimeRange(slot.startsAt, slot.endsAt, timezone);
+                {teamWindows.map((win) => {
+                  const dayText = formatInTimeZone(win.startsAt, timezone, "EEE d/M");
+                  const timeText = formatTimeRange(win.startsAt, win.endsAt, timezone);
                   return (
                     <span
-                      key={slot.id}
-                      className="inline-flex items-center gap-1 rounded border bg-background px-2 py-0.5 text-xs text-foreground"
+                      key={win.id}
+                      className="inline-flex items-center gap-1.5 rounded-md border bg-muted/40 px-2.5 py-1 text-xs text-foreground"
                     >
+                      <Calendar className="size-3 text-muted-foreground shrink-0" />
                       <span className="capitalize text-muted-foreground">{dayText}</span>
-                      <span className="font-medium tabular-nums">{timeText}</span>
-                      {court ? (
-                        <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                          <MapPin className="size-2.5" />
-                          {court.name}
-                        </span>
-                      ) : null}
+                      <span className="font-semibold tabular-nums">{timeText}</span>
                     </span>
                   );
                 })}
