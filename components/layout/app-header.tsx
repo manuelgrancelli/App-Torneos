@@ -23,11 +23,9 @@ export function AppHeader({ user, role }: { user: CurrentUser; role: AccountRole
         <MainNav className="hidden md:flex" role={role} />
         <div className="ml-auto flex items-center gap-2">
           <ThemeToggle />
-          <UserMenu user={user} />
+          <UserMenu user={user} role={role} />
         </div>
       </div>
     </header>
   );
 }
-
-

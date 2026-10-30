@@ -1,4 +1,4 @@
-import { CalendarClock, History, Layers, Trophy, UserRound, type LucideIcon } from "lucide-react";
+import { CalendarClock, History, Layers, Trophy, UserRound, ShieldAlert, type LucideIcon } from "lucide-react";
 import type { AccountRole } from "@/lib/auth";
 
 export type NavItem = {
@@ -16,6 +16,11 @@ export const MAIN_NAV_ITEMS: NavItem[] = [
   { href: "/circuitos", label: "Circuitos", icon: Layers },
   { href: "/proximos", label: "Próximos", icon: CalendarClock },
   { href: "/historial", label: "Mi historial", icon: History },
+];
+
+export const SUPERADMIN_MAIN_NAV_ITEMS: NavItem[] = [
+  ...MAIN_NAV_ITEMS,
+  { href: "/admin", label: "Panel Admin", icon: ShieldAlert },
 ];
 
 /**
@@ -48,11 +53,12 @@ export const PLAYER_BOTTOM_NAV_ITEMS: NavItem[] = [
 ];
 
 export function mainNavItems(role: AccountRole): NavItem[] {
+  if (role === "superadmin") return SUPERADMIN_MAIN_NAV_ITEMS;
   return role === "organizer" ? MAIN_NAV_ITEMS : PLAYER_MAIN_NAV_ITEMS;
 }
 
 export function bottomNavItems(role: AccountRole): NavItem[] {
-  return role === "organizer" ? BOTTOM_NAV_ITEMS : PLAYER_BOTTOM_NAV_ITEMS;
+  return role === "organizer" || role === "superadmin" ? BOTTOM_NAV_ITEMS : PLAYER_BOTTOM_NAV_ITEMS;
 }
 
 /** Alias general por compatibilidad. */

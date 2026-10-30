@@ -2656,3 +2656,35 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
        - En `lib/scheduling.ts`, cuando existen franjas con `stage === 'playoff'`, `playoffNotBefore` solo restringe si esa categoría específica tiene partidos de grupo con fin (`catEnd`). Ya no hereda el fin tardío de grupos de otras categorías (`latestGroupEndGlobal`), permitiendo que todas las categorías dispongan de las franjas de playoff asignadas.
 - **Motivo:** solucionar el error reportado por el usuario ("fijate que problema hay en la tercer categoria, porque me programo todos los horarios hasta los cruces de la categoria 6ta y suma 10 cab y en suma13 damas no configuro los horarios de play offs, no se que problema hay").
 - **Cómo aplicar:** implementado en `app/(app)/torneos/[id]/cuadro/page.tsx`, `app/(app)/torneos/[id]/partidos/page.tsx`, `app/(app)/torneos/[id]/partidos/actions.ts`, `components/bracket/auto-schedule-bracket-button.tsx`, `lib/scheduling.ts`, `lib/validation/competition.ts`, `lib/domain/scheduler.test.ts` y `docs/PROYECTO.md`.
+
+
+### D-187 — Panel de Superadministración Global, Auditoría en Solo Lectura y Gestión de Superadmins (2026-10-30)
+- **Decisión:**
+  - **Ampliación de rol y seguridad en base de datos (`20261030000000_superadmin_panel.sql`):**
+    - Se extiende el check constraint de `public.profiles.account_role` para incorporar el valor `'superadmin'` (`account_role in ('player', 'organizer', 'superadmin')`).
+    - Helper privado `private.is_superadmin(p_user_id)` y actualización de `private.is_account_organizer` para que los superadministradores hereden también todas las capacidades de organizador.
+    - Se otorgan políticas RLS exclusivas de **SOLO LECTURA (`FOR SELECT`)** para `superadmin` sobre todas las tablas del sistema (`tournaments`, `teams`, `team_members`, `team_availability`, `tournament_groups`, `group_teams`, `matches`, `match_confirmations`, `courts`, `time_slots`, `tournament_categories` y `profiles`). **No se crean políticas de INSERT, UPDATE ni DELETE**, garantizando que el acceso de superadministrador sea estrictamente de auditoría sin riesgo de alterar o corromper datos de torneos ajenos.
+    - Actualización de `public.can_view_profile` para permitir a superadministradores auditar los perfiles deportivos (nombres y fotos) en cualquier torneo.
+    - Nuevas RPCs con `security definer`:
+      - `public.get_superadmin_users()`: retorna la nómina de superadministradores activos.
+      - `public.set_user_superadmin(p_email text, p_is_superadmin boolean)`: permite promover a otro usuario registrado como superadministrador por correo electrónico o removerlo (validando que no se pueda eliminar al último superadministrador del sistema).
+  - **Lógica de autenticación (`lib/auth.ts`):**
+    - Se actualiza `AccountRole = "player" | "organizer" | "superadmin"`.
+    - `isSuperAdmin()` verifica el rol leyendo de `profiles` con soporte de bootstrap por correo principal (`manuelgrancelli@gmail.com`) y por variable de entorno `SUPERADMIN_EMAILS`.
+    - `isAccountOrganizer()` retorna `true` si el rol es `'organizer'` o `'superadmin'`.
+  - **Capa de datos y servidor (`lib/data/admin.ts`, `app/(app)/admin/actions.ts`):**
+    - `getAdminDashboardData()`: obtiene en paralelo todos los torneos, estadísticas agregadas (en curso, inscripciones abiertas, finalizados, borradores, parejas, partidos jugados y deportistas registrados) y nómina de superadmins.
+    - `getAdminTournamentDetails(tournamentId)`: consulta completa de un torneo para su inspección detallada.
+    - Server Action `manageSuperAdminAction`: valida permisos y ejecuta `set_user_superadmin` con revalidación de caché.
+  - **Interfaz de usuario:**
+    - **Dashboard de Superadmin (`/admin`):**
+      - Encabezado con badge y botón `SuperAdminsDialog` para gestionar los superadministradores de la plataforma de forma interactiva.
+      - `AdminStatsOverview`: tarjetas de métricas en tiempo real (torneos en curso con dot pulsante, inscripciones abiertas, torneos finalizados, parejas totales y tasa de aprobación, partidos disputados y avance general, total de usuarios).
+      - `AdminTournamentList`: filtrado por pestañas ([Todos], [⚡ En curso], [📝 Inscripciones abiertas], [🏁 Finalizados], [🔒 Borradores]), buscador reactivo por texto y tarjetas informativas con botones a "Auditar Torneo" y "Web pública".
+    - **Auditoría de Torneo (`/admin/torneos/[id]`):**
+      - Banner de alerta de seguridad en solo lectura.
+      - Pestañas completas: Parejas (con desglose de integrantes y categorías), Partidos/Fixture (turnos y resultados registrados), Posiciones de zonas, Cuadro eliminatorio y Canchas/Franjas horarias.
+    - **Navegación (`components/layout/nav-items.ts`, `app-header.tsx`, `user-menu.tsx`):**
+      - Para usuarios con rol `superadmin`, se añade pestaña "Panel Admin" en la barra de navegación superior (desktop) y acceso directo con icono de escudo en el menú desplegable del perfil.
+- **Motivo:** atender la solicitud del usuario ("que tan dificil es hacer esto? PANEL ADMIN VISTA DE TODOS LOS TORNEOS CREADOS DENTRO DE LA PAGINA, CON TODOS SUS DATOS, ES DECIR PODEMOS VER PAREJAS,RESULTADOS,ETC, PERO NO PODEMOS HACERLES CAMBIOS DE CONFIGURACION,RESULTADOS,ETC, Y QUE APAREZCZA DENTRO DEL PANEL ESTADISTICAS QUE TENGAN TODOS LOS TORNEOS Y QUE SE PUEDAN SEPARAR POR: EN CURSO, INSCRIPCIONES ABIERTAS... despues aparte mio quiero definir a otro superadmin").
+- **Cómo aplicar:** implementado en `supabase/migrations/20261030000000_superadmin_panel.sql`, `lib/auth.ts`, `lib/data/admin.ts`, `app/(app)/admin/actions.ts`, `app/(app)/admin/page.tsx`, `app/(app)/admin/torneos/[id]/page.tsx`, `components/admin/admin-stats-overview.tsx`, `components/admin/admin-tournament-list.tsx`, `components/admin/superadmins-dialog.tsx`, `components/admin/admin-tournament-read-only.tsx`, `components/layout/nav-items.ts`, `components/layout/app-header.tsx`, `components/layout/user-menu.tsx`, `lib/auth.test.ts` y `docs/PROYECTO.md`.

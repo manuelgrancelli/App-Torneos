@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -14,34 +14,40 @@ const geistSans = Geist({
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+  variable: "--font-mono",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://lmtorneos.com"),
   title: { default: APP_NAME, template: `%s · ${APP_NAME}` },
   description: APP_DESCRIPTION,
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
+  ],
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  userScalable: false,
-  // Permite usar env(safe-area-inset-*) en iOS (barra inferior).
-  viewportFit: "cover",
 };
 
 /**
  * Async + connection(): todas las páginas se renderizan por request, que es lo
- * que necesita la CSP con nonce (D-041). Una página estática saldría sin el
- * nonce y sus scripts quedarían bloqueados.
+ * que necesita la CSP con nonce (D-041).
+ * El tema oscuro/claro se resuelve directamente en el servidor desde la cookie 'theme'
+ * y se aplica a la etiqueta <html>, eliminando scripts bloqueantes y previniendo
+ * advertencias de React 19.
  */
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   await connection();
   const cookieStore = await cookies();
   const themeCookie = (cookieStore.get("theme")?.value as "light" | "dark" | "system") || "system";
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
   const isDarkInitial = themeCookie === "dark";
 
   return (
@@ -50,14 +56,6 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${isDarkInitial ? "dark " : ""}h-full antialiased`}
     >
-      <head>
-        <script
-          nonce={nonce}
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=document.cookie.match(/(?:^|; )theme=([^;]*)/);var v=t?decodeURIComponent(t[1]):(localStorage.getItem('theme')||'system');var d=v==='dark'||(v==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d){document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark'}else{document.documentElement.classList.remove('dark');document.documentElement.style.colorScheme='light'}}catch(e){}})()`,
-          }}
-        />
-      </head>
       <body className="flex min-h-full flex-col">
         <ThemeProvider defaultTheme={themeCookie}>
           {children}

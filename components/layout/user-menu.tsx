@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, UserRound } from "lucide-react";
+import { LogOut, UserRound, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "@/app/(auth)/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -13,12 +13,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { CurrentUser } from "@/lib/auth";
+import type { AccountRole, CurrentUser } from "@/lib/auth";
 import { getInitials } from "@/lib/utils/text";
 
 const SIGN_OUT_FORM_ID = "sign-out-form";
 
-export function UserMenu({ user }: { user: CurrentUser }) {
+export function UserMenu({ user, role }: { user: CurrentUser; role?: AccountRole }) {
   return (
     <>
       {/* El form vive fuera del menú: así el submit no se pierde cuando el menú se cierra. */}
@@ -44,6 +44,17 @@ export function UserMenu({ user }: { user: CurrentUser }) {
             <p className="truncate text-xs text-muted-foreground">{user.email}</p>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
+          {role === "superadmin" && (
+            <>
+              <DropdownMenuItem asChild>
+                <Link href="/admin" className="text-amber-600 dark:text-amber-400 font-medium">
+                  <ShieldCheck aria-hidden="true" className="size-4 text-amber-500 mr-2" />
+                  Panel Administrador
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
           <DropdownMenuItem asChild>
             <Link href="/perfil">
               <UserRound aria-hidden="true" />

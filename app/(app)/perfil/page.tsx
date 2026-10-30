@@ -1,4 +1,4 @@
-import { KeyRound, LogOut, Palette, Trophy } from "lucide-react";
+import { KeyRound, LogOut, Palette, Trophy, Shield } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { signOut } from "@/app/(auth)/actions";
@@ -49,12 +49,23 @@ export default async function ProfilePage() {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="truncate font-semibold text-lg text-foreground">{user.fullName}</p>
-                <span className="rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-medium text-primary">
-                  {role === "organizer"
-                    ? participations.length > 0
-                      ? "Organizador & Jugador"
-                      : "Organizador"
-                    : "Jugador"}
+                <span
+                  className={
+                    role === "superadmin"
+                      ? "rounded-full bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400 inline-flex items-center gap-1"
+                      : "rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-medium text-primary"
+                  }
+                >
+                  {role === "superadmin" ? (
+                    <>
+                      <Shield className="size-3 text-amber-500" />
+                      <span>{participations.length > 0 ? "Superadmin & Jugador" : "Superadministrador"}</span>
+                    </>
+                  ) : role === "organizer" ? (
+                    participations.length > 0 ? "Organizador & Jugador" : "Organizador"
+                  ) : (
+                    "Jugador"
+                  )}
                 </span>
               </div>
               <p className="truncate text-sm text-muted-foreground mt-0.5">{user.email}</p>
@@ -112,4 +123,3 @@ export default async function ProfilePage() {
     </div>
   );
 }
-

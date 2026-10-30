@@ -40,25 +40,45 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   };
 });
 
-export type AccountRole = "player" | "organizer";
+export type AccountRole = "player" | "organizer" | "superadmin";
 
 /**
- * Rol de cuenta del usuario actual (D-122): "organizer" puede crear torneos y
- * circuitos; "player" solo participa. Se lee de profiles en cada request (no
- * del JWT) para que un cambio de rol aplique enseguida. Si la lectura falla
- * (p. ej. la migración todavía no se corrió) se asume jugador: la UI nunca
- * ofrece más de lo que la base permite.
+ * Rol de cuenta del usuario actual (D-122, D-187): "superadmin" tiene acceso
+ * al panel de administración global y auditoría; "organizer" puede crear torneos
+ * y circuitos; "player" solo participa.
  */
 export const getAccountRole = cache(async (): Promise<AccountRole> => {
   const user = await getCurrentUser();
   if (!user) return "player";
+
+  // Bootstrap / override por variable de entorno o email principal
+  const superAdminEmails = (process.env.SUPERADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (
+    user.email &&
+    (user.email.toLowerCase() === "manuelgrancelli@gmail.com" ||
+      superAdminEmails.includes(user.email.toLowerCase()))
+  ) {
+    return "superadmin";
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase.from("profiles").select("account_role").eq("id", user.id).maybeSingle();
   if (error || !data) return "player";
+  if (data.account_role === "superadmin") return "superadmin";
   return data.account_role === "organizer" ? "organizer" : "player";
 });
 
-/** Atajo para páginas y acciones de organizador. */
+/** Atajo para páginas y acciones de organizador (superadmin también puede organizar). */
 export async function isAccountOrganizer(): Promise<boolean> {
-  return (await getAccountRole()) === "organizer";
+  const role = await getAccountRole();
+  return role === "organizer" || role === "superadmin";
+}
+
+/** Atajo para páginas y acciones de superadministrador de la plataforma (D-187). */
+export async function isSuperAdmin(): Promise<boolean> {
+  return (await getAccountRole()) === "superadmin";
 }
