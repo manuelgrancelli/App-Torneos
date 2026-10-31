@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   cleanHeaderFormatting,
+  extractNumberedPlayers,
   isCategoryHeader,
+  isFootballCategoryHeader,
+  isFootballSport,
   parseBulkRoster,
+  parseFootballRoster,
   parsePairLine,
 } from "./roster-parser";
 
@@ -165,5 +169,133 @@ describe("roster-parser", () => {
     expect(cat.matchedCategoryId).toBe("cat-5ta");
     expect(cat.teams).toHaveLength(2);
   });
-});
+  describe("fútbol - roster-parser", () => {
+    it("detecta identificadores de fútbol con isFootballSport", () => {
+      expect(isFootballSport("futbol")).toBe(true);
+      expect(isFootballSport("futbol-11")).toBe(true);
+      expect(isFootballSport("futbol-5")).toBe(true);
+      expect(isFootballSport("soccer")).toBe(true);
+      expect(isFootballSport("padel")).toBe(false);
+      expect(isFootballSport("tenis")).toBe(false);
+      expect(isFootballSport(null)).toBe(false);
+      expect(isFootballSport(undefined)).toBe(false);
+    });
 
+    it("extrae jugadores numerados en una sola línea o en renglones", () => {
+      // Formato inline tipo "1-Montero 2- Dillollo 3- Blanco etc"
+      const inline = extractNumberedPlayers("1-Montero 2- Dillollo 3- Blanco etc");
+      expect(inline).toEqual(["Montero", "Dillollo", "Blanco"]);
+
+      // Formato renglón individual
+      expect(extractNumberedPlayers("1- Montero")).toEqual(["Montero"]);
+      expect(extractNumberedPlayers("2. Di Lollo")).toEqual(["Di Lollo"]);
+      expect(extractNumberedPlayers("3) Blanco")).toEqual(["Blanco"]);
+      expect(extractNumberedPlayers("• Lucas Romero")).toEqual(["Lucas Romero"]);
+    });
+
+    it("detecta encabezados de categoría específicos para fútbol", () => {
+      expect(isFootballCategoryHeader("*➡️ Categoría Libres*")).toBe(true);
+      expect(isFootballCategoryHeader("Categoría +35")).toBe(true);
+      expect(isFootballCategoryHeader("Zona A")).toBe(true);
+      expect(isFootballCategoryHeader("+30")).toBe(true);
+      expect(isFootballCategoryHeader("Libres")).toBe(true);
+      expect(isFootballCategoryHeader("Senior")).toBe(true);
+
+      // No confunde nombres de equipos ni jugadores
+      expect(isFootballCategoryHeader("Boca jrs")).toBe(false);
+      expect(isFootballCategoryHeader("1- Montero")).toBe(false);
+      expect(isFootballCategoryHeader("1. Armani")).toBe(false);
+    });
+
+    it("parsea equipos de fútbol con jugadores en renglones debajo del nombre del equipo", () => {
+      const rawText = `Boca jrs
+1- Montero
+2- Dillollo
+3- Blanco
+
+River Plate
+1- Armani
+2- Pezzella
+3- Acuña`;
+
+      const result = parseFootballRoster(rawText);
+
+      expect(result.categories).toHaveLength(1);
+      expect(result.totalTeams).toBe(2);
+
+      const team1 = result.categories[0]!.teams[0]!;
+      expect(team1.teamName).toBe("Boca jrs");
+      expect(team1.playerNames).toEqual(["Montero", "Dillollo", "Blanco"]);
+
+      const team2 = result.categories[0]!.teams[1]!;
+      expect(team2.teamName).toBe("River Plate");
+      expect(team2.playerNames).toEqual(["Armani", "Pezzella", "Acuña"]);
+    });
+
+    it("parsea el formato inline de la solicitud del usuario ('Boca jrs 1-Montero 2- Dillollo 3- Blanco etc')", () => {
+      const rawText = `Boca jrs 1-Montero 2- Dillollo 3- Blanco etc
+River Plate: 1-Armani 2-Pezzella 3-Acuña`;
+
+      const result = parseFootballRoster(rawText);
+
+      expect(result.categories).toHaveLength(1);
+      expect(result.totalTeams).toBe(2);
+
+      const team1 = result.categories[0]!.teams[0]!;
+      expect(team1.teamName).toBe("Boca jrs");
+      expect(team1.playerNames).toEqual(["Montero", "Dillollo", "Blanco"]);
+
+      const team2 = result.categories[0]!.teams[1]!;
+      expect(team2.teamName).toBe("River Plate");
+      expect(team2.playerNames).toEqual(["Armani", "Pezzella", "Acuña"]);
+    });
+
+    it("soporta equipos con numeración en el título y listas de jugadores", () => {
+      const rawText = `1. Los Galácticos
+1- Juan Pérez
+2- Carlos López
+3- Martín Gómez
+
+2. La Scaloneta
+1- Leo Messi
+2- Dibu Martínez
+3- Cuti Romero`;
+
+      const result = parseFootballRoster(rawText);
+
+      expect(result.categories).toHaveLength(1);
+      expect(result.totalTeams).toBe(2);
+
+      expect(result.categories[0]!.teams[0]!.teamName).toBe("Los Galácticos");
+      expect(result.categories[0]!.teams[0]!.playerNames).toEqual([
+        "Juan Pérez",
+        "Carlos López",
+        "Martín Gómez",
+      ]);
+
+      expect(result.categories[0]!.teams[1]!.teamName).toBe("La Scaloneta");
+      expect(result.categories[0]!.teams[1]!.playerNames).toEqual([
+        "Leo Messi",
+        "Dibu Martínez",
+        "Cuti Romero",
+      ]);
+    });
+
+    it("enruta automáticamente a través de parseBulkRoster pasando sportId", () => {
+      const footballText = `*➡️ Libres*
+Boca jrs
+1- Montero
+2- Dillollo
+3- Blanco`;
+
+      const existingCats = [{ id: "cat-libres", name: "Libres" }];
+
+      const result = parseBulkRoster(footballText, existingCats, { sportId: "futbol" });
+
+      expect(result.categories).toHaveLength(1);
+      expect(result.categories[0]!.matchedCategoryId).toBe("cat-libres");
+      expect(result.categories[0]!.teams[0]!.teamName).toBe("Boca jrs");
+      expect(result.categories[0]!.teams[0]!.playerNames).toEqual(["Montero", "Dillollo", "Blanco"]);
+    });
+  });
+});

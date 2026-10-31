@@ -6,6 +6,7 @@ import { refreshPublicTournament } from "@/lib/public-cache";
 import { dbErrorMessage } from "@/lib/supabase/errors";
 import { canUserManageTournament } from "@/lib/data/tournaments";
 import { findMatchingCategory } from "@/lib/domain/category-matcher";
+import { isFootballSport } from "@/lib/domain/roster-parser";
 import {
   assignTeamCategorySchema,
   assignTournamentTeamsCategorySchema,
@@ -215,7 +216,7 @@ export const bulkImportTeams = createAction(
     // 1. Verificar torneo y organizador
     const { data: tourney, error: tourError } = await supabase
       .from("tournaments")
-      .select("id, organizer_id, status, max_teams, scoring_config, standings_config, playoff_config")
+      .select("id, organizer_id, status, max_teams, scoring_config, standings_config, playoff_config, sport_id")
       .eq("id", tournamentId)
       .maybeSingle();
 
@@ -341,7 +342,10 @@ export const bulkImportTeams = createAction(
     revalidatePath(`/torneos/${tournamentId}/categorias`);
     refreshPublicTournament(tournamentId);
 
-    const message = `Se importaron ${importedTeamsCount} ${importedTeamsCount === 1 ? "pareja" : "parejas"}${
+    const isFootball = isFootballSport(tourney.sport_id);
+    const unitNoun = isFootball ? "equipo" : "pareja";
+    const unitNounPlural = isFootball ? "equipos" : "parejas";
+    const message = `Se importaron ${importedTeamsCount} ${importedTeamsCount === 1 ? unitNoun : unitNounPlural}${
       createdCategoriesCount > 0 ? ` y se crearon ${createdCategoriesCount} ${createdCategoriesCount === 1 ? "categoría nueva" : "categorías nuevas"}` : ""
     }.${skippedTeams.length > 0 ? ` (${skippedTeams.length} no se pudieron ingresar por coincidencia de nombre o cupo).` : ""}`;
 

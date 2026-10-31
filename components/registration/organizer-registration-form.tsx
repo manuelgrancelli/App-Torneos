@@ -150,6 +150,7 @@ export function OrganizerRegistrationForm({
             tournamentId={tournamentId}
             categories={categories ?? []}
             slotCount={slots.length}
+            sportId={sportId}
           />
         </div>
       </CardHeader>

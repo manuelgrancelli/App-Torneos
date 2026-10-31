@@ -137,21 +137,21 @@ export const setTeamAvailabilitySchema = z.object({
 });
 
 export const bulkImportTeamItemSchema = z.object({
-  teamName: z.string().trim().min(2, "El nombre de la pareja debe tener al menos 2 caracteres.").max(60),
+  teamName: z.string().trim().min(2, "El nombre del equipo o pareja debe tener al menos 2 caracteres.").max(60),
   playerNames: z.array(z.string().trim().min(1).max(80)).min(1),
 });
 
 export const bulkImportCategoryBlockSchema = z.object({
   categoryName: z.string().trim().min(1, "El nombre de la categoría es requerido.").max(60),
   categoryId: z.string().uuid().nullable().optional(),
-  teams: z.array(bulkImportTeamItemSchema).min(1, "Debe haber al menos 1 pareja en la categoría."),
+  teams: z.array(bulkImportTeamItemSchema).min(1, "Debe haber al menos 1 equipo o pareja en la categoría."),
 });
 
 export const bulkImportTeamsSchema = z.object({
   tournamentId: z.uuid(),
   allSlots: z.boolean().default(true),
   customSlotIds: z.array(z.uuid()).optional(),
-  blocks: z.array(bulkImportCategoryBlockSchema).min(1, "No se detectaron categorías con parejas para importar."),
+  blocks: z.array(bulkImportCategoryBlockSchema).min(1, "No se detectaron categorías con inscriptos para importar."),
 });
 
 export const replaceTeamPlayerSchema = z.object({

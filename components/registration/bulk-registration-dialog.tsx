@@ -20,12 +20,17 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { parseBulkRoster, type ExistingCategoryRef } from "@/lib/domain/roster-parser";
+import {
+  isFootballSport,
+  parseBulkRoster,
+  type ExistingCategoryRef,
+} from "@/lib/domain/roster-parser";
 
 type BulkRegistrationDialogProps = {
   tournamentId: string;
   categories: { id: string; name: string }[];
   slotCount: number;
+  sportId?: string;
 };
 
 const SAMPLE_PLACEHOLDER = `*➡️ Suma 10 Caballeros*
@@ -38,11 +43,25 @@ const SAMPLE_PLACEHOLDER = `*➡️ Suma 10 Caballeros*
 1- Sosa Julián / Peralta Nicolás
 2- Castro Emiliano / Romero Agustín`;
 
+const FOOTBALL_SAMPLE_PLACEHOLDER = `*➡️ Categoría Libres*
+
+Boca jrs
+1- Montero
+2- Di Lollo
+3- Blanco
+
+River Plate
+1- Armani
+2- Pezzella
+3- Acuña`;
+
 export function BulkRegistrationDialog({
   tournamentId,
   categories,
   slotCount,
+  sportId,
 }: BulkRegistrationDialogProps) {
+  const isFootball = isFootballSport(sportId);
   const [open, setOpen] = useState(false);
   const [rawText, setRawText] = useState("");
   const [overrideCategoryMap, setOverrideCategoryMap] = useState<Record<string, string>>({});
@@ -59,8 +78,8 @@ export function BulkRegistrationDialog({
   // Parseo en tiempo real
   const parsed = useMemo(() => {
     if (!rawText.trim()) return null;
-    return parseBulkRoster(rawText, existingCategoryRefs);
-  }, [rawText, existingCategoryRefs]);
+    return parseBulkRoster(rawText, existingCategoryRefs, { sportId });
+  }, [rawText, existingCategoryRefs, sportId]);
 
   const totalTeams = parsed?.totalTeams ?? 0;
 
@@ -119,7 +138,7 @@ export function BulkRegistrationDialog({
       <DialogTrigger asChild>
         <Button variant="outline" size="default" className="gap-2 border-primary/30 hover:border-primary/60">
           <ClipboardList className="size-4 text-primary" aria-hidden="true" />
-          <span>Importar lista (WhatsApp)</span>
+          <span>{isFootball ? "Importar equipos" : "Importar lista (WhatsApp)"}</span>
         </Button>
       </DialogTrigger>
 
@@ -129,10 +148,12 @@ export function BulkRegistrationDialog({
             <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
               <Sparkles className="size-4" aria-hidden="true" />
             </div>
-            <DialogTitle>Importar lista de inscriptos</DialogTitle>
+            <DialogTitle>{isFootball ? "Importar equipos" : "Importar lista de inscriptos"}</DialogTitle>
           </div>
           <DialogDescription>
-            Pegá la lista de jugadores tal como la recibís por WhatsApp o mensajes. El sistema detecta automáticamente las categorías, limpia la numeración e inscribe a las parejas.
+            {isFootball
+              ? "Pegá la lista de equipos tal como la recibís por WhatsApp o mensajes, con el nombre del equipo y los jugadores numerados abajo. El sistema detecta automáticamente los equipos y sus nóminas."
+              : "Pegá la lista de jugadores tal como la recibís por WhatsApp o mensajes. El sistema detecta automáticamente las categorías, limpia la numeración e inscribe a las parejas."}
           </DialogDescription>
         </DialogHeader>
 
@@ -143,7 +164,7 @@ export function BulkRegistrationDialog({
               <div>
                 <p className="font-semibold">Atención: El torneo aún no tiene franjas horarias creadas.</p>
                 <p className="text-muted-foreground mt-0.5">
-                  Para que las parejas tengan disponibilidad y puedan programarse los partidos, se recomienda cargar al menos una franja en Canchas y franjas.
+                  Para que los inscriptos tengan disponibilidad y puedan programarse los partidos, se recomienda cargar al menos una franja en Canchas y franjas.
                 </p>
               </div>
             </div>
@@ -158,7 +179,7 @@ export function BulkRegistrationDialog({
               rows={8}
               value={rawText}
               onChange={(e) => setRawText(e.target.value)}
-              placeholder={SAMPLE_PLACEHOLDER}
+              placeholder={isFootball ? FOOTBALL_SAMPLE_PLACEHOLDER : SAMPLE_PLACEHOLDER}
               className="font-mono text-xs leading-relaxed"
             />
           </div>
@@ -172,7 +193,7 @@ export function BulkRegistrationDialog({
                   Previsualización detectada:
                 </span>
                 <span className="text-xs font-medium tabular-nums text-muted-foreground">
-                  {totalTeams} {totalTeams === 1 ? "pareja" : "parejas"} en {parsed.categories.length} {parsed.categories.length === 1 ? "categoría" : "categorías"}
+                  {totalTeams} {totalTeams === 1 ? (isFootball ? "equipo" : "pareja") : (isFootball ? "equipos" : "parejas")} en {parsed.categories.length} {parsed.categories.length === 1 ? "categoría" : "categorías"}
                 </span>
               </div>
 
@@ -188,7 +209,7 @@ export function BulkRegistrationDialog({
                             {cat.categoryName}
                           </span>
                           <Badge variant="secondary" className="text-[11px] font-medium">
-                            {cat.teams.length} {cat.teams.length === 1 ? "pareja" : "parejas"}
+                            {cat.teams.length} {cat.teams.length === 1 ? (isFootball ? "equipo" : "pareja") : (isFootball ? "equipos" : "parejas")}
                           </Badge>
                           {cat.matchedCategoryId ? (
                             <Badge
@@ -228,12 +249,24 @@ export function BulkRegistrationDialog({
                         </div>
                       </div>
 
-                      {/* Lista resumida de parejas */}
-                      <div className="text-[11px] text-muted-foreground space-y-1 bg-muted/30 p-2 rounded border border-border/40">
+                      {/* Lista de equipos / parejas */}
+                      <div className="text-[11px] text-muted-foreground space-y-2 bg-muted/30 p-2.5 rounded-lg border border-border/40">
                         {cat.teams.map((team, tIdx) => (
-                          <div key={tIdx} className="flex items-center gap-1.5 truncate">
-                            <span className="text-foreground/70 w-5 tabular-nums text-right shrink-0">{tIdx + 1}.</span>
-                            <span className="text-foreground font-medium truncate">{team.teamName}</span>
+                          <div key={tIdx} className="space-y-0.5">
+                            <div className="flex items-center gap-1.5 truncate">
+                              <span className="text-foreground/70 w-5 tabular-nums text-right shrink-0">{tIdx + 1}.</span>
+                              <span className="text-foreground font-semibold truncate">{team.teamName}</span>
+                              {isFootball && team.playerNames.length > 0 ? (
+                                <span className="text-[10px] text-muted-foreground ml-1">
+                                  ({team.playerNames.length} {team.playerNames.length === 1 ? "jugador" : "jugadores"})
+                                </span>
+                              ) : null}
+                            </div>
+                            {isFootball && team.playerNames.length > 0 ? (
+                              <p className="text-[11px] text-muted-foreground/90 pl-6 leading-relaxed">
+                                {team.playerNames.join(", ")}
+                              </p>
+                            ) : null}
                           </div>
                         ))}
                       </div>
@@ -254,7 +287,11 @@ export function BulkRegistrationDialog({
           ) : rawText.trim() ? (
             <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive flex items-center gap-2">
               <AlertCircle className="size-4 shrink-0" />
-              <span>No se pudieron identificar parejas válidas. Asegurate de que cada pareja tenga dos nombres separados por barra ( / ), guion ( - ) o &quot;y&quot;.</span>
+              <span>
+                {isFootball
+                  ? "No se pudieron identificar equipos válidos. Asegurate de colocar el nombre del equipo y los jugadores numerados abajo (ej: 1- Jugador 1, 2- Jugador 2) o en la misma línea."
+                  : "No se pudieron identificar parejas válidas. Asegurate de que cada pareja tenga dos nombres separados por barra ( / ), guion ( - ) o \"y\"."}
+              </span>
             </div>
           ) : null}
 
@@ -270,12 +307,18 @@ export function BulkRegistrationDialog({
               />
               <div className="space-y-0.5">
                 <Label htmlFor="allSlotsCheckbox" className="text-xs font-semibold text-foreground cursor-pointer">
-                  Asignar disponibilidad completa a todas las parejas importadas (predeterminado)
+                  {isFootball
+                    ? "Asignar disponibilidad completa a todos los equipos importados (predeterminado)"
+                    : "Asignar disponibilidad completa a todas las parejas importadas (predeterminado)"}
                 </Label>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
                   {allSlots
-                    ? "Las parejas quedarán habilitadas para jugar en cualquier día y franja horaria del torneo."
-                    : "Las parejas se importarán sin disponibilidad asignada. Luego podrás definir las franjas horarias de cada pareja una por una en la lista de inscriptos."}
+                    ? (isFootball
+                        ? "Los equipos quedarán habilitados para jugar en cualquier día y franja horaria del torneo."
+                        : "Las parejas quedarán habilitadas para jugar en cualquier día y franja horaria del torneo.")
+                    : (isFootball
+                        ? "Los equipos se importarán sin disponibilidad asignada. Luego podrás definir las franjas horarias de cada equipo una por una en la lista de inscriptos."
+                        : "Las parejas se importarán sin disponibilidad asignada. Luego podrás definir las franjas horarias de cada pareja una por una en la lista de inscriptos.")}
                 </p>
               </div>
             </div>
@@ -303,8 +346,8 @@ export function BulkRegistrationDialog({
             {isPending ? <Spinner className="size-4" /> : null}
             <span>
               {totalTeams > 0
-                ? `Inscribir ${totalTeams} ${totalTeams === 1 ? "pareja" : "parejas"}`
-                : "Importar parejas"}
+                ? `Inscribir ${totalTeams} ${totalTeams === 1 ? (isFootball ? "equipo" : "pareja") : (isFootball ? "equipos" : "parejas")}`
+                : (isFootball ? "Importar equipos" : "Importar parejas")}
             </span>
           </Button>
         </DialogFooter>

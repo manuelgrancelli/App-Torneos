@@ -2688,3 +2688,30 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
       - Para usuarios con rol `superadmin`, se añade pestaña "Panel Admin" en la barra de navegación superior (desktop) y acceso directo con icono de escudo en el menú desplegable del perfil.
 - **Motivo:** atender la solicitud del usuario ("que tan dificil es hacer esto? PANEL ADMIN VISTA DE TODOS LOS TORNEOS CREADOS DENTRO DE LA PAGINA, CON TODOS SUS DATOS, ES DECIR PODEMOS VER PAREJAS,RESULTADOS,ETC, PERO NO PODEMOS HACERLES CAMBIOS DE CONFIGURACION,RESULTADOS,ETC, Y QUE APAREZCZA DENTRO DEL PANEL ESTADISTICAS QUE TENGAN TODOS LOS TORNEOS Y QUE SE PUEDAN SEPARAR POR: EN CURSO, INSCRIPCIONES ABIERTAS... despues aparte mio quiero definir a otro superadmin").
 - **Cómo aplicar:** implementado en `supabase/migrations/20261030000000_superadmin_panel.sql`, `lib/auth.ts`, `lib/data/admin.ts`, `app/(app)/admin/actions.ts`, `app/(app)/admin/page.tsx`, `app/(app)/admin/torneos/[id]/page.tsx`, `components/admin/admin-stats-overview.tsx`, `components/admin/admin-tournament-list.tsx`, `components/admin/superadmins-dialog.tsx`, `components/admin/admin-tournament-read-only.tsx`, `components/layout/nav-items.ts`, `components/layout/app-header.tsx`, `components/layout/user-menu.tsx`, `lib/auth.test.ts` y `docs/PROYECTO.md`.
+
+
+### D-188 — Importación Masiva de Equipos y Nóminas de Jugadores para Fútbol (2026-10-31)
+- **Decisión:**
+  - **Parser adaptativo especializado en fútbol (`lib/domain/roster-parser.ts`):**
+    - Se incorpora el helper `isFootballSport(sportId)` para identificar torneos de fútbol (`futbol`, `futbol-11`, `futbol-5`, `futbol-7`, etc.).
+    - Se implementa `parseFootballRoster`, diseñado para procesar el formato de listas de fútbol provenientes de WhatsApp:
+      - Reconoce el formato estándar de renglones separados: nombre del equipo (ej. `Boca jrs`) y debajo los jugadores numerados (`1- Montero`, `2- Dillollo`, etc.).
+      - Soporta el formato en línea completa solicitado por el usuario: `Boca jrs 1-Montero 2- Dillollo 3- Blanco etc` o con separadores (`River Plate: 1-Armani 2-Pezzella`).
+      - Reconoce equipos numerados en el título (`1. Los Galácticos` o `1- La Scaloneta`) sin confundir el número de orden con el nombre del equipo ni con los jugadores.
+      - Extrae automáticamente los nombres con `extractNumberedPlayers`, admitiendo viñetas, guiones, puntos y paréntesis (`1-`, `1.`, `1)`, `•`), omitiendo sufijos como `etc`.
+      - Detecta encabezados de categoría específicos para fútbol con `isFootballCategoryHeader` (`Libres`, `+30`, `+35`, `Senior`, `Veteranos`, `Zona A`, etc.) asociándolos a categorías existentes o marcándolos para creación automática.
+    - `parseBulkRoster` enruta de forma transparente a `parseFootballRoster` cuando `sportId` corresponde a fútbol o a `parsePairsRoster` para pádel/tenis, manteniendo 100% de compatibilidad regresiva.
+  - **Experiencia de usuario adaptada (`components/registration/bulk-registration-dialog.tsx` y `organizer-registration-form.tsx`):**
+    - En torneos de fútbol, el botón disparador pasa a denominarse **"Importar equipos"** (en lugar de "Importar lista (WhatsApp)").
+    - El título del diálogo se actualiza a **"Importar equipos"** y la descripción explica el formato con nombres de equipo y nóminas numeradas.
+    - Se provee un placeholder de ejemplo con formato real de fútbol (`Boca jrs`, `1- Montero`, etc.).
+    - La tarjeta de previsualización en vivo despliega la cantidad de equipos detectados, categorías, y en cada equipo lista tanto su denominación como el desglose de su nómina (`X jugadores: ...`).
+    - Las opciones de disponibilidad horaria y los botones de acción usan concordancia de género para equipos y jugadores.
+    - `OrganizerRegistrationForm` propaga `sportId` hacia `BulkRegistrationDialog`.
+  - **Backend y validaciones (`app/(app)/torneos/[id]/inscripciones/actions.ts` y `lib/validation/registration.ts`):**
+    - En la Server Action `bulkImportTeams`, se consulta `sport_id` de la tabla `tournaments` y se formatea el mensaje de éxito utilizando la terminología adecuada (`"equipo(s)"` vs `"pareja(s)"`).
+    - Los esquemas Zod en `lib/validation/registration.ts` adoptan textos neutrales ("equipo o pareja / inscriptos").
+  - **Pruebas unitarias (`lib/domain/roster-parser.test.ts`):**
+    - Se incorporaron 7 casos de prueba cubriendo detección de deporte, extracción de jugadores numerados en renglones y en una sola línea, encabezados de categoría, equipos con orden numérico y enrutamiento por deporte (301 tests en suite total).
+- **Motivo:** responder a la solicitud del usuario ("en la parte de torneos de futbol en la opcion de importar lista cambiala a importar equipos, y el formato obiamente es distinto al padel, debe ser: NOMBRE EQUIPO Y DESPUES DE CADA EQUIPO LA LISTA DE SUS JUGADORES ABAJO DEL NOMBRE DEL EQUIPO, POR EJEMPLO: Boca jrs 1-Montero 2- Dillollo 3- Blanco etc").
+- **Cómo aplicar:** implementado en `lib/domain/roster-parser.ts`, `components/registration/bulk-registration-dialog.tsx`, `components/registration/organizer-registration-form.tsx`, `app/(app)/torneos/[id]/inscripciones/actions.ts`, `lib/validation/registration.ts`, `lib/domain/roster-parser.test.ts` y `docs/PROYECTO.md`.
