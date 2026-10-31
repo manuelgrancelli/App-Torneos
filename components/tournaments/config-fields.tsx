@@ -35,10 +35,52 @@ type ScoringFieldsProps = {
 /** Configuración de puntuación según el deporte (sets o goles). */
 export function ScoringFields({ value, onChange, disabled }: ScoringFieldsProps) {
   if (value.type === "goals") {
+    const minSize = value.minTeamSize ?? 5;
+    const maxSize = value.maxTeamSize ?? 15;
     return (
-      <p className="text-sm text-muted-foreground">
-        Partidos por goles. En la fase de grupos se permiten empates; en playoffs un empate se define por penales.
-      </p>
+      <FieldGroup className="grid gap-4 sm:grid-cols-2">
+        <p className="sm:col-span-2 text-sm text-muted-foreground">
+          Partidos por goles. En la fase de grupos se permiten empates; en playoffs un empate se define por penales.
+        </p>
+        <Field>
+          <FieldLabel htmlFor="scoring-min-team-size">Mínimo de jugadores por equipo *</FieldLabel>
+          <NumberInput
+            id="scoring-min-team-size"
+            min={1}
+            max={30}
+            value={minSize}
+            disabled={disabled}
+            onChange={(v) =>
+              onChange({
+                type: "goals",
+                playoffTiebreak: "penalties",
+                minTeamSize: v ?? 5,
+                maxTeamSize: maxSize,
+              })
+            }
+          />
+          <FieldDescription>Cantidad mínima de jugadores requeridos para inscribir un equipo (ej. 5 para F5, 7 para F7, 11 para F11).</FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="scoring-max-team-size">Máximo de jugadores por equipo *</FieldLabel>
+          <NumberInput
+            id="scoring-max-team-size"
+            min={1}
+            max={30}
+            value={maxSize}
+            disabled={disabled}
+            onChange={(v) =>
+              onChange({
+                type: "goals",
+                playoffTiebreak: "penalties",
+                minTeamSize: minSize,
+                maxTeamSize: v ?? 15,
+              })
+            }
+          />
+          <FieldDescription>Cantidad máxima permitida incluyendo suplentes (debe ser mayor o igual al mínimo).</FieldDescription>
+        </Field>
+      </FieldGroup>
     );
   }
 

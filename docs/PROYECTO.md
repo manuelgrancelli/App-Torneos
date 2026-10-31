@@ -2715,3 +2715,76 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
     - Se incorporaron 7 casos de prueba cubriendo detección de deporte, extracción de jugadores numerados en renglones y en una sola línea, encabezados de categoría, equipos con orden numérico y enrutamiento por deporte (301 tests en suite total).
 - **Motivo:** responder a la solicitud del usuario ("en la parte de torneos de futbol en la opcion de importar lista cambiala a importar equipos, y el formato obiamente es distinto al padel, debe ser: NOMBRE EQUIPO Y DESPUES DE CADA EQUIPO LA LISTA DE SUS JUGADORES ABAJO DEL NOMBRE DEL EQUIPO, POR EJEMPLO: Boca jrs 1-Montero 2- Dillollo 3- Blanco etc").
 - **Cómo aplicar:** implementado en `lib/domain/roster-parser.ts`, `components/registration/bulk-registration-dialog.tsx`, `components/registration/organizer-registration-form.tsx`, `app/(app)/torneos/[id]/inscripciones/actions.ts`, `lib/validation/registration.ts`, `lib/domain/roster-parser.test.ts` y `docs/PROYECTO.md`.
+
+
+### D-189 — Plantel Flexible con Opción de Agregar Más Jugadores en Inscripción Manual de Fútbol (2026-10-31)
+- **Decisión:**
+  - **Integración de `PlayerRosterBuilder` en el panel de inscripción del organizador (`components/registration/organizer-registration-form.tsx`):**
+    - En torneos de fútbol (`isFootballSport(sportId)`), se reemplaza la grilla estática fija de `teamSize` (que limitaba la inscripción a solo 5 jugadores) por el constructor dinámico `PlayerRosterBuilder`.
+    - Proporciona la misma experiencia visual y funcional que el formulario público de inscripción de equipos:
+      - Botón superior interactivo **"[ + ] AGREGAR JUGADOR"** para añadir más integrantes al plantel (hasta 30 jugadores).
+      - Tarjetas ordenadas (`JUGADOR 1`, `JUGADOR 2`, etc.) con inputs de Nombre y apellido, Email (opcional) y botón de eliminar individual (`Quitar`).
+      - Inicialización con 5 jugadores listos (o `teamSize`) para agilizar la carga rápida de titulares.
+    - Sincronización y validación fluida: `handleFormSubmit` extrae los nombres válidos, valida que haya al menos un jugador y que el nombre del equipo tenga al menos 2 caracteres, sincronizando con `playerNames` en React Hook Form antes de despachar a la Server Action `createOrganizerTeam`.
+  - **Soporte de modo organizador en `PlayerRosterBuilder` (`components/registration/player-roster-builder.tsx`):**
+    - Se añade la propiedad `isOrganizer?: boolean`. Cuando está activa, ajusta el contador a `Plantel: X jugadores` y el texto de estado vacío para evitar referencias a "vos como Capitán".
+  - **Preservación de deportes de raqueta:**
+    - En pádel y tenis se mantiene intacta la grilla de dos integrantes ("Jugador 1" y "Jugador 2").
+- **Motivo:** responder a la solicitud del usuario ("en la parte de inscripcion en torneos de futbol pone la misma opcion que cuando un equipo se inscribe de poder agregar mas jugadores ya que solo permite inscribir 5 jugadores").
+- **Cómo aplicar:** implementado en `components/registration/organizer-registration-form.tsx`, `components/registration/player-roster-builder.tsx` y `docs/PROYECTO.md`.
+
+### D-190 — Configuración Obligatoria y Cumplimiento Estricto de Mínimo y Máximo de Jugadores en Fútbol (2026-10-31)
+- **Decisión:**
+  - **Configuración obligatoria de límites del plantel en la creación y edición de torneos:**
+    - En el asistente de alta de torneos (`TournamentWizard` en `components/tournaments/tournament-wizard.tsx`), cuando se selecciona la disciplina **Fútbol**, se despliega de forma inmediata y obligatoria en el Paso 0 ("Lo básico") la sección de configuración de tamaño del plantel con los campos:
+      - `minTeamSize`: Mínimo obligatorio de jugadores por equipo para poder inscribirse (ej. 5 para F5, 7 para F7, 11 para F11).
+      - `maxTeamSize`: Máximo permitido de jugadores por equipo con suplentes (ej. 10, 15, 20).
+    - Validación de esquemas y reglas de negocio (`lib/domain/scoring.ts` y `lib/validation/tournament.ts`):
+      - Se agregan `minTeamSize` y `maxTeamSize` al esquema `goalsScoringConfigSchema`, validados entre 1 y 30 jugadores.
+      - Validación cruzada en `createTournamentSchema`: `maxTeamSize >= minTeamSize`.
+      - Resumen enriquecido en `scoringSummary` (`config-summary.ts`) y `TournamentReview` (`tournament-review.tsx`), indicando los límites exactos del plantel configurado.
+      - Formulario de edición (`TournamentForm` / `config-fields.tsx`): `ScoringFields` expone los inputs de mínimo y máximo cuando `value.type === "goals"`.
+  - **Cumplimiento estricto en la inscripción pública (`/unirse/[code]`):**
+    - `TeamForm` recibe `minTeamSize` y `maxTeamSize`.
+    - Al enviar la inscripción, se valida obligatoriamente que la cantidad total de integrantes (1 capitán + compañeros cargados) esté dentro del rango `[minTeamSize, maxTeamSize]`. Si no cumple el mínimo o excede el máximo, se bloquea el formulario con mensaje explicativo.
+    - `PlayerRosterBuilder` restringe la cantidad máxima a `maxTeamSize - 1` compañeros y expone en el contador los límites reglamentarios `(Mín: X · Máx: Y)`.
+  - **Cumplimiento estricto en la inscripción manual del organizador (`/torneos/[id]/inscripciones`):**
+    - `OrganizerRegistrationForm` recibe `minTeamSize` y `maxTeamSize`.
+    - Inicializa el plantel con `minTeamSize` tarjetas de jugadores listas para completar rápidamente los titulares requeridos.
+    - `handleFormSubmit` valida obligatoriamente que `validNames.length` esté dentro de `[minTeamSize, maxTeamSize]`.
+  - **Cumplimiento estricto en la importación masiva (`bulkImportTeams`):**
+    - En `BulkRegistrationDialog`: el diálogo previsualiza badges de advertencia si un equipo no alcanza el mínimo o supera el máximo, y bloquea la importación si algún equipo está fuera del rango permitido.
+    - En `bulkImportTeams` (`actions.ts`): valida cada equipo del lote contra los límites reglamentarios del torneo, omitiendo e informando al organizador cualquier equipo que no cumpla.
+  - **Garantía en la base de datos y RPCs (migración `20261031000000_football_team_size_limits.sql`):**
+    - Se agregan las columnas `min_team_size` y `max_team_size` en `public.tournaments` con trigger `trg_sync_tournament_team_sizes` para sincronizarlas con `scoring_config`.
+    - Se actualizan las RPCs `resolve_invite_code`, `register_team`, `create_organizer_team`, `review_registration` y `add_team_member` para respetar y validar los límites `[min_team_size, max_team_size]` del torneo.
+- **Motivo:** responder a la solicitud del usuario ("En la parte cuando el organizador del torneo de futbol debe estar la opcion obligatoria de poner el minimo de jugadores para inscribir la pareja y cuando se anota una pareja debe cumplirse el minimo de jugadores y el maximo").
+- **Cómo aplicar:** implementado en `components/tournaments/tournament-wizard.tsx`, `components/tournaments/config-fields.tsx`, `components/tournaments/config-summary.ts`, `components/tournaments/tournament-review.tsx`, `lib/domain/scoring.ts`, `lib/validation/tournament.ts`, `lib/data/tournaments.ts`, `app/(app)/unirse/[code]/page.tsx`, `components/registration/team-form.tsx`, `components/registration/player-roster-builder.tsx`, `components/registration/organizer-registration-form.tsx`, `components/registration/bulk-registration-dialog.tsx`, `app/(app)/torneos/[id]/inscripciones/actions.ts`, migración `supabase/migrations/20261031000000_football_team_size_limits.sql` y `docs/PROYECTO.md`.
+
+
+### D-191 — Identificación Contextual de Competidores: 'Equipos' en Fútbol y 'Parejas' en Pádel/Tenis Dobles (2026-10-31)
+- **Decisión:**
+  - **Sensibilidad de disciplina en helpers de dominio (`lib/domain/tournament-status.ts`):**
+    - `teamNoun(teamSize: number, plural = false, sport?: string): string`: Soporta parámetro opcional `sport`. Si la disciplina corresponde a fútbol (`sport.toLowerCase().includes("futbol")`), devuelve `"equipo"` / `"equipos"`. Si es pádel o tenis dobles, devuelve `"pareja"` / `"parejas"`. Si es singles, `"jugador"` / `"jugadores"`.
+    - `approvedTeamsLabel(teamSize: number, sport?: string): string`: Devuelve `"equipos aprobados"` en fútbol, `"parejas aprobadas"` en deportes de parejas y `"jugadores inscriptos"` en individuales.
+  - **Panel de administración global (`components/admin/admin-tournament-list.tsx`):**
+    - En lugar del hardcode `{t.approvedTeamsCount === 1 ? "pareja" : "parejas"}`, utiliza `teamNoun(2, t.approvedTeamsCount !== 1, t.sportName)` para mostrar `X equipos` en torneos de fútbol y `X parejas` en pádel/tenis.
+  - **Tarjetas de torneos en dashboard y perfiles (`components/tournaments/tournament-card.tsx`):**
+    - `isFootball = isFootballSport(tournament.sportName)`. Muestra dinámicamente `"X equipos inscriptos"` vs `"X parejas inscriptas"`, y `"X equipos esperan aprobación"` vs `"X parejas esperan aprobación"`.
+  - **Página pública del torneo (`app/t/[slug]/page.tsx`):**
+    - Encabezado y sección de preinscripción emplean `teamNoun` y `approvedTeamsLabel` con `tournament.sportName`, rotulando `X equipos` y `Equipos aprobados` en fútbol.
+  - **Portal de inscripción pública (`app/(app)/unirse/[code]/page.tsx`):**
+    - Muestra `"equipos inscriptos"` / `"equipo inscripto"` en torneos de fútbol y pasa la disciplina al helper de inscripciones.
+  - **Página de inscripción de participante (`app/(app)/inscripciones/[teamId]/page.tsx`):**
+    - Usa `teamNoun(tournament.minTeamSize, false, tournament.sportName)`, mostrando encabezados de "Equipo" y "Plantel incompleto" en lugar de "Pareja" o "Pareja incompleta".
+  - **Panel de inscripciones del organizador (`app/(app)/torneos/[id]/inscripciones/page.tsx` y componentes de inscripción):**
+    - En `page.tsx`: badge y textos de inscripciones indican `"equipos inscriptos"` en torneos de fútbol.
+    - En `RegistrationsList`: detecta `isFootball` a través de `sportId` y ajusta `nounSingular`, `nounPlural`, banners de categorías, descripciones de equipos ficticios ("equipos de prueba") y diálogos de disponibilidad y reemplazo de jugadores.
+    - En `CloseRegistrationButton`: valida y alerta con "equipos aprobados" en fútbol.
+    - En Server Actions (`actions.ts` de inscripciones y categorías): mensajes de retorno como `"Se asignaron X equipos"`, `"Se asignó 1 franja horaria al equipo"`, etc.
+  - **Fase de grupos (`app/(app)/torneos/[id]/grupos/page.tsx` y `actions.ts`):**
+    - Alerta de equipos sin categoría asignada y validación de categorías con menos de 2 competidores adaptan sus mensajes a "equipos aprobados".
+  - **Exportación de imágenes de zonas (`lib/graphics/groups-image.ts`):**
+    - El badge superior de cada grupo utiliza `options.sportName` para mostrar `${count} equipos` en lugar de parejas.
+- **Motivo:** responder a la solicitud del usuario ("fijate que a los equipos en torneos de futbol los identifica como parejas, cambia eso, que en torneos de padel tenis sean parejas pero en futbol identifique como equipos").
+- **Cómo aplicar:** implementado en `lib/domain/tournament-status.ts`, `lib/domain/tournament-status.test.ts`, `components/admin/admin-tournament-list.tsx`, `components/tournaments/tournament-card.tsx`, `app/t/[slug]/page.tsx`, `app/(app)/unirse/[code]/page.tsx`, `app/(app)/inscripciones/[teamId]/page.tsx`, `app/(app)/torneos/[id]/inscripciones/page.tsx`, `components/registration/registrations-list.tsx`, `components/registration/close-registration-button.tsx`, `components/registration/replace-player-dialog.tsx`, `components/registration/team-availability-dialog.tsx`, `components/registration/team-form.tsx`, `components/tournaments/tournament-stats-summary.tsx`, `components/tournaments/tournament-setup-stepper.tsx`, `app/(app)/torneos/[id]/grupos/page.tsx`, `app/(app)/torneos/[id]/grupos/actions.ts`, `app/(app)/torneos/[id]/inscripciones/actions.ts`, `app/(app)/torneos/[id]/categorias/actions.ts`, `lib/graphics/groups-image.ts` y `docs/PROYECTO.md`.

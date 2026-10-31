@@ -31,6 +31,8 @@ type BulkRegistrationDialogProps = {
   categories: { id: string; name: string }[];
   slotCount: number;
   sportId?: string;
+  minTeamSize?: number;
+  maxTeamSize?: number;
 };
 
 const SAMPLE_PLACEHOLDER = `*➡️ Suma 10 Caballeros*
@@ -45,21 +47,27 @@ const SAMPLE_PLACEHOLDER = `*➡️ Suma 10 Caballeros*
 
 const FOOTBALL_SAMPLE_PLACEHOLDER = `*➡️ Categoría Libres*
 
-Boca jrs
-1- Montero
-2- Di Lollo
-3- Blanco
+Los Galácticos FC
+1- Lucas Benítez
+2- Matías Morales
+3- Franco Navarro
+4- Joaquín Silva
+5- Tomás Castro
 
-River Plate
-1- Armani
-2- Pezzella
-3- Acuña`;
+El Rejunte FC
+1- Julián Peralta
+2- Nicolás Romero
+3- Emiliano Gómez
+4- Lautaro Díaz
+5- Valentín Ruiz`;
 
 export function BulkRegistrationDialog({
   tournamentId,
   categories,
   slotCount,
   sportId,
+  minTeamSize,
+  maxTeamSize,
 }: BulkRegistrationDialogProps) {
   const isFootball = isFootballSport(sportId);
   const [open, setOpen] = useState(false);
@@ -92,6 +100,22 @@ export function BulkRegistrationDialog({
 
   function handleImport() {
     if (!parsed || parsed.categories.length === 0) return;
+
+    if (isFootball && minTeamSize) {
+      const invalidTeam = parsed.categories
+        .flatMap((c) => c.teams)
+        .find(
+          (t) =>
+            t.playerNames.length < minTeamSize ||
+            (maxTeamSize ? t.playerNames.length > maxTeamSize : false)
+        );
+      if (invalidTeam) {
+        toast.error(
+          `El equipo "${invalidTeam.teamName}" tiene ${invalidTeam.playerNames.length} jugadores. Debe tener entre ${minTeamSize} y ${maxTeamSize ?? 30} integrantes.`
+        );
+        return;
+      }
+    }
 
     const blocks = parsed.categories.map((block) => {
       const override = overrideCategoryMap[block.categoryName];
@@ -251,24 +275,37 @@ export function BulkRegistrationDialog({
 
                       {/* Lista de equipos / parejas */}
                       <div className="text-[11px] text-muted-foreground space-y-2 bg-muted/30 p-2.5 rounded-lg border border-border/40">
-                        {cat.teams.map((team, tIdx) => (
-                          <div key={tIdx} className="space-y-0.5">
-                            <div className="flex items-center gap-1.5 truncate">
-                              <span className="text-foreground/70 w-5 tabular-nums text-right shrink-0">{tIdx + 1}.</span>
-                              <span className="text-foreground font-semibold truncate">{team.teamName}</span>
+                        {cat.teams.map((team, tIdx) => {
+                          const isShort = isFootball && minTeamSize && team.playerNames.length < minTeamSize;
+                          const isOver = isFootball && maxTeamSize && team.playerNames.length > maxTeamSize;
+                          return (
+                            <div key={tIdx} className="space-y-0.5">
+                              <div className="flex items-center gap-1.5 truncate">
+                                <span className="text-foreground/70 w-5 tabular-nums text-right shrink-0">{tIdx + 1}.</span>
+                                <span className="text-foreground font-semibold truncate">{team.teamName}</span>
+                                {isFootball && team.playerNames.length > 0 ? (
+                                  <span className="text-[10px] text-muted-foreground ml-1">
+                                    ({team.playerNames.length} {team.playerNames.length === 1 ? "jugador" : "jugadores"})
+                                  </span>
+                                ) : null}
+                                {isShort ? (
+                                  <span className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold px-1.5 py-0.5 rounded border border-amber-500/20">
+                                    Faltan {minTeamSize - team.playerNames.length} para el mín. ({minTeamSize})
+                                  </span>
+                                ) : isOver ? (
+                                  <span className="text-[10px] bg-destructive/10 text-destructive font-semibold px-1.5 py-0.5 rounded border border-destructive/20">
+                                    Supera el máx. ({maxTeamSize})
+                                  </span>
+                                ) : null}
+                              </div>
                               {isFootball && team.playerNames.length > 0 ? (
-                                <span className="text-[10px] text-muted-foreground ml-1">
-                                  ({team.playerNames.length} {team.playerNames.length === 1 ? "jugador" : "jugadores"})
-                                </span>
+                                <p className="text-[11px] text-muted-foreground/90 pl-6 leading-relaxed">
+                                  {team.playerNames.join(", ")}
+                                </p>
                               ) : null}
                             </div>
-                            {isFootball && team.playerNames.length > 0 ? (
-                              <p className="text-[11px] text-muted-foreground/90 pl-6 leading-relaxed">
-                                {team.playerNames.join(", ")}
-                              </p>
-                            ) : null}
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   );

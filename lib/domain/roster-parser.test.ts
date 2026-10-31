@@ -202,21 +202,21 @@ describe("roster-parser", () => {
       expect(isFootballCategoryHeader("Senior")).toBe(true);
 
       // No confunde nombres de equipos ni jugadores
-      expect(isFootballCategoryHeader("Boca jrs")).toBe(false);
-      expect(isFootballCategoryHeader("1- Montero")).toBe(false);
-      expect(isFootballCategoryHeader("1. Armani")).toBe(false);
+      expect(isFootballCategoryHeader("Los Galácticos FC")).toBe(false);
+      expect(isFootballCategoryHeader("1- Lucas Benítez")).toBe(false);
+      expect(isFootballCategoryHeader("1. Julián Peralta")).toBe(false);
     });
 
     it("parsea equipos de fútbol con jugadores en renglones debajo del nombre del equipo", () => {
-      const rawText = `Boca jrs
-1- Montero
-2- Dillollo
-3- Blanco
+      const rawText = `Los Galácticos FC
+1- Lucas Benítez
+2- Matías Morales
+3- Franco Navarro
 
-River Plate
-1- Armani
-2- Pezzella
-3- Acuña`;
+El Rejunte FC
+1- Julián Peralta
+2- Nicolás Romero
+3- Emiliano Gómez`;
 
       const result = parseFootballRoster(rawText);
 
@@ -224,17 +224,17 @@ River Plate
       expect(result.totalTeams).toBe(2);
 
       const team1 = result.categories[0]!.teams[0]!;
-      expect(team1.teamName).toBe("Boca jrs");
-      expect(team1.playerNames).toEqual(["Montero", "Dillollo", "Blanco"]);
+      expect(team1.teamName).toBe("Los Galácticos FC");
+      expect(team1.playerNames).toEqual(["Lucas Benítez", "Matías Morales", "Franco Navarro"]);
 
       const team2 = result.categories[0]!.teams[1]!;
-      expect(team2.teamName).toBe("River Plate");
-      expect(team2.playerNames).toEqual(["Armani", "Pezzella", "Acuña"]);
+      expect(team2.teamName).toBe("El Rejunte FC");
+      expect(team2.playerNames).toEqual(["Julián Peralta", "Nicolás Romero", "Emiliano Gómez"]);
     });
 
-    it("parsea el formato inline de la solicitud del usuario ('Boca jrs 1-Montero 2- Dillollo 3- Blanco etc')", () => {
-      const rawText = `Boca jrs 1-Montero 2- Dillollo 3- Blanco etc
-River Plate: 1-Armani 2-Pezzella 3-Acuña`;
+    it("parsea el formato inline de la solicitud del usuario ('Los Galácticos 1-Lucas Benítez 2- Matías Morales 3- Franco Navarro etc')", () => {
+      const rawText = `Los Galácticos 1-Lucas Benítez 2- Matías Morales 3- Franco Navarro etc
+El Rejunte: 1-Julián Peralta 2-Nicolás Romero 3-Emiliano Gómez`;
 
       const result = parseFootballRoster(rawText);
 
@@ -242,12 +242,12 @@ River Plate: 1-Armani 2-Pezzella 3-Acuña`;
       expect(result.totalTeams).toBe(2);
 
       const team1 = result.categories[0]!.teams[0]!;
-      expect(team1.teamName).toBe("Boca jrs");
-      expect(team1.playerNames).toEqual(["Montero", "Dillollo", "Blanco"]);
+      expect(team1.teamName).toBe("Los Galácticos");
+      expect(team1.playerNames).toEqual(["Lucas Benítez", "Matías Morales", "Franco Navarro"]);
 
       const team2 = result.categories[0]!.teams[1]!;
-      expect(team2.teamName).toBe("River Plate");
-      expect(team2.playerNames).toEqual(["Armani", "Pezzella", "Acuña"]);
+      expect(team2.teamName).toBe("El Rejunte");
+      expect(team2.playerNames).toEqual(["Julián Peralta", "Nicolás Romero", "Emiliano Gómez"]);
     });
 
     it("soporta equipos con numeración en el título y listas de jugadores", () => {
@@ -283,10 +283,10 @@ River Plate: 1-Armani 2-Pezzella 3-Acuña`;
 
     it("enruta automáticamente a través de parseBulkRoster pasando sportId", () => {
       const footballText = `*➡️ Libres*
-Boca jrs
-1- Montero
-2- Dillollo
-3- Blanco`;
+Los Galácticos FC
+1- Lucas Benítez
+2- Matías Morales
+3- Franco Navarro`;
 
       const existingCats = [{ id: "cat-libres", name: "Libres" }];
 
@@ -294,8 +294,8 @@ Boca jrs
 
       expect(result.categories).toHaveLength(1);
       expect(result.categories[0]!.matchedCategoryId).toBe("cat-libres");
-      expect(result.categories[0]!.teams[0]!.teamName).toBe("Boca jrs");
-      expect(result.categories[0]!.teams[0]!.playerNames).toEqual(["Montero", "Dillollo", "Blanco"]);
+      expect(result.categories[0]!.teams[0]!.teamName).toBe("Los Galácticos FC");
+      expect(result.categories[0]!.teams[0]!.playerNames).toEqual(["Lucas Benítez", "Matías Morales", "Franco Navarro"]);
     });
   });
 });

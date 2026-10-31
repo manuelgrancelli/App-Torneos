@@ -52,6 +52,10 @@ export default async function GroupsPage({
   const unassignedTeams = competition.teams.filter(
     (t) => t.status === "approved" && !t.categoryId
   );
+  const isFootball = tournament.sport.id.toLowerCase().includes("futbol") || (tournament.sport.name?.toLowerCase().includes("futbol") ?? false);
+  const unassignedNoun = isFootball
+    ? (unassignedTeams.length === 1 ? "equipo aprobado" : "equipos aprobados")
+    : (unassignedTeams.length === 1 ? "pareja aprobada" : "parejas aprobadas");
   const groups = competition.groups.filter(
     (g) => !activeCategory || g.categoryId === activeCategory.id
   );
@@ -170,7 +174,7 @@ export default async function GroupsPage({
             <AlertCircle className="size-5 shrink-0 text-amber-600 dark:text-amber-400" />
             <div>
               <p className="font-medium">
-                Hay {unassignedTeams.length} {unassignedTeams.length === 1 ? "pareja aprobada" : "parejas aprobadas"} sin categoría asignada.
+                Hay {unassignedTeams.length} {unassignedNoun} sin categoría asignada.
               </p>
               <p className="text-xs text-amber-800 dark:text-amber-300">
                 Podés asignarles categoría desde la sección Inscripciones para que aparezcan en el sorteo de su categoría correspondiente.

@@ -462,7 +462,11 @@ function renderStandardFormat(
     ctx.fillText(group.name.toUpperCase(), cardX + 28, cardY + cardHeaderHeight / 2);
 
     // Badge cantidad
-    const teamCountText = `${group.teams.length} ${group.teams.length === 1 ? "pareja" : "parejas"}`;
+    const isFootball = (sportName ?? "").toLowerCase().includes("futbol");
+    const noun = isFootball
+      ? (group.teams.length === 1 ? "equipo" : "equipos")
+      : (group.teams.length === 1 ? "pareja" : "parejas");
+    const teamCountText = `${group.teams.length} ${noun}`;
     ctx.font = "600 12px system-ui, -apple-system, sans-serif";
     const teamCountWidth = ctx.measureText(teamCountText).width + 16;
     const badgeCountX = cardX + cardWidth - teamCountWidth - 14;

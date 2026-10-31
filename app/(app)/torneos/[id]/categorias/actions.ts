@@ -241,9 +241,14 @@ export const mergeCategories = createAction(mergeCategoriesSchema, async (input,
   revalidate(input.tournamentId);
   revalidatePath(`/torneos/${input.tournamentId}/inscripciones`);
 
+  const { data: tour } = await supabase.from("tournaments").select("sport_id").eq("id", input.tournamentId).maybeSingle();
+  const isFootball = (tour?.sport_id ?? "").toLowerCase().includes("futbol");
+  const unitText = isFootball
+    ? (count === 1 ? "1 equipo" : `${count} equipos`)
+    : (count === 1 ? "1 pareja" : `${count} parejas`);
   return actionOk(
     { movedCount: count, categoryDeleted },
-    `Categorías unificadas: se ${count === 1 ? "movió 1 pareja" : `movieron ${count} parejas`} a "${targetCat.name}"${categoryDeleted ? ` y se eliminó "${sourceCat.name}"` : ""}.`,
+    `Categorías unificadas: se ${count === 1 ? `movió ${unitText}` : `movieron ${unitText}`} a "${targetCat.name}"${categoryDeleted ? ` y se eliminó "${sourceCat.name}"` : ""}.`,
   );
 });
 

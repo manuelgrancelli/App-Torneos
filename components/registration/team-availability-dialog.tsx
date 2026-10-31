@@ -38,6 +38,7 @@ type TeamAvailabilityDialogProps = {
   slots: DialogSlot[];
   team: OrganizerTeam | null;
   categoryName?: string | null;
+  isFootball?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
@@ -48,6 +49,7 @@ export function TeamAvailabilityDialog({
   slots,
   team,
   categoryName,
+  isFootball = false,
   open,
   onOpenChange,
 }: TeamAvailabilityDialogProps) {
@@ -177,7 +179,9 @@ export function TeamAvailabilityDialog({
                   Franjas horarias de disponibilidad
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                  Elegí en qué horarios puede jugar esta pareja. Los partidos se programarán respetando esta franja.
+                  {isFootball
+                    ? "Elegí en qué horarios puede jugar este equipo. Los partidos se programarán respetando esta franja."
+                    : "Elegí en qué horarios puede jugar esta pareja. Los partidos se programarán respetando esta franja."}
                 </DialogDescription>
               </div>
             </div>
@@ -273,7 +277,9 @@ export function TeamAvailabilityDialog({
               <Clock className="size-8 text-muted-foreground mb-2 opacity-60" />
               <p className="text-sm font-semibold text-foreground">El torneo aún no tiene franjas horarias</p>
               <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-                Para definir en qué horarios puede jugar la pareja, primero cargá los días y turnos en la sección de Canchas y franjas.
+                {isFootball
+                  ? "Para definir en qué horarios puede jugar el equipo, primero cargá los días y turnos en la sección de Canchas y franjas."
+                  : "Para definir en qué horarios puede jugar la pareja, primero cargá los días y turnos en la sección de Canchas y franjas."}
               </p>
             </div>
           ) : (

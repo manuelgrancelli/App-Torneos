@@ -30,6 +30,8 @@ export type TeamCategoryOption = {
 type TeamFormProps = {
   /** Integrantes que necesita el deporte (incluido quien inscribe). */
   teamSize: number;
+  minTeamSize?: number;
+  maxTeamSize?: number;
   sportId?: string;
   scoringType?: string;
   defaultName: string;
@@ -51,6 +53,9 @@ export function TeamForm(props: TeamFormProps) {
   const isFootball =
     props.scoringType === "goals" ||
     (props.sportId ? props.sportId.toLowerCase().includes("futbol") : props.teamSize > 2);
+
+  const effectiveMinTeamSize = props.minTeamSize ?? (isFootball ? 5 : props.teamSize);
+  const effectiveMaxTeamSize = props.maxTeamSize ?? (isFootball ? 15 : props.teamSize);
 
   const defaultCategory =
     props.mode === "register" && props.categories && props.categories.length > 0
@@ -76,8 +81,12 @@ export function TeamForm(props: TeamFormProps) {
         email,
       }));
     }
-    // Inicia con JUGADOR 1 listo para completar, como en el boceto
-    return [{ id: "p-1", name: "", email: "" }];
+    const initialCount = isFootball ? Math.max(1, effectiveMinTeamSize - 1) : 1;
+    return Array.from({ length: initialCount }, (_, i) => ({
+      id: `p-${i + 1}`,
+      name: "",
+      email: "",
+    }));
   });
 
   const form = useForm({
@@ -113,6 +122,21 @@ export function TeamForm(props: TeamFormProps) {
         }
       }
 
+      const totalMembers = validPlayers.length + 1;
+      if (totalMembers < effectiveMinTeamSize) {
+        toast.error(
+          `El torneo requiere un mínimo de ${effectiveMinTeamSize} jugadores por equipo (cargaste ${totalMembers} contando al capitán).`
+        );
+        return;
+      }
+
+      if (totalMembers > effectiveMaxTeamSize) {
+        toast.error(
+          `El torneo permite un máximo de ${effectiveMaxTeamSize} jugadores por equipo (cargaste ${totalMembers} contando al capitán).`
+        );
+        return;
+      }
+
       memberEmails = validPlayers.map((p) => p.email);
       memberNames = validPlayers.map((p) => p.name);
       playerPayload = validPlayers;
@@ -122,7 +146,7 @@ export function TeamForm(props: TeamFormProps) {
         const hasSelf = cleanedEmails.some((e) => e === captainEmailNormalized);
         if (hasSelf) {
           form.setError("memberEmails", {
-            message: props.teamSize === 2
+            message: !isFootball && props.teamSize === 2
               ? "No podés ingresar tu propio email: vos ya sos el capitán de la pareja."
               : "No podés incluir tu propio email: vos ya sos el capitán del equipo.",
           });
@@ -196,10 +220,10 @@ export function TeamForm(props: TeamFormProps) {
             <p className="text-[11px] sm:text-xs text-muted-foreground leading-snug">
               {props.teamSize === 1
                 ? "Participás de forma individual (1 vs 1). No tenés que sumar compañeros ni parejas."
-                : props.teamSize === 2
-                  ? "El torneo se juega en parejas (2 personas). Vos ya quedás registrado como capitán; abajo ingresás el email de tu pareja para invitarla."
-                  : isFootball
-                    ? "Vos quedás registrado como capitán. Podés ingresar el escudo y nombre de tu equipo, y sumar o invitar compañeros con link."
+                : isFootball
+                  ? "Vos quedás registrado como capitán. Podés ingresar el escudo y nombre de tu equipo, y sumar o invitar compañeros con link."
+                  : props.teamSize === 2
+                    ? "El torneo se juega en parejas (2 personas). Vos ya quedás registrado como capitán; abajo ingresás el email de tu pareja para invitarla."
                     : `Vos ya quedás como capitán; abajo ingresá los emails de tus ${companions} compañeros.`}
             </p>
           </div>
@@ -230,7 +254,7 @@ export function TeamForm(props: TeamFormProps) {
                     const cupoText =
                       cat.maxTeams !== null
                         ? `(${cat.approvedTeamsCount}/${cat.maxTeams})`
-                        : `(${cat.approvedTeamsCount} inscriptas · sin límite)`;
+                        : `(${cat.approvedTeamsCount} ${isFootball ? "equipos" : "inscriptas"} · sin límite)`;
                     return (
                       <option key={cat.id} value={cat.id} disabled={isClosed || isFull}>
                         {cat.name} {isClosed ? "(Inscripción cerrada)" : isFull ? "(Cupo lleno)" : cupoText}
@@ -314,6 +338,8 @@ export function TeamForm(props: TeamFormProps) {
             <PlayerRosterBuilder
               players={players}
               onChange={setPlayers}
+              minPlayers={Math.max(0, effectiveMinTeamSize - 1)}
+              maxPlayers={Math.max(0, effectiveMaxTeamSize - 1)}
               disabled={isPending}
             />
           </div>

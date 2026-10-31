@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDateRange } from "@/lib/dates";
+import { teamNoun } from "@/lib/domain/tournament-status";
 
 type TabFilter = "all" | "running" | "registration" | "finished" | "draft";
 
@@ -228,7 +229,7 @@ export function AdminTournamentList({
                           <strong className="font-semibold text-foreground">
                             {t.approvedTeamsCount}
                           </strong>{" "}
-                          {t.approvedTeamsCount === 1 ? "pareja" : "parejas"}
+                          {teamNoun(2, t.approvedTeamsCount !== 1, t.sportName)}
                         </span>
                       </div>
 

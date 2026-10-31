@@ -15,7 +15,7 @@ const padel: SetsScoringConfig = {
 };
 const tennisFull: SetsScoringConfig = { ...padel, decidingSet: "full" };
 const noTiebreak: SetsScoringConfig = { ...padel, tiebreak: false, decidingSet: "full" };
-const football: GoalsScoringConfig = { type: "goals", playoffTiebreak: "penalties" };
+const football: GoalsScoringConfig = { type: "goals", playoffTiebreak: "penalties", minTeamSize: 5, maxTeamSize: 15 };
 
 const sets = (...scores: [number, number][]) => ({
   type: "sets" as const,

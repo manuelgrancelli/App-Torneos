@@ -121,8 +121,8 @@ export function TournamentStatsSummary({
                 </span>
                 <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
                   {totalPendingReviews === 1
-                    ? "pareja por aprobar"
-                    : "parejas por aprobar"}
+                    ? "inscripción por aprobar"
+                    : "inscripciones por aprobar"}
                 </span>
               </>
             ) : (

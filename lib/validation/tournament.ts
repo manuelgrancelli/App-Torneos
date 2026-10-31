@@ -64,6 +64,18 @@ function crossFieldChecks(data: ConfigFields, ctx: z.RefinementCtx) {
       });
     }
   }
+  if (data.scoringConfig.type === "goals") {
+    const goals = data.scoringConfig;
+    if (typeof goals.minTeamSize === "number" && typeof goals.maxTeamSize === "number") {
+      if (goals.maxTeamSize < goals.minTeamSize) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["scoringConfig", "maxTeamSize"],
+          message: "El máximo de jugadores no puede ser menor que el mínimo.",
+        });
+      }
+    }
+  }
 }
 
 export const createTournamentSchema = z

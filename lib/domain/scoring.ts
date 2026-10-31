@@ -44,6 +44,10 @@ export const goalsScoringConfigSchema = z.object({
   type: z.literal("goals"),
   /** En playoffs un empate se define por penales. */
   playoffTiebreak: z.literal("penalties"),
+  /** Mínimo obligatorio de jugadores para inscribir un equipo en este torneo (ej: 5 para F5, 7 para F7, 11 para F11). */
+  minTeamSize: z.number().int().min(1, "El mínimo es 1 jugador.").max(30, "El máximo es 30 jugadores.").default(5),
+  /** Máximo permitido de jugadores por equipo con suplentes (ej: 10, 15, 20). */
+  maxTeamSize: z.number().int().min(1, "El mínimo es 1 jugador.").max(30, "El máximo es 30 jugadores.").default(15),
 });
 
 export const scoringConfigSchema = z.discriminatedUnion("type", [
@@ -74,9 +78,20 @@ export function normalizeScoringConfig(raw: unknown): ScoringConfig {
   const obj = raw as Record<string, unknown>;
 
   if (obj.type === "goals") {
+    const minTeamSize =
+      typeof obj.minTeamSize === "number" && obj.minTeamSize >= 1 && obj.minTeamSize <= 30
+        ? Math.floor(obj.minTeamSize)
+        : 5;
+    const maxTeamSize =
+      typeof obj.maxTeamSize === "number" && obj.maxTeamSize >= minTeamSize && obj.maxTeamSize <= 30
+        ? Math.floor(obj.maxTeamSize)
+        : Math.max(minTeamSize, 15);
+
     return {
       type: "goals",
       playoffTiebreak: "penalties",
+      minTeamSize,
+      maxTeamSize,
     };
   }
 

@@ -26,6 +26,7 @@ export type ReplacePlayerDialogProps = {
   tournamentId: string;
   team: OrganizerTeam | null;
   initialMemberId?: string | null;
+  isFootball?: boolean;
 };
 
 export function ReplacePlayerDialog({
@@ -34,6 +35,7 @@ export function ReplacePlayerDialog({
   tournamentId,
   team,
   initialMemberId,
+  isFootball = false,
 }: ReplacePlayerDialogProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -94,7 +96,7 @@ export function ReplacePlayerDialog({
       return;
     }
     if (teamName.trim().length < 2) {
-      setErrorMsg("El nombre de la pareja debe tener al menos 2 caracteres.");
+      setErrorMsg(isFootball ? "El nombre del equipo debe tener al menos 2 caracteres." : "El nombre de la pareja debe tener al menos 2 caracteres.");
       return;
     }
 
@@ -135,7 +137,9 @@ export function ReplacePlayerDialog({
               </DialogTitle>
             </div>
             <DialogDescription>
-              Cambiá el nombre del integrante y de la pareja sin alterar los partidos, zonas ni resultados ya programados.
+              {isFootball
+                ? "Cambiá el nombre del integrante y del equipo sin alterar los partidos, zonas ni resultados ya programados."
+                : "Cambiá el nombre del integrante y de la pareja sin alterar los partidos, zonas ni resultados ya programados."}
             </DialogDescription>
           </DialogHeader>
 
@@ -183,9 +187,9 @@ export function ReplacePlayerDialog({
               />
             </Field>
 
-            {/* Nombre de la pareja */}
+            {/* Nombre del equipo / pareja */}
             <Field>
-              <FieldLabel htmlFor="team-name">Nombre visible de la pareja / equipo</FieldLabel>
+              <FieldLabel htmlFor="team-name">{isFootball ? "Nombre visible del equipo" : "Nombre visible de la pareja"}</FieldLabel>
               <Input
                 id="team-name"
                 type="text"
@@ -205,7 +209,9 @@ export function ReplacePlayerDialog({
                     onChange={(e) => setAutoUpdateTeamName(e.target.checked)}
                     className="rounded border-border"
                   />
-                  Actualizar nombre de pareja automáticamente al escribir el nuevo jugador
+                  {isFootball
+                    ? "Actualizar nombre de equipo automáticamente al escribir el nuevo jugador"
+                    : "Actualizar nombre de pareja automáticamente al escribir el nuevo jugador"}
                 </label>
               </div>
             </Field>

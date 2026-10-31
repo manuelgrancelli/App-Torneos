@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import type { ScoringConfig } from "@/lib/domain/scoring";
+import { normalizeScoringConfig, type ScoringConfig } from "@/lib/domain/scoring";
 import type { StandingsConfig } from "@/lib/domain/standings";
 import type { PlayoffConfig } from "@/lib/domain/bracket";
 import type { TournamentStatus } from "@/lib/domain/tournament-status";
@@ -386,7 +386,7 @@ export const getOrganizerTournament = cache(
       maxTeams: data.max_teams,
       resultsRequireConfirmation: data.results_require_confirmation,
       // Las configs las valida la app al guardar (y la base su forma mínima).
-      scoringConfig: data.scoring_config as ScoringConfig,
+      scoringConfig: normalizeScoringConfig(data.scoring_config),
       standingsConfig: data.standings_config as StandingsConfig,
       playoffConfig: data.playoff_config as PlayoffConfig,
       championTeamId: data.champion_team_id,

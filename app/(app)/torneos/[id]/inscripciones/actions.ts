@@ -7,6 +7,7 @@ import { dbErrorMessage } from "@/lib/supabase/errors";
 import { canUserManageTournament } from "@/lib/data/tournaments";
 import { findMatchingCategory } from "@/lib/domain/category-matcher";
 import { isFootballSport } from "@/lib/domain/roster-parser";
+import { normalizeScoringConfig } from "@/lib/domain/scoring";
 import {
   assignTeamCategorySchema,
   assignTournamentTeamsCategorySchema,
@@ -42,9 +43,13 @@ export const fillTestTeamSlots = createAction(
     revalidatePath(`/torneos/${tournamentId}`, "layout");
     refreshPublicTournament(tournamentId);
     const count = data ?? 0;
+    const { data: tour } = await supabase.from("tournaments").select("sport_id").eq("id", tournamentId).maybeSingle();
+    const isFootball = (tour?.sport_id ?? "").toLowerCase().includes("futbol");
+    const nounPlural = isFootball ? "equipos de prueba" : "parejas ficticias";
+    const nounSingular = isFootball ? "equipo de prueba" : "pareja ficticia";
     return actionOk(
       { count },
-      `Agregamos ${count} ${count === 1 ? "pareja ficticia" : "parejas ficticias"} aprobadas para que puedas sortear los grupos y generar el cuadro.`,
+      `Agregamos ${count} ${count === 1 ? nounSingular : nounPlural} ${isFootball ? "aprobados" : "aprobadas"} para que puedas sortear los grupos y generar el cuadro.`,
     );
   },
 );
@@ -103,9 +108,12 @@ export const assignAllUnassignedTeams = createAction(
     revalidatePath(`/torneos/${tournamentId}`, "layout");
     refreshPublicTournament(tournamentId);
     const count = data ?? 0;
+    const { data: tour } = await supabase.from("tournaments").select("sport_id").eq("id", tournamentId).maybeSingle();
+    const isFootball = (tour?.sport_id ?? "").toLowerCase().includes("futbol");
+    const noun = isFootball ? (count === 1 ? "equipo" : "equipos") : (count === 1 ? "pareja" : "parejas");
     return actionOk(
       { count },
-      `Se asignaron ${count} ${count === 1 ? "pareja" : "parejas"} a la categoría seleccionada.`,
+      `Se asignaron ${count} ${noun} a la categoría seleccionada.`,
     );
   },
 );
@@ -137,13 +145,16 @@ export const setTeamAvailabilityByOrganizer = createAction(
     refreshPublicTournament(tournamentId);
 
     const count = data ?? 0;
+    const { data: tour } = await supabase.from("tournaments").select("sport_id").eq("id", tournamentId).maybeSingle();
+    const isFootball = (tour?.sport_id ?? "").toLowerCase().includes("futbol");
+    const targetWord = isFootball ? "al equipo" : "a la pareja";
     return actionOk(
       { count },
       count === 0
         ? "Disponibilidad actualizada (sin franjas asignadas)."
         : count === 1
-          ? "Se asignó 1 franja horaria a la pareja."
-          : `Se asignaron ${count} franjas horarias a la pareja.`,
+          ? `Se asignó 1 franja horaria ${targetWord}.`
+          : `Se asignaron ${count} franjas horarias ${targetWord}.`,
     );
   },
 );
@@ -181,8 +192,10 @@ export const initializeTournamentTeamsAvailability = createAction(
       (t: any) => !t.team_availability || t.team_availability.length === 0
     );
 
+    const { data: tour } = await supabase.from("tournaments").select("sport_id").eq("id", tournamentId).maybeSingle();
+    const isFootball = (tour?.sport_id ?? "").toLowerCase().includes("futbol");
     if (teamsWithoutAvail.length === 0) {
-      return actionOk({ count: 0 }, "Todas las parejas ya tienen horarios asignados.");
+      return actionOk({ count: 0 }, isFootball ? "Todos los equipos ya tienen horarios asignados." : "Todas las parejas ya tienen horarios asignados.");
     }
 
     for (const team of teamsWithoutAvail) {
@@ -198,9 +211,12 @@ export const initializeTournamentTeamsAvailability = createAction(
     revalidatePath(`/torneos/${tournamentId}/partidos`);
     refreshPublicTournament(tournamentId);
 
+    const nounTeams = isFootball
+      ? (teamsWithoutAvail.length === 1 ? "equipo" : "equipos")
+      : (teamsWithoutAvail.length === 1 ? "pareja" : "parejas");
     return actionOk(
       { count: teamsWithoutAvail.length },
-      `Se habilitaron todos los horarios a ${teamsWithoutAvail.length} ${teamsWithoutAvail.length === 1 ? "pareja" : "parejas"} (${teamsWithoutAvail.map((t: { name: string }) => t.name).join(", ")}).`,
+      `Se habilitaron todos los horarios a ${teamsWithoutAvail.length} ${nounTeams} (${teamsWithoutAvail.map((t: { name: string }) => t.name).join(", ")}).`,
     );
   },
 );
@@ -303,9 +319,32 @@ export const bulkImportTeams = createAction(
         (existingTeams ?? []).map((t: { name: string }) => t.name.trim().toLowerCase()),
       );
 
-      // Inscribir cada pareja de este bloque
+      const isFootball = isFootballSport(tourney.sport_id);
+      const scoring = normalizeScoringConfig(tourney.scoring_config);
+      const minPlayers = isFootball ? (scoring.type === "goals" ? scoring.minTeamSize : 5) : 1;
+      const maxPlayers = isFootball ? (scoring.type === "goals" ? scoring.maxTeamSize : 15) : 2;
+
+      // Inscribir cada pareja/equipo de este bloque
       for (const team of block.teams) {
         const teamName = team.teamName.trim();
+
+        if (isFootball) {
+          const validPlayerCount = team.playerNames.filter((n) => n.trim().length > 0).length;
+          if (validPlayerCount < minPlayers) {
+            skippedTeams.push({
+              teamName,
+              reason: `No cumple el mínimo reglamentario de jugadores (${validPlayerCount}/${minPlayers})`,
+            });
+            continue;
+          }
+          if (validPlayerCount > maxPlayers) {
+            skippedTeams.push({
+              teamName,
+              reason: `Supera el máximo reglamentario de jugadores (${validPlayerCount}/${maxPlayers})`,
+            });
+            continue;
+          }
+        }
 
         // Saltar si ya existe un equipo con ese nombre en la categoría
         if (existingNameSet.has(teamName.toLowerCase())) {

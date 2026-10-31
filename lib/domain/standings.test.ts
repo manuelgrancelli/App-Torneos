@@ -11,7 +11,7 @@ import {
 const padel: SetsScoringConfig = {
   type: "sets", bestOf: 3, gamesPerSet: 6, tiebreak: true, decidingSet: "super_tiebreak", superTiebreakPoints: 10, superTiebreakUntil: "quarterfinals",
 };
-const football: GoalsScoringConfig = { type: "goals", playoffTiebreak: "penalties" };
+const football: GoalsScoringConfig = { type: "goals", playoffTiebreak: "penalties", minTeamSize: 5, maxTeamSize: 15 };
 const setsConfig: StandingsConfig = {
   points: { win: 3, draw: 1, loss: 0 },
   tiebreakers: ["points", "head_to_head", "set_diff", "game_diff", "games_won"],

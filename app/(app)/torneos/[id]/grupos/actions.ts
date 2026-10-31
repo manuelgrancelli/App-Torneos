@@ -125,7 +125,8 @@ export const saveGroups = createAction(saveGroupsSchema, async ({ tournamentId, 
 export const drawAllCategories = createAction(
   drawAllCategoriesSchema,
   async ({ tournamentId, categoryConfigs }, { supabase }) => {
-    const [categoriesRes, teamsRes, matchesRes, slotsRes] = await Promise.all([
+    const [tourRes, categoriesRes, teamsRes, matchesRes, slotsRes] = await Promise.all([
+      supabase.from("tournaments").select("sport_id").eq("id", tournamentId).maybeSingle(),
       (supabase as any).from("tournament_categories").select("*").eq("tournament_id", tournamentId).order("position").limit(500),
       (supabase as any).from("teams").select("id, name, category_id, status, team_availability(slot_id)").eq("tournament_id", tournamentId).eq("status", "approved").limit(5000),
       (supabase as any).from("matches").select("id, category_id, result_status").eq("tournament_id", tournamentId).limit(5000),
@@ -136,6 +137,8 @@ export const drawAllCategories = createAction(
     if (teamsRes.error) return actionError(dbErrorMessage(teamsRes.error));
     if (matchesRes.error) return actionError(dbErrorMessage(matchesRes.error));
 
+    const isFootball = (tourRes.data?.sport_id ?? "").toLowerCase().includes("futbol");
+    const nounPlural = isFootball ? "equipos aprobados" : "parejas aprobadas";
     const categories = categoriesRes.data ?? [];
     const teams = teamsRes.data ?? [];
     const matches = matchesRes.data ?? [];
@@ -189,7 +192,7 @@ export const drawAllCategories = createAction(
       );
 
       if (catTeams.length < 2) {
-        skippedCategories.push(`${cat.name} (tiene menos de 2 parejas aprobadas)`);
+        skippedCategories.push(`${cat.name} (tiene menos de 2 ${nounPlural})`);
         continue;
       }
 

@@ -51,7 +51,7 @@ const STEPS: readonly SetupStepInfo[] = [
     shortLabel: "Inscripciones",
     icon: Users,
     path: "inscripciones",
-    description: "Apertura de inscripciones, link de invitación y parejas anotadas.",
+    description: "Apertura de inscripciones, link de invitación y participantes anotados.",
   },
 ] as const;
 

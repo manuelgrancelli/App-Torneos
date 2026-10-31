@@ -38,7 +38,7 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
 
   const { tournament } = team;
   const registrationOpen = tournament.status === "registration_open";
-  const noun = teamNoun(tournament.minTeamSize);
+  const noun = teamNoun(tournament.minTeamSize, false, tournament.sportName);
   const pendingMembers = team.members.filter((m) => !m.userId).length;
   const started = !["draft", "registration_open"].includes(tournament.status);
   const competition = started ? await getCompetition(tournament.id) : null;

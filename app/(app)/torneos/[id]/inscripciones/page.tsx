@@ -60,6 +60,10 @@ export default async function RegistrationsPage({
       ? categories.reduce((sum, c) => sum + (c.maxTeams ?? 0), 0)
       : null;
 
+  const goalsConfig = tournament.scoringConfig?.type === "goals" ? tournament.scoringConfig : null;
+  const minTeamSize = goalsConfig ? (goalsConfig.minTeamSize ?? 5) : tournament.sport.min_team_size;
+  const maxTeamSize = goalsConfig ? (goalsConfig.maxTeamSize ?? 15) : (tournament.sport.max_team_size ?? tournament.sport.min_team_size);
+
   return (
     <div className="space-y-6">
       {showWizard ? (
@@ -100,12 +104,13 @@ export default async function RegistrationsPage({
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground">
-              Tenés <strong className="text-foreground">{approved} {approvedTeamsLabel(tournament.sport.min_team_size)}</strong>. Al cerrar la inscripción, los horarios y planteles quedarán confirmados y pasarás directamente a armar la fase de grupos.
+              Tenés <strong className="text-foreground">{approved} {approvedTeamsLabel(tournament.sport.min_team_size, tournament.sport.id)}</strong>. Al cerrar la inscripción, los horarios y planteles quedarán confirmados y pasarás directamente a armar la fase de grupos.
             </p>
           </div>
           <CloseRegistrationButton
             tournamentId={tournament.id}
             approvedCount={approved}
+            sportId={tournament.sport.id}
             className="w-full sm:w-auto"
           />
         </div>
@@ -162,7 +167,9 @@ export default async function RegistrationsPage({
           tournamentId={tournament.id}
           sportId={tournament.sport.id}
           timezone={tournament.timezone}
-          teamSize={tournament.sport.min_team_size}
+          teamSize={minTeamSize}
+          minTeamSize={minTeamSize}
+          maxTeamSize={maxTeamSize}
           slots={groupSlots}
           courts={courts}
           categories={categoryOptions}
@@ -171,7 +178,10 @@ export default async function RegistrationsPage({
 
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          <strong className="text-foreground font-semibold">{approved}</strong> {approvedTeamsLabel(tournament.sport.min_team_size)} inscriptas
+          <strong className="text-foreground font-semibold">{approved}</strong>{" "}
+          {tournament.sport.id.includes("futbol")
+            ? (approved === 1 ? "equipo inscripto" : "equipos inscriptos")
+            : `${approvedTeamsLabel(tournament.sport.min_team_size, tournament.sport.id)} inscriptas`}
           {totalCupo !== null ? <> de <strong className="text-foreground font-semibold">{totalCupo}</strong> cupos totales</> : null}
           {categories.length > 0 ? ` en ${categories.length} ${categories.length === 1 ? "categoría" : "categorías"}` : ""}.
           {tournament.status === "registration_open"
@@ -183,6 +193,7 @@ export default async function RegistrationsPage({
           tournamentId={tournament.id}
           teams={teams}
           teamSize={tournament.sport.min_team_size}
+          sportId={tournament.sport.id}
           maxTeams={totalCupo ?? tournament.maxTeams}
           isTestTournament={tournament.isTest}
           canReview={tournament.status === "registration_open"}

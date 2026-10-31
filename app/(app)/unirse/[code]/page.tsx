@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth";
 import { formatDateRange } from "@/lib/dates";
+import { normalizeScoringConfig } from "@/lib/domain/scoring";
 import { approvedTeamsLabel, teamNoun } from "@/lib/domain/tournament-status";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeInviteCode } from "@/lib/validation/registration";
@@ -49,11 +50,11 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
     );
   }
 
-  // Traer afiche, descripción y categorías del torneo
+  // Traer afiche, descripción, configuración y categorías del torneo
   const [tourExtra, categories] = await Promise.all([
     supabase
       .from("tournaments")
-      .select("banner_url, description")
+      .select("banner_url, description, scoring_config")
       .eq("id", tournament.tournament_id)
       .maybeSingle(),
     getTournamentCategories(tournament.tournament_id),
@@ -61,8 +62,18 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
 
   const bannerUrl = tourExtra.data?.banner_url ?? null;
   const description = tourExtra.data?.description ?? null;
+  const normalizedScoring = normalizeScoringConfig(tourExtra.data?.scoring_config);
+  const minTeamSize =
+    normalizedScoring.type === "goals"
+      ? (normalizedScoring.minTeamSize ?? 5)
+      : tournament.min_team_size;
+  const maxTeamSize =
+    normalizedScoring.type === "goals"
+      ? (normalizedScoring.maxTeamSize ?? 15)
+      : (tournament.max_team_size ?? tournament.min_team_size);
 
-  const noun = teamNoun(tournament.min_team_size);
+  const noun = teamNoun(minTeamSize, false, tournament.sport_id);
+  const isFootball = tournament.sport_id.toLowerCase().includes("futbol");
   const hasCategories = categories.length > 0;
   const anyCategoryAvailable = hasCategories
     ? categories.some(
@@ -117,8 +128,14 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
             <Users className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
             <span>
               {hasCategories
-                ? `${tournament.approved_teams} ${approvedTeamsLabel(tournament.min_team_size)} inscriptas`
-                : `${tournament.approved_teams} de ${tournament.max_teams} ${approvedTeamsLabel(tournament.min_team_size)}`}
+                ? `${tournament.approved_teams} ${
+                    isFootball
+                      ? tournament.approved_teams === 1
+                        ? "equipo inscripto"
+                        : "equipos inscriptos"
+                      : `${approvedTeamsLabel(tournament.min_team_size, tournament.sport_id)} inscriptas`
+                  }`
+                : `${tournament.approved_teams} de ${tournament.max_teams} ${approvedTeamsLabel(tournament.min_team_size, tournament.sport_id)}`}
             </span>
           </li>
         </ul>
@@ -164,7 +181,7 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
           description={
             hasCategories
               ? "Por el momento no quedan cupos disponibles en las categorías de este torneo."
-              : `Ya hay ${tournament.approved_teams} ${approvedTeamsLabel(tournament.min_team_size)}.`
+              : `Ya hay ${tournament.approved_teams} ${approvedTeamsLabel(tournament.min_team_size, tournament.sport_id)}.`
           }
         />
       ) : (
@@ -172,7 +189,7 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
           <CardHeader className="pb-2">
             <CardTitle>
               <h2 className="text-sm sm:text-base font-bold uppercase tracking-wider text-foreground">
-                {tournament.sport_id.includes("futbol")
+                {isFootball
                   ? "INSCRIBIRSE A TORNEO"
                   : tournament.min_team_size === 1
                     ? "Inscripción individual"
@@ -193,10 +210,12 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
             <TeamForm
               mode="register"
               code={code}
-              teamSize={tournament.min_team_size}
+              teamSize={minTeamSize}
+              minTeamSize={minTeamSize}
+              maxTeamSize={maxTeamSize}
               sportId={tournament.sport_id}
               scoringType={tournament.scoring_type}
-              defaultName={suggestedName(user.fullName, tournament.min_team_size)}
+              defaultName={suggestedName(user.fullName, minTeamSize)}
               captainName={user.fullName}
               captainEmail={user.email}
               categories={categories.map((c) => ({

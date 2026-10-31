@@ -15,8 +15,10 @@ export type PlayerEntry = {
 interface PlayerRosterBuilderProps {
   players: PlayerEntry[];
   onChange: (players: PlayerEntry[]) => void;
+  minPlayers?: number;
   maxPlayers?: number;
   disabled?: boolean;
+  isOrganizer?: boolean;
 }
 
 /**
@@ -27,8 +29,10 @@ interface PlayerRosterBuilderProps {
 export function PlayerRosterBuilder({
   players,
   onChange,
+  minPlayers,
   maxPlayers = 30,
   disabled = false,
+  isOrganizer = false,
 }: PlayerRosterBuilderProps) {
   function handleAddPlayer() {
     if (players.length >= maxPlayers) return;
@@ -76,13 +80,20 @@ export function PlayerRosterBuilder({
       </button>
 
       {/* Contador de plantel */}
-      <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-1 px-1 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5 font-medium">
           <Users className="size-3.5 text-primary" aria-hidden="true" />
-          Plantel: {players.length + 1} jugador{players.length === 0 ? "" : "es"} (vos como Capitán + {players.length} compañero{players.length === 1 ? "" : "s"})
+          {isOrganizer
+            ? `Plantel: ${players.length} jugador${players.length === 1 ? "" : "es"}`
+            : `Plantel: ${players.length + 1} jugador${players.length === 0 ? "" : "es"} (vos + ${players.length} compañero${players.length === 1 ? "" : "s"})`}
+          {minPlayers !== undefined || maxPlayers !== undefined ? (
+            <span className="text-[11px] text-muted-foreground/80 font-normal ml-1">
+              (Mín: {isOrganizer ? minPlayers : minPlayers !== undefined ? minPlayers + 1 : 1} · Máx: {isOrganizer ? maxPlayers : maxPlayers !== undefined ? maxPlayers + 1 : 30})
+            </span>
+          ) : null}
         </span>
         {players.length >= maxPlayers ? (
-          <span className="text-amber-500 font-semibold text-[11px]">Límite alcanzado</span>
+          <span className="text-amber-500 font-semibold text-[11px]">Máximo alcanzado</span>
         ) : null}
       </div>
 
@@ -91,7 +102,9 @@ export function PlayerRosterBuilder({
         {players.length === 0 ? (
           <div className="rounded-xl border-2 border-dashed border-border p-4 text-center">
             <p className="text-xs text-muted-foreground">
-              Aún no agregaste jugadores. Hacé clic en <strong>AGREGAR JUGADOR</strong> para sumar integrantes a tu equipo, o inscribite ahora e invitalos luego con link de WhatsApp.
+              {isOrganizer
+                ? <>Aún no agregaste jugadores. Hacé clic en <strong>AGREGAR JUGADOR</strong> para sumar integrantes al equipo.</>
+                : <>Aún no agregaste jugadores. Hacé clic en <strong>AGREGAR JUGADOR</strong> para sumar integrantes a tu equipo, o inscribite ahora e invitalos luego con link de WhatsApp.</>}
             </p>
           </div>
         ) : (

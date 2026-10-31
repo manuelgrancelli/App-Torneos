@@ -9,6 +9,7 @@ import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import type { z } from "zod";
 import { createTournament } from "@/app/(app)/torneos/actions";
+import { NumberInput } from "@/components/shared/number-input";
 import { WizardSteps } from "@/components/shared/wizard-steps";
 import { Button } from "@/components/ui/button";
 import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -45,7 +46,7 @@ const STEP_TITLES = [
 
 /** Campos que se validan en cada paso (el último solo revisa). */
 const STEP_FIELDS = [
-  ["name", "sportId", "description"],
+  ["name", "sportId", "description", "scoringConfig"],
   ["startsOn", "endsOn", "courtCount"],
   ["resultsRequireConfirmation", "scoringConfig", "standingsConfig", "playoffConfig", "bannerUrl"],
 ] as const satisfies readonly (readonly (keyof CreateTournamentInput)[])[];
@@ -199,6 +200,74 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
                 )}
               />
               <DescriptionField form={form} />
+              {sport.defaultScoringConfig.type === "goals" ? (
+                <div className="rounded-xl border border-border/80 bg-muted/40 p-4 space-y-3">
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                      ⚽ Límites de jugadores por equipo (Fútbol)
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Definí el mínimo de jugadores obligatorio para inscribir un equipo (ej. 5 para F5, 7 para F7, 11 para F11) y el máximo permitido con suplentes. Al anotarse, cada equipo debe cumplir estos límites.
+                    </p>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Controller
+                      name="scoringConfig"
+                      control={form.control}
+                      render={({ field, fieldState }) => {
+                        const cfg =
+                          field.value?.type === "goals"
+                            ? field.value
+                            : {
+                                type: "goals" as const,
+                                playoffTiebreak: "penalties" as const,
+                                minTeamSize: 5,
+                                maxTeamSize: 15,
+                              };
+                        return (
+                          <>
+                            <Field data-invalid={Boolean(fieldState.error?.message?.includes("mínimo") || fieldState.error?.message?.includes("minTeamSize"))}>
+                              <FieldLabel htmlFor="wizard-min-team-size" className="text-xs font-semibold">
+                                Mínimo de jugadores por equipo *
+                              </FieldLabel>
+                              <NumberInput
+                                id="wizard-min-team-size"
+                                min={1}
+                                max={30}
+                                value={cfg.minTeamSize ?? 5}
+                                onChange={(v) => field.onChange({ ...cfg, minTeamSize: v ?? 5 })}
+                              />
+                              <FieldDescription className="text-[11px]">
+                                Obligatorio para que el equipo pueda inscribirse.
+                              </FieldDescription>
+                            </Field>
+                            <Field data-invalid={Boolean(fieldState.error?.message?.includes("máximo") || fieldState.error?.message?.includes("maxTeamSize"))}>
+                              <FieldLabel htmlFor="wizard-max-team-size" className="text-xs font-semibold">
+                                Máximo de jugadores por equipo *
+                              </FieldLabel>
+                              <NumberInput
+                                id="wizard-max-team-size"
+                                min={1}
+                                max={30}
+                                value={cfg.maxTeamSize ?? 15}
+                                onChange={(v) => field.onChange({ ...cfg, maxTeamSize: v ?? 15 })}
+                              />
+                              <FieldDescription className="text-[11px]">
+                                Límite total de la lista de buena fe (con suplentes).
+                              </FieldDescription>
+                            </Field>
+                            {fieldState.error ? (
+                              <div className="sm:col-span-2">
+                                <FieldError errors={[fieldState.error]} />
+                              </div>
+                            ) : null}
+                          </>
+                        );
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : null}
             </FieldGroup>
           ) : null}
 

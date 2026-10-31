@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { createOrganizerTeam } from "@/app/(app)/torneos/[id]/inscripciones/actions";
@@ -21,6 +21,8 @@ import { applyServerErrors } from "@/lib/forms";
 import { organizerCreateTeamSchema, type OrganizerCreateTeamInput } from "@/lib/validation/registration";
 import { cn } from "@/lib/utils";
 import { BulkRegistrationDialog } from "./bulk-registration-dialog";
+import { isFootballSport } from "@/lib/domain/roster-parser";
+import { PlayerRosterBuilder, type PlayerEntry } from "./player-roster-builder";
 
 
 type OrganizerSlot = { id: string; startsAt: string; endsAt: string; courtId: string | null };
@@ -30,6 +32,8 @@ type OrganizerRegistrationFormProps = {
   sportId?: string;
   timezone: string;
   teamSize: number;
+  minTeamSize?: number;
+  maxTeamSize?: number;
   slots: OrganizerSlot[];
   courts: { id: string; name: string }[];
   categories?: { id: string; name: string }[];
@@ -40,6 +44,8 @@ export function OrganizerRegistrationForm({
   sportId,
   timezone,
   teamSize,
+  minTeamSize,
+  maxTeamSize,
   slots,
   courts,
   categories,
@@ -47,6 +53,21 @@ export function OrganizerRegistrationForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const isPadel = sportId === "padel";
+  const isFootball = isFootballSport(sportId);
+
+  const effectiveMin = minTeamSize ?? (isFootball ? 5 : teamSize);
+  const effectiveMax = maxTeamSize ?? (isFootball ? 15 : teamSize);
+
+  // Plantel dinámico para fútbol con mínimo configurado por defecto
+  const initialFootballCount = effectiveMin;
+  const [footballPlayers, setFootballPlayers] = useState<PlayerEntry[]>(() =>
+    Array.from({ length: initialFootballCount }, (_, i) => ({
+      id: `org-player-${i + 1}`,
+      name: "",
+      email: "",
+    }))
+  );
+  const [footballError, setFootballError] = useState<string | null>(null);
 
   const allSlotIds = useMemo(() => slots.map((s) => s.id), [slots]);
 
@@ -108,13 +129,18 @@ export function OrganizerRegistrationForm({
     form.setValue("slotIds", next, { shouldDirty: true, shouldValidate: true });
   }
 
-  const onSubmit = form.handleSubmit((values) => {
+    const onSubmit = form.handleSubmit((values) => {
+    const finalPlayerNames = isFootball
+      ? footballPlayers.map((p) => p.name.trim() || p.email.trim()).filter(Boolean)
+      : values.playerNames.map((p) => p.trim());
+
     startTransition(async () => {
       const payload: OrganizerCreateTeamInput = {
         ...values,
         teamName: isPadel
-          ? values.playerNames.map((p) => p.trim()).filter(Boolean).join(" / ")
+          ? finalPlayerNames.join(" / ")
           : values.teamName,
+        playerNames: finalPlayerNames,
       };
       const result = await createOrganizerTeam(payload);
       if (!result.ok) {
@@ -130,9 +156,55 @@ export function OrganizerRegistrationForm({
         playerNames: Array(teamSize).fill(""),
         slotIds: slots.map((s) => s.id),
       });
+      if (isFootball) {
+        setFootballPlayers(
+          Array.from({ length: initialFootballCount }, (_, i) => ({
+            id: `org-player-${Date.now()}-${i + 1}`,
+            name: "",
+            email: "",
+          }))
+        );
+        setFootballError(null);
+      }
       router.refresh();
     });
   });
+
+  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (isFootball) {
+      const validNames = footballPlayers
+        .map((p) => p.name.trim() || p.email.trim())
+        .filter(Boolean);
+
+      if (validNames.length < effectiveMin) {
+        const msg = `El torneo requiere un mínimo de ${effectiveMin} jugadores por equipo (cargaste ${validNames.length}).`;
+        setFootballError(msg);
+        toast.error(msg);
+        return;
+      }
+
+      if (validNames.length > effectiveMax) {
+        const msg = `El torneo permite un máximo de ${effectiveMax} jugadores por equipo (cargaste ${validNames.length}).`;
+        setFootballError(msg);
+        toast.error(msg);
+        return;
+      }
+
+      const teamNameVal = form.getValues("teamName")?.trim();
+      if (!teamNameVal || teamNameVal.length < 2) {
+        form.setError("teamName", {
+          message: "El nombre del equipo debe tener al menos 2 caracteres.",
+        });
+        toast.error("El nombre del equipo debe tener al menos 2 caracteres.");
+        return;
+      }
+
+      setFootballError(null);
+      form.setValue("playerNames", validNames);
+    }
+    onSubmit(e);
+  };
 
   return (
     <Card>
@@ -140,7 +212,7 @@ export function OrganizerRegistrationForm({
         <div className="space-y-1">
           <CardTitle>
             <h2 className="text-base font-semibold">
-              {isPadel ? "Inscribir pareja manualmente" : "Inscribir desde el panel"}
+              {isPadel ? "Inscribir pareja manualmente" : isFootball ? "Inscribir equipo manualmente" : "Inscribir desde el panel"}
             </h2>
           </CardTitle>
         </div>
@@ -151,6 +223,8 @@ export function OrganizerRegistrationForm({
             categories={categories ?? []}
             slotCount={slots.length}
             sportId={sportId}
+            minTeamSize={effectiveMin}
+            maxTeamSize={effectiveMax}
           />
         </div>
       </CardHeader>
@@ -158,7 +232,7 @@ export function OrganizerRegistrationForm({
         {slots.length === 0 ? (
           <p className="text-sm text-muted-foreground">Primero cargá franjas en Canchas y franjas.</p>
         ) : (
-          <form onSubmit={onSubmit} noValidate className="space-y-5">
+          <form onSubmit={handleFormSubmit} noValidate className="space-y-5">
             {categories && categories.length > 0 ? (
               <Controller
                 name="categoryId"
@@ -186,10 +260,11 @@ export function OrganizerRegistrationForm({
 
             {!isPadel ? (
               <Field data-invalid={Boolean(form.formState.errors.teamName)}>
-                <FieldLabel htmlFor="organizer-team-name">Nombre del equipo o la pareja</FieldLabel>
+                <FieldLabel htmlFor="organizer-team-name">{isFootball ? "Nombre del equipo" : "Nombre del equipo o la pareja"}</FieldLabel>
                 <Input
                   id="organizer-team-name"
                   autoComplete="off"
+                  placeholder={isFootball ? "Ej: Los Galácticos" : undefined}
                   aria-invalid={Boolean(form.formState.errors.teamName)}
                   {...form.register("teamName")}
                 />
@@ -197,32 +272,54 @@ export function OrganizerRegistrationForm({
               </Field>
             ) : null}
 
-            <fieldset className="space-y-3">
-              <legend className="text-sm font-medium">
-                {isPadel ? "Integrantes de la pareja" : "Integrantes"}
-              </legend>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {Array.from({ length: teamSize }, (_, index) => {
-                  const label = isPadel ? `Jugador ${index + 1}` : `Integrante ${index + 1}`;
-                  const placeholder = isPadel ? `Nombre del Jugador ${index + 1}` : undefined;
-                  return (
-                    <Field key={index} data-invalid={Boolean(form.formState.errors.playerNames?.[index])}>
-                      <FieldLabel htmlFor={`organizer-player-${index}`}>{label}</FieldLabel>
-                      <Input
-                        id={`organizer-player-${index}`}
-                        autoComplete="off"
-                        placeholder={placeholder}
-                        aria-invalid={Boolean(form.formState.errors.playerNames?.[index])}
-                        {...form.register(`playerNames.${index}`)}
-                      />
-                      {form.formState.errors.playerNames?.[index] ? (
-                        <FieldError errors={[form.formState.errors.playerNames[index]]} />
-                      ) : null}
-                    </Field>
-                  );
-                })}
+            {isFootball ? (
+              <div className="space-y-2">
+                <FieldLabel className="text-sm font-medium text-foreground">
+                  Plantel del equipo
+                </FieldLabel>
+                <PlayerRosterBuilder
+                  players={footballPlayers}
+                  onChange={(updated) => {
+                    setFootballPlayers(updated);
+                    if (footballError) setFootballError(null);
+                  }}
+                  minPlayers={effectiveMin}
+                  maxPlayers={effectiveMax}
+                  disabled={isPending}
+                  isOrganizer
+                />
+                {footballError ? (
+                  <p className="text-xs text-destructive mt-1 font-medium">{footballError}</p>
+                ) : null}
               </div>
-            </fieldset>
+            ) : (
+              <fieldset className="space-y-3">
+                <legend className="text-sm font-medium">
+                  {isPadel ? "Integrantes de la pareja" : "Integrantes"}
+                </legend>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {Array.from({ length: teamSize }, (_, index) => {
+                    const label = isPadel ? `Jugador ${index + 1}` : `Integrante ${index + 1}`;
+                    const placeholder = isPadel ? `Nombre del Jugador ${index + 1}` : undefined;
+                    return (
+                      <Field key={index} data-invalid={Boolean(form.formState.errors.playerNames?.[index])}>
+                        <FieldLabel htmlFor={`organizer-player-${index}`}>{label}</FieldLabel>
+                        <Input
+                          id={`organizer-player-${index}`}
+                          autoComplete="off"
+                          placeholder={placeholder}
+                          aria-invalid={Boolean(form.formState.errors.playerNames?.[index])}
+                          {...form.register(`playerNames.${index}`)}
+                        />
+                        {form.formState.errors.playerNames?.[index] ? (
+                          <FieldError errors={[form.formState.errors.playerNames[index]]} />
+                        ) : null}
+                      </Field>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            )}
 
             <fieldset className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">

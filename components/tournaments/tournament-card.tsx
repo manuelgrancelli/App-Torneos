@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { ParticipationItem, TournamentListItem } from "@/lib/data/tournaments";
 import { formatDateRange } from "@/lib/dates";
 import { approvedTeamsLabel } from "@/lib/domain/tournament-status";
+import { isFootballSport } from "@/lib/domain/roster-parser";
 import { cn } from "@/lib/utils";
 import { StatusBadge, TeamStatusBadge, getSportEmoji } from "./status-badge";
 
@@ -11,8 +12,10 @@ export function OrganizedTournamentCard({ tournament }: { tournament: Tournament
   const categories = tournament.categories ?? [];
   const hasCategories = categories.length > 0;
 
-  const inscriptosLabel =
-    tournament.teamSize === 2
+  const isFootball = isFootballSport(tournament.sportName);
+  const inscriptosLabel = isFootball
+    ? "equipos inscriptos"
+    : tournament.teamSize === 2
       ? "parejas inscriptas"
       : tournament.teamSize === 1
         ? "jugadores inscriptos"
@@ -118,7 +121,7 @@ export function OrganizedTournamentCard({ tournament }: { tournament: Tournament
             <div className="pt-1 flex items-center justify-between border-t border-border/30">
               <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30">
                 <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
-                {tournament.pendingTeams} {tournament.pendingTeams === 1 ? "pareja espera" : "parejas esperan"} aprobación
+                {tournament.pendingTeams} {isFootball ? (tournament.pendingTeams === 1 ? "equipo espera" : "equipos esperan") : (tournament.pendingTeams === 1 ? "pareja espera" : "parejas esperan")} aprobación
               </span>
             </div>
           ) : null}
@@ -216,8 +219,10 @@ export function FinishedTournamentCard({ tournament }: { tournament: TournamentL
   const categories = tournament.categories ?? [];
   const hasCategories = categories.length > 0;
 
-  const inscriptosLabel =
-    tournament.teamSize === 2
+  const isFootball = isFootballSport(tournament.sportName);
+  const inscriptosLabel = isFootball
+    ? "equipos inscriptos"
+    : tournament.teamSize === 2
       ? "parejas inscriptas"
       : tournament.teamSize === 1
         ? "jugadores inscriptos"

@@ -13,6 +13,7 @@ import {
 } from "@/app/(app)/torneos/[id]/inscripciones/actions";
 import { mergeCategories } from "@/app/(app)/torneos/[id]/categorias/actions";
 import { findDuplicateCategoryPairs } from "@/lib/domain/category-matcher";
+import { isFootballSport } from "@/lib/domain/roster-parser";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TeamStatusBadge } from "@/components/tournaments/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,7 @@ type RegistrationsListProps = {
   tournamentId: string;
   teams: OrganizerTeam[];
   teamSize: number;
+  sportId?: string;
   maxTeams: number;
   isTestTournament: boolean;
   /** Solo con la inscripción abierta se aprueba o rechaza (lo valida la RPC). */
@@ -165,10 +167,14 @@ function BulkAssignBanner({
   tournamentId,
   unassignedCount,
   categories,
+  nounSingular = "pareja",
+  nounPlural = "parejas",
 }: {
   tournamentId: string;
   unassignedCount: number;
   categories: { id: string; name: string }[];
+  nounSingular?: string;
+  nounPlural?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -185,7 +191,7 @@ function BulkAssignBanner({
         toast.error(result.error);
         return;
       }
-      toast.success(result.message ?? "Parejas asignadas.");
+      toast.success(result.message ?? (nounSingular === "equipo" ? "Equipos asignados." : "Parejas asignadas."));
       router.refresh();
     });
   }
@@ -196,7 +202,7 @@ function BulkAssignBanner({
         <AlertCircle className="size-5 shrink-0 text-amber-600 dark:text-amber-400" />
         <div>
           <p className="font-medium">
-            Hay {unassignedCount} {unassignedCount === 1 ? "pareja" : "parejas"} sin categoría asignada.
+            Hay {unassignedCount} {unassignedCount === 1 ? nounSingular : nounPlural} sin categoría asignada.
           </p>
           <p className="text-xs text-amber-800 dark:text-amber-300">
             Podés asignarlas todas juntas a una categoría:
@@ -389,6 +395,7 @@ export function RegistrationsList({
   tournamentId,
   teams,
   teamSize,
+  sportId,
   maxTeams,
   isTestTournament,
   canReview,
@@ -402,6 +409,11 @@ export function RegistrationsList({
   const [selectedCat, setSelectedCat] = useState<string>("all");
   const [availabilityTeamId, setAvailabilityTeamId] = useState<string | null>(null);
   const [replaceTarget, setReplaceTarget] = useState<{ team: OrganizerTeam; memberId?: string | null } | null>(null);
+
+  const isFootball = sportId ? isFootballSport(sportId) : teamSize > 2;
+  const nounSingular = isFootball ? "equipo" : teamSize === 1 ? "jugador" : "pareja";
+  const nounPlural = isFootball ? "equipos" : teamSize === 1 ? "jugadores" : "parejas";
+  const inscriptosText = isFootball ? "inscriptos" : "inscriptas";
 
   const availabilityTeam = useMemo(
     () => (availabilityTeamId ? teams.find((t) => t.id === availabilityTeamId) ?? null : null),
@@ -582,11 +594,13 @@ export function RegistrationsList({
               disabled={isToolPending}
             >
               {isToolPending ? <Spinner /> : null}
-              Completar cupos con parejas ficticias
+              Completar cupos con {nounPlural} de prueba
             </Button>
           ) : null}
           <p className="basis-full text-xs text-muted-foreground">
-              Las parejas ficticias solo existen en este torneo privado y quedan aprobadas con disponibilidad completa.
+              {isFootball
+                ? "Los equipos de prueba solo existen en este torneo privado y quedan aprobados con disponibilidad completa."
+                : "Las parejas ficticias solo existen en este torneo privado y quedan aprobadas con disponibilidad completa."}
             </p>
         </div>
       ) : null}
@@ -595,6 +609,8 @@ export function RegistrationsList({
           tournamentId={tournamentId}
           unassignedCount={teams.filter((t) => !t.categoryId).length}
           categories={categories}
+          nounSingular={nounSingular}
+          nounPlural={nounPlural}
         />
       ) : null}
 
@@ -642,7 +658,7 @@ export function RegistrationsList({
                         </p>
                         <p className="text-muted-foreground mt-0.5 leading-relaxed">
                           Identificamos que estas dos categorías refieren a la misma. Podés unificarlas en{" "}
-                          <strong className="text-foreground font-semibold">&quot;{primary.name}&quot;</strong> ({primTeamsCount} {primTeamsCount === 1 ? "pareja" : "parejas"}) para trasladar las {dupTeamsCount} {dupTeamsCount === 1 ? "pareja" : "parejas"} de &quot;{duplicate.name}&quot; y eliminar la categoría duplicada.
+                          <strong className="text-foreground font-semibold">&quot;{primary.name}&quot;</strong> ({primTeamsCount} {primTeamsCount === 1 ? nounSingular : nounPlural}) para trasladar {isFootball ? "los" : "las"} {dupTeamsCount} {dupTeamsCount === 1 ? nounSingular : nounPlural} de &quot;{duplicate.name}&quot; y eliminar la categoría duplicada.
                         </p>
                       </div>
                     </div>
@@ -664,7 +680,7 @@ export function RegistrationsList({
           {displayedGroups.length > 1 ? (
             <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
               <span>
-                {displayedGroups.length} categorías ({visible.length} {visible.length === 1 ? "pareja" : "parejas"})
+                {displayedGroups.length} categorías ({visible.length} {visible.length === 1 ? nounSingular : nounPlural})
               </span>
               <div className="flex items-center gap-2">
                 <button
@@ -720,7 +736,7 @@ export function RegistrationsList({
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-base font-semibold text-foreground leading-tight">{group.name}</h3>
                           <Badge variant="secondary" className="text-xs font-medium">
-                            {group.teams.length} {group.teams.length === 1 ? "pareja" : "parejas"}
+                            {group.teams.length} {group.teams.length === 1 ? nounSingular : nounPlural}
                           </Badge>
                           {group.maxTeams !== null ? (
                             <Badge variant="outline" className="text-xs text-muted-foreground">
@@ -738,7 +754,7 @@ export function RegistrationsList({
 
                     <div className="flex shrink-0 items-center gap-2">
                       <span className="text-xs font-medium text-muted-foreground">
-                        {isOpen ? "Plegar parejas" : "Ver parejas"}
+                        {isOpen ? `Plegar ${nounPlural}` : `Ver ${nounPlural}`}
                       </span>
                       <div
                         className={cn(
@@ -761,8 +777,8 @@ export function RegistrationsList({
                       {group.filteredTeams.length === 0 ? (
                         <div className="py-6 text-center text-sm text-muted-foreground">
                           {group.teams.length === 0
-                            ? "No hay parejas inscriptas en esta categoría todavía."
-                            : `No hay parejas con estado "${FILTERS.find((f) => f.value === filter)?.label.toLowerCase()}" en esta categoría.`}
+                            ? `No hay ${nounPlural} ${inscriptosText} en esta categoría todavía.`
+                            : `No hay ${nounPlural} con estado "${FILTERS.find((f) => f.value === filter)?.label.toLowerCase()}" en esta categoría.`}
                         </div>
                       ) : (
                         <ul className="grid gap-3 lg:grid-cols-2">
@@ -814,6 +830,7 @@ export function RegistrationsList({
         slots={slots}
         team={availabilityTeam}
         categoryName={availabilityTeamCategoryName}
+        isFootball={isFootball}
         open={Boolean(availabilityTeamId)}
         onOpenChange={(open) => {
           if (!open) setAvailabilityTeamId(null);
@@ -826,6 +843,7 @@ export function RegistrationsList({
         tournamentId={tournamentId}
         team={replaceTarget?.team ?? null}
         initialMemberId={replaceTarget?.memberId}
+        isFootball={isFootball}
       />
     </div>
   );

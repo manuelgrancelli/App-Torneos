@@ -6,7 +6,11 @@ import type { CreateTournamentInput } from "@/lib/validation/tournament";
  */
 
 export function scoringSummary(config: CreateTournamentInput["scoringConfig"]): string {
-  if (config.type === "goals") return "Por goles · empate en grupos, penales en playoffs";
+  if (config.type === "goals") {
+    const min = config.minTeamSize ?? 5;
+    const max = config.maxTeamSize ?? 15;
+    return `Por goles · min. ${min} y máx. ${max} jugadores por equipo · penales en playoffs`;
+  }
   const sets = config.bestOf === 1 ? "Un set" : `Al mejor de ${config.bestOf}`;
   const decisive =
     config.bestOf > 1 && config.decidingSet === "super_tiebreak"

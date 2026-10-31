@@ -97,15 +97,39 @@ export function canDeleteTournament(status: TournamentStatus): boolean {
   return status !== "finished";
 }
 
-/** "jugador"/"pareja"/"equipo" según el tamaño del plantel (D-004, D-156). */
-export function teamNoun(teamSize: number, plural = false): string {
+/** "jugador"/"pareja"/"equipo" según la disciplina o tamaño del plantel (D-004, D-156, D-191). */
+export function teamNoun(teamSize: number, plural = false, sport?: string): string {
+  if (sport) {
+    const s = sport.toLowerCase();
+    if (s.includes("futbol") || s.includes("fútbol") || s.includes("soccer")) {
+      return plural ? "equipos" : "equipo";
+    }
+    if (s.includes("padel") || s.includes("pádel") || (s.includes("tenis") && !s.includes("single") && !s.includes("individual"))) {
+      return plural ? "parejas" : "pareja";
+    }
+    if (s.includes("single") || s.includes("individual")) {
+      return plural ? "jugadores" : "jugador";
+    }
+  }
   if (teamSize === 1) return plural ? "jugadores" : "jugador";
   if (teamSize === 2) return plural ? "parejas" : "pareja";
   return plural ? "equipos" : "equipo";
 }
 
 /** "jugadores inscriptos" / "parejas aprobadas" / "equipos aprobados" (concordancia de género). */
-export function approvedTeamsLabel(teamSize: number): string {
+export function approvedTeamsLabel(teamSize: number, sport?: string): string {
+  if (sport) {
+    const s = sport.toLowerCase();
+    if (s.includes("futbol") || s.includes("fútbol") || s.includes("soccer")) {
+      return "equipos aprobados";
+    }
+    if (s.includes("padel") || s.includes("pádel") || (s.includes("tenis") && !s.includes("single") && !s.includes("individual"))) {
+      return "parejas aprobadas";
+    }
+    if (s.includes("single") || s.includes("individual")) {
+      return "jugadores inscriptos";
+    }
+  }
   if (teamSize === 1) return "jugadores inscriptos";
   return teamSize === 2 ? "parejas aprobadas" : "equipos aprobados";
 }

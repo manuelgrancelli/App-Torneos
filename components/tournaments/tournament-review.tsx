@@ -23,11 +23,13 @@ export function TournamentReview({
 }) {
   const description = values.description.trim();
   const modality =
-    teamSize === 1
-      ? "Individual (1 vs 1)"
-      : teamSize === 2
-        ? "En parejas (Dobles)"
-        : `Equipos (${teamSize} jugadores)`;
+    values.scoringConfig.type === "goals"
+      ? `Equipos (${values.scoringConfig.minTeamSize ?? 5} a ${values.scoringConfig.maxTeamSize ?? 15} jugadores)`
+      : teamSize === 1
+        ? "Individual (1 vs 1)"
+        : teamSize === 2
+          ? "En parejas (Dobles)"
+          : `Equipos (${teamSize} jugadores)`;
 
   const rows: ReviewRow[] = [
     { label: "Nombre", value: values.name, step: 0 },

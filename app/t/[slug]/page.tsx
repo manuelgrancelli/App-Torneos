@@ -149,7 +149,7 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
     seenPublicPlayoffKeys.add(key);
     return true;
   });
-  const noun = teamNoun(tournament.teamSize, true);
+  const noun = teamNoun(tournament.teamSize, true, tournament.sportName);
   const approvedCount = competition.teams.length;
 
   return (
@@ -354,7 +354,7 @@ function RegistrationView({
   categoryNames: Map<string, string>;
 }) {
   const teams = tournament.competition.teams;
-  const heading = approvedTeamsLabel(tournament.teamSize);
+  const heading = approvedTeamsLabel(tournament.teamSize, tournament.sportName);
   return (
     <div className="space-y-4">
       <EmptyState

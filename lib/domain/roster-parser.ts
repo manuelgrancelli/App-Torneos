@@ -261,8 +261,8 @@ export function extractNumberedPlayers(text: string): string[] {
 }
 
 /**
- * Detecta si una línea que empieza con numeración (ej. "1- Boca jrs") es el encabezado
- * de un equipo porque la siguiente línea reinicia la numeración con el jugador 1 ("1- Montero").
+ * Detecta si una línea que empieza con numeración (ej. "1- Los Galácticos") es el encabezado
+ * de un equipo porque la siguiente línea reinicia la numeración con el jugador 1 ("1- Lucas Benítez").
  */
 function isTeamHeaderWithNumber(line: string, nextLine: string | null): boolean {
   if (!nextLine) return false;
@@ -281,10 +281,10 @@ function isTeamHeaderWithNumber(line: string, nextLine: string | null): boolean 
  * Formato soportado:
  * Nombre de equipo seguido de sus jugadores numerados (en líneas individuales o en el mismo renglón).
  * Ej:
- * Boca jrs
- * 1- Montero
- * 2- Dillollo
- * 3- Blanco
+ * Los Galácticos FC
+ * 1- Lucas Benítez
+ * 2- Matías Morales
+ * 3- Franco Navarro
  */
 export function parseFootballRoster(
   text: string,
@@ -361,7 +361,7 @@ export function parseFootballRoster(
     }
 
     // 3. ¿Es un equipo con jugadores inline en el mismo renglón?
-    // Ej: "Boca jrs 1-Montero 2- Dillollo 3- Blanco" o "Boca jrs: 1-Montero..."
+    // Ej: "Los Galácticos 1- Lucas Benítez 2- Matías Morales 3- Franco Navarro" o "Los Galácticos: 1- Lucas..."
     const cleanedLineForInline = line.replace(/^\d+\s*[\.\-\):]\s*/, "");
     const inlineMatch = cleanedLineForInline.match(
       /^([^\d\.\-\*~_•].*?)(?::\s*|\s+)(1\s*[\.\-\):]\s*.*)$/,
@@ -414,7 +414,7 @@ export function parseFootballRoster(
       }
     }
 
-    // 5. Es un nombre de equipo (ej. "Boca jrs", "1- Boca jrs", "*Boca jrs*", "Boca jrs:")
+    // 5. Es un nombre de equipo (ej. "Los Galácticos", "1- Los Galácticos", "*Los Galácticos*", "Los Galácticos:")
     const cleanName = cleanHeaderFormatting(line)
       .replace(/^\d+\s*[\.\-\):]\s*/, "")
       .replace(/^(?:equipo|team)\s*:\s*/i, "")

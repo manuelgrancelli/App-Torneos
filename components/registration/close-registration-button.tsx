@@ -9,9 +9,12 @@ import { ConfirmActionButton } from "@/components/shared/confirm-action-button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
+import { isFootballSport } from "@/lib/domain/roster-parser";
+
 export type CloseRegistrationButtonProps = {
   tournamentId: string;
   approvedCount: number;
+  sportId?: string;
   className?: string;
   size?: "default" | "sm" | "lg";
 };
@@ -19,15 +22,18 @@ export type CloseRegistrationButtonProps = {
 export function CloseRegistrationButton({
   tournamentId,
   approvedCount,
+  sportId,
   className,
   size = "default",
 }: CloseRegistrationButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
+  const isFootball = isFootballSport(sportId);
+  const nounApproved = isFootball ? "equipos aprobados" : "parejas aprobadas";
   const canStart = approvedCount >= 2;
   const disabledReason = !canStart
-    ? `Necesitás al menos 2 parejas aprobadas para empezar la fase de grupos (actualmente hay ${approvedCount}).`
+    ? `Necesitás al menos 2 ${nounApproved} para empezar la fase de grupos (actualmente hay ${approvedCount}).`
     : undefined;
 
   async function handleCloseAndStart() {

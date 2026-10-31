@@ -82,8 +82,14 @@ describe("helpers de estado", () => {
     expect(teamNoun(2, true)).toBe("parejas");
     expect(teamNoun(11)).toBe("equipo");
     expect(teamNoun(11, true)).toBe("equipos");
+    expect(teamNoun(2, false, "Fútbol")).toBe("equipo");
+    expect(teamNoun(2, true, "futbol")).toBe("equipos");
+    expect(teamNoun(2, false, "Pádel")).toBe("pareja");
+    expect(teamNoun(2, true, "padel")).toBe("parejas");
     expect(approvedTeamsLabel(1)).toBe("jugadores inscriptos");
     expect(approvedTeamsLabel(2)).toBe("parejas aprobadas");
+    expect(approvedTeamsLabel(2, "Fútbol")).toBe("equipos aprobados");
+    expect(approvedTeamsLabel(2, "Pádel")).toBe("parejas aprobadas");
     expect(approvedTeamsLabel(11)).toBe("equipos aprobados");
   });
 });
