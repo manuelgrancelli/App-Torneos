@@ -29,6 +29,11 @@ export const manageSuperAdminAction = createAction(
     });
 
     if (error) {
+      if ((error as any).code === "PGRST202" || error.message?.includes("schema cache")) {
+        return actionError(
+          "Falta aplicar la migración en Supabase: ejecutá el archivo 'supabase/migrations/20261030000000_superadmin_panel.sql' en el SQL Editor de Supabase."
+        );
+      }
       return actionError(error.message || "Error al actualizar permisos de superadministrador.");
     }
 
@@ -75,6 +80,11 @@ export const manageOrganizerAction = createAction(
     });
 
     if (error) {
+      if ((error as any).code === "PGRST202" || error.message?.includes("schema cache")) {
+        return actionError(
+          "Falta aplicar la migración en Supabase: ejecutá el script 'supabase/migrations/20261102170000_admin_manage_organizers.sql' en el SQL Editor de tu proyecto de Supabase para habilitar esta función."
+        );
+      }
       return actionError(error.message || "Error al actualizar permisos de organizador.");
     }
 

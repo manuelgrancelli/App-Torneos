@@ -114,3 +114,8 @@ $$;
 
 revoke execute on function public.set_user_organizer(text, boolean) from public, anon;
 grant execute on function public.set_user_organizer(text, boolean) to authenticated;
+
+-- Notificar a PostgREST para recargar la caché del esquema de inmediato
+notify pgrst, 'reload schema';
+
+
