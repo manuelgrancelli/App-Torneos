@@ -78,13 +78,47 @@ function crossFieldChecks(data: ConfigFields, ctx: z.RefinementCtx) {
   }
 }
 
+
+export const venueConfigSchema = z.object({
+  name: z.string().trim().min(1, { message: "Ingresá el nombre de la sede." }).max(100),
+  courtCount: integer(1, 30, "la cantidad de canchas"),
+  isMain: z.boolean().default(false),
+});
+
+export type VenueConfig = z.infer<typeof venueConfigSchema>;
+
 export const createTournamentSchema = z
   .object({
     ...tournamentInfoShape,
     sportId: z.string().min(1, { error: "Elegí un deporte." }),
-    courtCount: integer(1, 50, "la cantidad de canchas"),
+    courtCount: integer(1, 50, "la cantidad de canchas").default(2),
+    hasMultipleVenues: z.boolean().default(false),
+    venueName: z.string().trim().max(100).optional(),
+    venues: z.array(venueConfigSchema).optional(),
+    isTest: z.boolean().optional(),
   })
-  .superRefine(crossFieldChecks);
+  .superRefine((data, ctx) => {
+    crossFieldChecks(data, ctx);
+    if (data.hasMultipleVenues) {
+      if (!data.venues || data.venues.length < 2) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["venues"],
+          message: "Si elegís múltiples sedes, tenés que configurar al menos 2 sedes.",
+        });
+      } else {
+        const names = data.venues.map((v) => v.name.toLowerCase());
+        const duplicates = names.filter((name, idx) => names.indexOf(name) !== idx);
+        if (duplicates.length > 0) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["venues"],
+            message: "Las sedes no pueden tener nombres repetidos.",
+          });
+        }
+      }
+    }
+  });
 
 export const updateTournamentSchema = z
   .object({ ...tournamentInfoShape, tournamentId: z.uuid() })

@@ -92,3 +92,72 @@ describe("updateTournamentBannerSchema", () => {
   });
 });
 
+
+describe("createTournamentSchema - multisede (D-194)", () => {
+  const baseValid = {
+    name: "Torneo Abierto Multisede",
+    description: "Torneo provincial con 2 sedes",
+    startsOn: "2026-10-10",
+    endsOn: "2026-10-12",
+    timezone: "America/Argentina/Buenos_Aires",
+    maxTeams: 16,
+    courtCount: 4,
+    resultsRequireConfirmation: false,
+    sportId: "padel",
+    scoringConfig: {
+      type: "sets" as const,
+      bestOf: 3 as const,
+      gamesPerSet: 6,
+      tiebreak: true,
+      decidingSet: "super_tiebreak" as const,
+      superTiebreakPoints: 10 as const,
+    },
+    standingsConfig: {
+      points: { win: 3, draw: 0, loss: 0 },
+      tiebreakers: ["points" as const, "wins" as const, "head_to_head" as const, "set_diff" as const],
+    },
+    playoffConfig: {
+      qualifiersPerGroup: 2,
+      thirdPlace: false,
+    },
+  };
+
+  it("acepta configuración válida con 2 sedes y nombres distintos", () => {
+    const res = createTournamentSchema.safeParse({
+      ...baseValid,
+      hasMultipleVenues: true,
+      venues: [
+        { name: "Sede Central", courtCount: 2, isMain: true },
+        { name: "Sede Norte", courtCount: 2, isMain: false },
+      ],
+    });
+    expect(res.success).toBe(true);
+  });
+
+  it("rechaza si hasMultipleVenues es true pero tiene menos de 2 sedes", () => {
+    const res = createTournamentSchema.safeParse({
+      ...baseValid,
+      hasMultipleVenues: true,
+      venues: [{ name: "Sede Central", courtCount: 2, isMain: true }],
+    });
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.issues[0]?.message).toContain("al menos 2 sedes");
+    }
+  });
+
+  it("rechaza si hay nombres de sedes repetidos", () => {
+    const res = createTournamentSchema.safeParse({
+      ...baseValid,
+      hasMultipleVenues: true,
+      venues: [
+        { name: "Sede Central", courtCount: 2, isMain: true },
+        { name: "sede central", courtCount: 2, isMain: false },
+      ],
+    });
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.issues[0]?.message).toContain("nombres repetidos");
+    }
+  });
+});

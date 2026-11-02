@@ -101,7 +101,7 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
   const teamNames = new Map(competition.teams.map((t) => [t.id, t.name]));
   const teamLogos = new Map(competition.teams.map((t) => [t.id, t.logoUrl ?? null]));
   const courts = new Map(tournament.courts.map((c) => [c.id, c]));
-  const courtNames = new Map(tournament.courts.map((c) => [c.id, c.name]));
+  const courtNames = new Map(tournament.courts.map((c) => [c.id, c.venue ? `${c.name} · ${c.venue}` : c.name]));
   const groupCategoryMap = new Map(competition.groups.map((g) => [g.id, g.categoryId]));
 
   const visibleMatches = competition.matches.filter((m) => !m.isBye);

@@ -82,7 +82,7 @@ export default async function BracketPage({
   }
 
   const teamNames = new Map(competition.teams.map((t) => [t.id, t.name]));
-  const courtNames = new Map(scheduling.courts.map((c) => [c.id, c.name]));
+  const courtNames = new Map(scheduling.courts.map((c) => [c.id, c.venue ? `${c.name} · ${c.venue}` : c.name]));
 
   const groups = competition.groups.filter(
     (g) => !activeCategory || g.categoryId === activeCategory.id

@@ -35,10 +35,10 @@ export async function runAutoSchedule(
   const [matches, slots, courts, teamRows, groupTeams, tournamentData, groupsData, categoriesData] = await Promise.all([
     supabase.from("matches").select("*").eq("tournament_id", tournamentId).limit(5000),
     supabase.from("time_slots").select("id, starts_at, ends_at, court_id, stage").eq("tournament_id", tournamentId).limit(5000),
-    supabase.from("courts").select("id").eq("tournament_id", tournamentId).order("position").order("name").limit(500),
+    supabase.from("courts").select("id, name, venue, position").eq("tournament_id", tournamentId).order("position").order("name").limit(500),
     (supabase as any).from("teams").select("id, team_availability(slot_id)").eq("tournament_id", tournamentId).limit(5000),
     supabase.from("group_teams").select("group_id, team_id").eq("tournament_id", tournamentId).limit(5000),
-    supabase.from("tournaments").select("timezone").eq("id", tournamentId).maybeSingle(),
+    supabase.from("tournaments").select("timezone, playoff_config").eq("id", tournamentId).maybeSingle(),
     supabase.from("tournament_groups").select("id, position, name").eq("tournament_id", tournamentId).order("position").limit(500),
     (supabase as any).from("tournament_categories").select("id, position, name").eq("tournament_id", tournamentId).order("position").limit(500),
   ]);
@@ -46,6 +46,29 @@ export async function runAutoSchedule(
     if (result.error) return { ok: false, error: result.error };
   }
   const tz = tournamentData.data?.timezone || DEFAULT_TIMEZONE;
+  const courtList = (courts.data ?? []) as Array<{ id: string; name: string; venue: string | null; position: number }>;
+  const courtVenuesRecord: Record<string, string> = {};
+  for (const c of courtList) {
+    if (c.venue) {
+      courtVenuesRecord[c.id] = c.venue;
+    }
+  }
+
+  const distinctVenues = [...new Set(courtList.map((c) => c.venue).filter((v): v is string => Boolean(v)))];
+  const hasMultipleVenues = distinctVenues.length >= 2;
+  const tPlayoffCfg = tournamentData.data?.playoff_config as { mainVenue?: string } | null;
+  const mainVenue = tPlayoffCfg?.mainVenue ?? distinctVenues[0] ?? "";
+  const upperVenue = distinctVenues[0] ?? "";
+  const lowerVenue = distinctVenues[1] ?? distinctVenues[0] ?? "";
+
+  const all = matches.data ?? [];
+  const maxRoundByCategory = new Map<string, number>();
+  for (const m of all) {
+    if (m.stage === "playoff" && m.category_id && m.round) {
+      maxRoundByCategory.set(m.category_id, Math.max(maxRoundByCategory.get(m.category_id) ?? 0, m.round));
+    }
+  }
+
   const groupsList = groupsData.data ?? [];
   const categoriesList = (categoriesData.data ?? []) as Array<{ id: string; position: number; name: string }>;
   const catOrderMap = new Map<string, number>();
@@ -53,7 +76,6 @@ export async function runAutoSchedule(
     catOrderMap.set(c.id, idx);
   });
 
-  const all = matches.data ?? [];
   const groupTeamsMap = new Map<string, string[]>();
   for (const row of groupTeams.data ?? []) {
     const list = groupTeamsMap.get(row.group_id) ?? [];
@@ -91,6 +113,7 @@ export async function runAutoSchedule(
       stage: m.stage as "group" | "playoff",
       round: m.round,
       day: m.starts_at ? localDateKey(m.starts_at as string, tz) : undefined,
+      requiredVenue: m.court_id ? courtVenuesRecord[m.court_id] : undefined,
     }));
 
   const feederIdsMap = new Map<string, string[]>();
@@ -207,6 +230,19 @@ export async function runAutoSchedule(
     groupOrderMap.set(g.id, idx);
   });
 
+  const groupVenueMap = new Map<string, string>();
+  if (hasMultipleVenues) {
+    sortedGroups.forEach((g, idx) => {
+      const fixedGroupMatch = fixed.find((f) => f.groupId === g.id && f.courtId && courtVenuesRecord[f.courtId]);
+      if (fixedGroupMatch && fixedGroupMatch.courtId && courtVenuesRecord[fixedGroupMatch.courtId]) {
+        groupVenueMap.set(g.id, courtVenuesRecord[fixedGroupMatch.courtId]!);
+      } else {
+        groupVenueMap.set(g.id, distinctVenues[idx % distinctVenues.length]!);
+      }
+    });
+  }
+
+
   const schedulerMatches: SchedulerMatch[] = toSchedule.map((m) => {
     const gTeams = m.group_id ? groupTeamsMap.get(m.group_id) : undefined;
     let matchOrder: number;
@@ -222,6 +258,23 @@ export async function runAutoSchedule(
       // Ejemplo: Octavos Cat 1 -> Octavos Cat 2 -> Cuartos Cat 1 -> Cuartos Cat 2 -> Semis Cat 1 -> Semis Cat 2 -> Final Cat 1 -> Final Cat 2
       const catIndex = m.category_id ? (catOrderMap.get(m.category_id) ?? 0) : 0;
       matchOrder = 100_000 + (m.round * 10_000) + (catIndex * 100) + m.position;
+    }
+
+    
+    let matchRequiredVenue: string | undefined = undefined;
+    if (hasMultipleVenues) {
+      if (m.stage === "group" && m.group_id) {
+        matchRequiredVenue = groupVenueMap.get(m.group_id);
+      } else if (m.stage === "playoff") {
+        const catRounds = (m.category_id ? maxRoundByCategory.get(m.category_id) : 0) || 1;
+        if (catRounds <= 2 || m.round >= catRounds - 1) {
+          matchRequiredVenue = mainVenue;
+        } else {
+          const matchesInRound = 2 ** (catRounds - m.round);
+          const isUpperHalf = m.position < matchesInRound / 2;
+          matchRequiredVenue = isUpperHalf ? upperVenue : lowerVenue;
+        }
+      }
     }
 
     const hasPlayoffSlots = (slots.data ?? []).some((s: any) => s.stage === "playoff");
@@ -244,6 +297,7 @@ export async function runAutoSchedule(
       round: m.round,
       stage: m.stage as "group" | "playoff",
       allAvailable: m.stage === "playoff",
+      requiredVenue: matchRequiredVenue,
     };
   });
 
@@ -258,6 +312,7 @@ export async function runAutoSchedule(
       stage: ((s as any).stage ?? "group") as "group" | "playoff",
     })),
     courtIds: (courts.data ?? []).map((c) => c.id),
+    courtVenues: hasMultipleVenues ? courtVenuesRecord : undefined,
     availability,
     fixed,
   });

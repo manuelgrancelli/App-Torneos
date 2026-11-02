@@ -24,7 +24,40 @@ export const createTournament = createAction(createTournamentActionSchema, async
     return actionError("La puntuación no corresponde al deporte elegido.");
   }
 
-  const courtNames = Array.from({ length: input.courtCount }, (_, i) => `Cancha ${i + 1}`);
+  type CourtDef = { name: string; venue: string | null };
+  const courtsToCreate: CourtDef[] = [];
+
+  if (input.hasMultipleVenues && input.venues && input.venues.length > 0) {
+    let courtNum = 1;
+    for (const v of input.venues) {
+      for (let i = 0; i < v.courtCount; i++) {
+        courtsToCreate.push({
+          name: `Cancha ${courtNum}`,
+          venue: v.name.trim(),
+        });
+        courtNum++;
+      }
+    }
+  } else {
+    const count = input.courtCount || 2;
+    const vName = input.venueName?.trim() || null;
+    for (let i = 1; i <= count; i++) {
+      courtsToCreate.push({
+        name: `Cancha ${i}`,
+        venue: vName,
+      });
+    }
+  }
+
+  const courtNames = courtsToCreate.map((c) => c.name);
+  const mainVenue = input.hasMultipleVenues && input.venues
+    ? input.venues.find((v) => v.isMain)?.name ?? input.venues[0]?.name ?? null
+    : input.venueName?.trim() || null;
+
+  const effectivePlayoffConfig = {
+    ...input.playoffConfig,
+    ...(mainVenue ? { mainVenue } : {}),
+  };
 
   // El slug lleva un sufijo aleatorio; ante un choque (muy improbable) se reintenta una vez.
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -40,7 +73,7 @@ export const createTournament = createAction(createTournamentActionSchema, async
       p_court_names: courtNames,
       p_scoring_config: input.scoringConfig,
       p_standings_config: input.standingsConfig,
-      p_playoff_config: input.playoffConfig,
+      p_playoff_config: effectivePlayoffConfig,
       p_results_require_confirmation: input.resultsRequireConfirmation,
     };
     const { data, error } = input.isTest
@@ -50,6 +83,18 @@ export const createTournament = createAction(createTournamentActionSchema, async
       if (input.bannerUrl) {
         await supabase.from("tournaments").update({ banner_url: input.bannerUrl }).eq("id", data);
       }
+
+      // Asignar sede a cada cancha creada
+      for (const c of courtsToCreate) {
+        if (c.venue) {
+          await supabase
+            .from("courts")
+            .update({ venue: c.venue })
+            .eq("tournament_id", data)
+            .eq("name", c.name);
+        }
+      }
+
       revalidatePath("/torneos");
       return actionOk(
         { tournamentId: data },

@@ -56,7 +56,7 @@ function CourtSelect({
       </NativeSelectOption>
       {courts.map((court) => (
         <NativeSelectOption key={court.id} value={court.id}>
-          Solo {court.name}
+          Solo {court.name}{court.venue ? ` (${court.venue})` : ""}
         </NativeSelectOption>
       ))}
     </NativeSelect>

@@ -30,6 +30,7 @@ import {
 } from "./tournament-fields";
 import type { SportOption } from "./tournament-form";
 import { TournamentReview } from "./tournament-review";
+import { VenuesAndCourtsField } from "./venues-and-courts-field";
 
 const STEPS = ["Lo básico", "Fechas y canchas", "Reglas", "Revisar y crear"] as const;
 const LAST_STEP = STEPS.length - 1;
@@ -47,7 +48,7 @@ const STEP_TITLES = [
 /** Campos que se validan en cada paso (el último solo revisa). */
 const STEP_FIELDS = [
   ["name", "sportId", "description", "scoringConfig"],
-  ["startsOn", "endsOn", "courtCount"],
+  ["startsOn", "endsOn", "courtCount", "hasMultipleVenues", "venueName", "venues"],
   ["resultsRequireConfirmation", "scoringConfig", "standingsConfig", "playoffConfig", "bannerUrl"],
 ] as const satisfies readonly (readonly (keyof CreateTournamentInput)[])[];
 
@@ -274,7 +275,7 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
           {step === 1 ? (
             <FieldGroup>
               <DateFields form={form} />
-              <CourtCountField form={form} />
+              <VenuesAndCourtsField form={form} />
             </FieldGroup>
           ) : null}
 

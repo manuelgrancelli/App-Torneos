@@ -37,7 +37,23 @@ export function TournamentReview({
     { label: "Modalidad", value: modality, step: 0 },
     ...(description ? [{ label: "Descripción", value: description, step: 0 }] : []),
     { label: "Fechas", value: formatDateRange(values.startsOn, values.endsOn), step: 1 },
-    { label: "Canchas disponibles", value: `${values.courtCount} (${values.courtCount === 1 ? "cancha" : "canchas"})`, step: 1 },
+    ...(values.hasMultipleVenues && values.venues && values.venues.length > 0
+      ? [
+          {
+            label: "Sedes y canchas",
+            value: `${values.venues.reduce((acc, v) => acc + (v.courtCount || 0), 0)} canchas en ${values.venues.length} sedes (${values.venues
+              .map((v) => `${v.name}${v.isMain ? " [Principal]" : ""}: ${v.courtCount}`)
+              .join(" · ")})`,
+            step: 1,
+          },
+        ]
+      : [
+          {
+            label: values.venueName ? "Canchas y sede" : "Canchas disponibles",
+            value: `${values.courtCount} (${values.courtCount === 1 ? "cancha" : "canchas"})${values.venueName ? ` · ${values.venueName}` : ""}`,
+            step: 1,
+          },
+        ]),
     {
       label: "Resultados",
       value: values.resultsRequireConfirmation ? "Los equipos los confirman" : "Los carga el organizador",

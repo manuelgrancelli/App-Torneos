@@ -46,8 +46,11 @@ export type SchedulerMatch = {
   /** Instante ideal para jugar después del anterior (epoch ms). */
   idealAfter?: number;
   stage?: "group" | "playoff";
+  courtId?: string;
   allAvailable?: boolean;
   categoryId?: string;
+  /** Sede obligatoria (multisede: ej. para mitades de cuadro o sede principal en finales). */
+  requiredVenue?: string;
 };
 
 /** Partido que ya ocupa recursos y no se mueve (fijado a mano, jugado o no reprogramado). */
@@ -63,6 +66,8 @@ export type FixedAssignment = {
   round?: number;
   day?: string;
   categoryId?: string;
+  /** Sede obligatoria (multisede: ej. para mitades de cuadro o sede principal en finales). */
+  requiredVenue?: string;
   stage?: "group" | "playoff";
 };
 
@@ -75,6 +80,8 @@ export type ScheduleInput = {
   availability: Readonly<Record<string, readonly string[]>>;
   fixed?: readonly FixedAssignment[];
   maxIterations?: number;
+  /** Mapa de cancha → sede (para torneos multisede). */
+  courtVenues?: Readonly<Record<string, string>>;
 };
 
 export type Assignment = {
@@ -115,7 +122,10 @@ type Interval = {
   round?: number;
   day?: string;
   categoryId?: string;
+  /** Sede obligatoria (multisede: ej. para mitades de cuadro o sede principal en finales). */
+  requiredVenue?: string;
   stage?: "group" | "playoff";
+  courtId?: string | null;
 };
 
 const DEFAULT_MAX_ITERATIONS = 150_000;
@@ -220,6 +230,7 @@ function candidatePenalty(
   assignedIntervals: Map<string, Interval>,
   fixedIntervals: Map<string, Interval>,
   availability: Map<string, Set<string>>,
+  courtVenues?: ReadonlyMap<string, string>,
 ): number {
   let penalty = 0;
   const teamsToCheck =
@@ -377,6 +388,45 @@ function candidatePenalty(
       penalty += computeGapPenalty(groupNextStart - candidate.end);
     }
   }
+  // Restricción multisede 1: Sede requerida por partido (cruces eliminatorios / finales)
+  if (match.requiredVenue && courtVenues) {
+    const candVenue = courtVenues.get(candidate.courtId);
+    if (candVenue && candVenue !== match.requiredVenue) {
+      return Number.POSITIVE_INFINITY;
+    }
+  }
+
+  // Restricción multisede 2: Coherencia estricta de sede en grupos (D-194).
+  // Todos los partidos del mismo grupo DEBEN disputarse en la misma sede física.
+  if (match.groupId && courtVenues) {
+    const candVenue = courtVenues.get(candidate.courtId);
+    if (candVenue) {
+      let lockedVenue: string | null = null;
+      for (const iv of assignedIntervals.values()) {
+        if (iv.groupId === match.groupId && iv.courtId) {
+          const v = courtVenues.get(iv.courtId);
+          if (v) {
+            lockedVenue = v;
+            break;
+          }
+        }
+      }
+      if (!lockedVenue) {
+        for (const iv of fixedIntervals.values()) {
+          if (iv.groupId === match.groupId && iv.courtId) {
+            const v = courtVenues.get(iv.courtId);
+            if (v) {
+              lockedVenue = v;
+              break;
+            }
+          }
+        }
+      }
+      if (lockedVenue && candVenue !== lockedVenue) {
+        return Number.POSITIVE_INFINITY;
+      }
+    }
+  }
 
   return penalty;
 }
@@ -386,6 +436,7 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
   const availability = new Map(Object.entries(input.availability).map(([team, slots]) => [team, new Set(slots)]));
   const teams = new TeamOccupancy();
   const courts = new CourtOccupancy();
+  const courtVenuesMap = input.courtVenues ? new Map(Object.entries(input.courtVenues)) : undefined;
 
   // Lo fijo ocupa recursos desde el arranque.
   const fixedIntervals = new Map<string, Interval>();
@@ -399,6 +450,8 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
       day: fixed.day,
       categoryId: fixed.categoryId,
       stage: fixed.stage,
+      courtId: fixed.courtId ?? undefined,
+      requiredVenue: fixed.requiredVenue,
     };
     fixedIntervals.set(fixed.matchId, interval);
     if (fixed.homeTeamId) teams.add(fixed.homeTeamId, interval);
@@ -478,6 +531,9 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
       if (match.notBefore !== undefined && slot.start < match.notBefore) continue;
       const slotCourts = slot.courtId ? [slot.courtId] : input.courtIds;
       for (const courtId of slotCourts) {
+        if (match.requiredVenue && courtVenuesMap?.get(courtId) && courtVenuesMap.get(courtId) !== match.requiredVenue) {
+          continue;
+        }
         list.push({ slotId: slot.id, courtId, start: slot.start, end: slot.end, day: slot.day });
       }
     }
@@ -563,6 +619,8 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
         day: candidate.day,
         categoryId: match.categoryId,
         stage: match.stage,
+        courtId: candidate.courtId,
+        requiredVenue: match.requiredVenue,
       };
       if (!courts.isFree(candidate.courtId, interval)) continue;
 
@@ -575,7 +633,7 @@ export function scheduleMatches(input: ScheduleInput): ScheduleResult {
       }
       if (!teamsFree) continue;
 
-      const p = candidatePenalty(match, candidate, teams, assignedIntervals, fixedIntervals, availability);
+      const p = candidatePenalty(match, candidate, teams, assignedIntervals, fixedIntervals, availability, courtVenuesMap);
       if (!Number.isFinite(p)) continue;
 
       scoredCandidates.push({ candidate, penalty: p, interval });

@@ -915,4 +915,117 @@ describe("Programación automática de cuadro / playoffs", () => {
       expect(catAssignments).toHaveLength(7);
     }
   });
+  it("multisede: todos los partidos de un mismo grupo se juegan en la misma sede (D-194)", () => {
+    // 2 sedes: Sede Central (c1, c2) y Sede Norte (c3, c4)
+    const courtVenues: Record<string, string> = {
+      c1: "Sede Central",
+      c2: "Sede Central",
+      c3: "Sede Norte",
+      c4: "Sede Norte",
+    };
+
+    // 2 grupos: Grupo A (t1, t2, t3) y Grupo B (t4, t5, t6)
+    // 2 partidos por grupo
+    const matches = [
+      { id: "gA_1", homeTeamId: "t1", awayTeamId: "t2", groupId: "group_A", stage: "group" as const, order: 1 },
+      { id: "gA_2", homeTeamId: "t1", awayTeamId: "t3", groupId: "group_A", stage: "group" as const, order: 2 },
+      { id: "gB_1", homeTeamId: "t4", awayTeamId: "t5", groupId: "group_B", stage: "group" as const, order: 3 },
+      { id: "gB_2", homeTeamId: "t4", awayTeamId: "t6", groupId: "group_B", stage: "group" as const, order: 4 },
+    ];
+
+    // Franjas disponibles en todas las canchas
+    const slots = [
+      slot("s1", 0),
+      slot("s2", 2),
+      slot("s3", 4),
+      slot("s4", 6),
+    ];
+
+    const availability = {
+      t1: ["s1", "s2", "s3", "s4"],
+      t2: ["s1", "s2", "s3", "s4"],
+      t3: ["s1", "s2", "s3", "s4"],
+      t4: ["s1", "s2", "s3", "s4"],
+      t5: ["s1", "s2", "s3", "s4"],
+      t6: ["s1", "s2", "s3", "s4"],
+    };
+
+    const data = input({
+      courtIds: ["c1", "c2", "c3", "c4"],
+      courtVenues,
+      slots,
+      matches,
+      availability,
+    });
+
+    const result = scheduleMatches(data);
+    expect(result.unscheduled).toEqual([]);
+    expect(result.assignments).toHaveLength(4);
+
+    // Verificar que los partidos del Grupo A están en la misma sede
+    const a1 = result.assignments.find((a) => a.matchId === "gA_1")!;
+    const a2 = result.assignments.find((a) => a.matchId === "gA_2")!;
+    expect(courtVenues[a1.courtId]).toBe(courtVenues[a2.courtId]);
+
+    // Verificar que los partidos del Grupo B están en la misma sede
+    const b1 = result.assignments.find((a) => a.matchId === "gB_1")!;
+    const b2 = result.assignments.find((a) => a.matchId === "gB_2")!;
+    expect(courtVenues[b1.courtId]).toBe(courtVenues[b2.courtId]);
+  });
+
+  it("multisede en playoffs: mitad superior en Sede 1, mitad inferior en Sede 2 y finales en Sede Principal (D-194)", () => {
+    const courtVenues = {
+      c1: "Sede 1",
+      c2: "Sede 2",
+      c_main: "Sede Principal",
+    };
+
+    const matches = [
+      // Cuartos mitad superior -> Sede 1
+      { id: "q1", homeTeamId: null, awayTeamId: null, stage: "playoff" as const, allAvailable: true, round: 1, position: 0, requiredVenue: "Sede 1", order: 10 },
+      { id: "q2", homeTeamId: null, awayTeamId: null, stage: "playoff" as const, allAvailable: true, round: 1, position: 1, requiredVenue: "Sede 1", order: 11 },
+      // Cuartos mitad inferior -> Sede 2
+      { id: "q3", homeTeamId: null, awayTeamId: null, stage: "playoff" as const, allAvailable: true, round: 1, position: 2, requiredVenue: "Sede 2", order: 12 },
+      { id: "q4", homeTeamId: null, awayTeamId: null, stage: "playoff" as const, allAvailable: true, round: 1, position: 3, requiredVenue: "Sede 2", order: 13 },
+      // Semifinales y Final -> Sede Principal
+      { id: "sem1", homeTeamId: null, awayTeamId: null, stage: "playoff" as const, allAvailable: true, round: 2, position: 0, requiredVenue: "Sede Principal", order: 20 },
+      { id: "sem2", homeTeamId: null, awayTeamId: null, stage: "playoff" as const, allAvailable: true, round: 2, position: 1, requiredVenue: "Sede Principal", order: 21 },
+      { id: "final", homeTeamId: null, awayTeamId: null, stage: "playoff" as const, allAvailable: true, round: 3, position: 0, requiredVenue: "Sede Principal", order: 30 },
+    ];
+
+    const slots = [
+      slot("s1", 0),
+      slot("s2", 2),
+      slot("s3", 4),
+      slot("s4", 6),
+      slot("s5", 8),
+      slot("s6", 10),
+      slot("s7", 12),
+    ];
+
+    const data = input({
+      courtIds: ["c1", "c2", "c_main"],
+      courtVenues,
+      slots,
+      matches,
+      availability: {},
+    });
+
+    const result = scheduleMatches(data);
+    expect(result.unscheduled).toEqual([]);
+    expect(result.assignments).toHaveLength(7);
+
+    // Cuartos mitad superior deben estar en c1 (Sede 1)
+    expect(result.assignments.find((a) => a.matchId === "q1")!.courtId).toBe("c1");
+    expect(result.assignments.find((a) => a.matchId === "q2")!.courtId).toBe("c1");
+
+    // Cuartos mitad inferior deben estar en c2 (Sede 2)
+    expect(result.assignments.find((a) => a.matchId === "q3")!.courtId).toBe("c2");
+    expect(result.assignments.find((a) => a.matchId === "q4")!.courtId).toBe("c2");
+
+    // Semis y Final deben estar en c_main (Sede Principal)
+    expect(result.assignments.find((a) => a.matchId === "sem1")!.courtId).toBe("c_main");
+    expect(result.assignments.find((a) => a.matchId === "sem2")!.courtId).toBe("c_main");
+    expect(result.assignments.find((a) => a.matchId === "final")!.courtId).toBe("c_main");
+  });
 });

@@ -2833,3 +2833,29 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
     - `AdminStatsOverview`: tarjeta de "Deportistas y Cuentas" expone el total de organizadores activos en la plataforma.
 - **Motivo:** responder a la solicitud del usuario ("asi como se pueden agregar super admins quiero que se piedan agregar organizadores de torneos de la misma forma con mail ya que la etiqueta predeterminada cuando se registran es de jugador").
 - **Cómo aplicar:** aplicar `supabase/migrations/20261102170000_admin_manage_organizers.sql` en el SQL Editor de Supabase y desplegar los cambios en frontend.
+
+
+### D-194 — Soporte Multisede y Programación Inteligente por Sedes (2026-11-02)
+- **Decisión:**
+  - **Diferenciación conceptual y operativa de Sedes y Canchas:**
+    - Se separa y jerarquiza formalmente el concepto de **Sede** (complejo o club físico donde se juega, ej. *Club Central*, *Complejo Norte*) y **Cancha** (superficie de juego individual, ej. *Cancha 1*, *Cancha 2*).
+  - **Configuración en el Asistente de Creación (`VenuesAndCourtsField` en `tournament-wizard.tsx`):**
+    - En el paso *"Fechas y canchas"*, el organizador elige entre **"1 Sede (Club único)"** o **"Múltiples sedes (2+ complejos)"**:
+      - **1 Sede:** modo rápido habitual, permite ingresar opcionalmente el nombre del club y la cantidad total de canchas.
+      - **Múltiples sedes:** permite definir la nómina de sedes con sus respectivos nombres y cantidad de canchas por sede, designar una **Sede Principal** (donde se coronan los campeones) y agregar o quitar subsedes dinámicamente.
+    - Se actualiza el esquema Zod `createTournamentSchema` con validaciones para garantizar al menos 2 sedes y nombres únicos.
+    - En el alta del torneo (`actions.ts`), se generan las canchas con nombres únicos secuenciales, se asocia su campo `venue` en `public.courts` y se almacena la `mainVenue` en `playoff_config`.
+  - **Motor de Programación Horaria (`lib/domain/scheduler.ts` y `lib/scheduling.ts`):**
+    - **Fase de grupos (Coherencia territorial 100%):**
+      - Todos los partidos de un mismo grupo (`groupId`) DEBEN disputarse en la **misma sede física**. El algoritmo descarta cualquier candidato a cancha en sedes distintas para un mismo grupo (`candidatePenalty` retorna `Infinity`).
+      - Las zonas se distribuyen equitativamente entre las sedes disponibles según su capacidad.
+    - **Fase eliminatoria (Playoffs):**
+      - **Cuadros de 4 parejas o menos (Semis y Final directas):** se juegan íntegramente en la **Sede Principal**.
+      - **Cuadros de 8 o más parejas (arrancan en Cuartos u Octavos):**
+        - **Mitad superior del cuadro (Upper half):** cruces de octavos y cuartos se disputan en la **Sede 1**.
+        - **Mitad inferior del cuadro (Lower half):** cruces de octavos y cuartos se disputan en la **Sede 2**.
+        - **Instancia decisiva (Semifinales y Final):** ambas mitades convergen en la **Sede Principal**.
+  - **Visualización en interfaz:**
+    - Las tarjetas de partido en fixture, partidos, cuadro, selector de franjas y página pública muestran claramente el identificador combinado: `Cancha X · Nombre de Sede`.
+- **Motivo:** responder a la solicitud del usuario ("que se diferencie sedes de canchas en una sede puede haber muchas canchas, entonces el organizador del torneo tendria que poner cuantas sedes tiene disponible... que en grupos todos los partidos de ese grupo deben ser en la misma sede... y en cruces si van a partir de cuartos que por la parte de arriba se juegue en una sede y por abajo en la otra, y a partir de semis en la misma sede").
+- **Cómo aplicar:** implementado en `lib/domain/scheduler.ts`, `lib/domain/scheduler.test.ts`, `lib/scheduling.ts`, `lib/validation/tournament.ts`, `lib/validation/tournament.test.ts`, `components/tournaments/venues-and-courts-field.tsx`, `components/tournaments/tournament-wizard.tsx`, `components/tournaments/tournament-review.tsx`, `components/tournaments/slots-manager.tsx`, `components/tournaments/configured-slots-list.tsx`, `app/(app)/torneos/actions.ts`, `app/(app)/torneos/[id]/partidos/page.tsx`, `app/(app)/torneos/[id]/cuadro/page.tsx`, `app/t/[slug]/page.tsx` y `docs/PROYECTO.md`.

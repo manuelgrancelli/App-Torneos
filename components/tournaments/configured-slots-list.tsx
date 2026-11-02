@@ -47,7 +47,7 @@ export function ConfiguredSlotsList({
   const [stageFilter, setStageFilter] = useState<"all" | "group" | "playoff">("all");
 
   const courtName = useMemo(
-    () => new Map(courts.map((court) => [court.id, court.name])),
+    () => new Map(courts.map((court) => [court.id, `${court.name}${court.venue ? ` · ${court.venue}` : ""}`])),
     [courts],
   );
 
