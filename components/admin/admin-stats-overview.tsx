@@ -142,7 +142,7 @@ export function AdminStatsOverview({ stats }: { stats: AdminDashboardStats }) {
             <span className="text-xs text-muted-foreground">usuarios registrados</span>
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            Jugadores y organizadores activos en la plataforma
+            {stats.totalOrganizers} organizador(es) · jugadores y deportistas activos
           </p>
         </CardContent>
       </Card>

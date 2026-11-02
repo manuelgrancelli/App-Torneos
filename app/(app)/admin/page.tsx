@@ -6,6 +6,7 @@ import { getAdminDashboardData } from "@/lib/data/admin";
 import { AdminStatsOverview } from "@/components/admin/admin-stats-overview";
 import { AdminTournamentList } from "@/components/admin/admin-tournament-list";
 import { SuperAdminsDialog } from "@/components/admin/superadmins-dialog";
+import { OrganizersDialog } from "@/components/admin/organizers-dialog";
 
 export const metadata: Metadata = {
   title: "Panel Administrador Global · LM Torneos",
@@ -43,11 +44,17 @@ export default async function AdminDashboardPage() {
           </p>
         </div>
 
-        {/* Botón para gestionar Superadministradores */}
-        <SuperAdminsDialog
-          superAdmins={data.superAdmins}
-          currentUserEmail={user?.email}
-        />
+        {/* Acciones de administración de roles */}
+        <div className="flex flex-wrap items-center gap-2">
+          <OrganizersDialog
+            organizers={data.organizers}
+            currentUserEmail={user?.email}
+          />
+          <SuperAdminsDialog
+            superAdmins={data.superAdmins}
+            currentUserEmail={user?.email}
+          />
+        </div>
       </div>
 
       {/* Resumen de Estadísticas Globales */}

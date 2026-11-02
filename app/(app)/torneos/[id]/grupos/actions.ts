@@ -8,6 +8,7 @@ import { generateGroupInitialMatches, groupTotalMatchCount } from "@/lib/domain/
 import { randomSeed } from "@/lib/domain/random";
 import { dbErrorMessage } from "@/lib/supabase/errors";
 import { drawAllCategoriesSchema, saveGroupsSchema } from "@/lib/validation/competition";
+import { ensurePlayoffBracket } from "../cuadro/actions";
 
 /**
  * Persiste los grupos de una categoría en la base de datos y genera sus partidos:
@@ -233,6 +234,21 @@ export const drawAllCategories = createAction(
       const reasons = skippedCategories.length > 0 ? `: ${skippedCategories.join(", ")}.` : ".";
       return actionError(`No se pudo sortear ninguna categoría${reasons}`);
     }
+
+    const { data: tourData } = await supabase
+      .from("tournaments")
+      .select("status")
+      .eq("id", tournamentId)
+      .maybeSingle();
+
+    if (tourData && (tourData.status === "registration_open" || tourData.status === "draft")) {
+      await (supabase as any)
+        .from("tournaments")
+        .update({ status: "group_stage", updated_at: new Date().toISOString() })
+        .eq("id", tournamentId);
+    }
+
+    await ensurePlayoffBracket(supabase, tournamentId, { revalidate: false });
 
     revalidatePath(`/torneos/${tournamentId}`, "layout");
     refreshPublicTournament(tournamentId);

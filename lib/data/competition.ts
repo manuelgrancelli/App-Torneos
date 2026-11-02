@@ -94,8 +94,8 @@ export function toMatchView(m: Tables<"matches">): MatchView {
   };
 }
 
-/** Equipos, grupos, partidos y confirmaciones del torneo (lo que el usuario pueda ver). */
-export const getCompetition = cache(async (tournamentId: string): Promise<Competition> => {
+/** Equipos, grupos, partidos y confirmaciones del torneo (lo que el usuario pueda ver). Sin memoizar. */
+export async function fetchCompetition(tournamentId: string): Promise<Competition> {
   const supabase = await createClient();
   const [teams, groups, matches, confirmations, categories] = await Promise.all([
     supabase
@@ -180,7 +180,10 @@ export const getCompetition = cache(async (tournamentId: string): Promise<Compet
     })),
     categories,
   };
-});
+}
+
+/** Equipos, grupos, partidos y confirmaciones del torneo (versión cacheada por request). */
+export const getCompetition = cache(fetchCompetition);
 
 export type SchedulingData = {
   slots: { id: string; startsAt: string; endsAt: string; courtId: string | null; stage?: "group" | "playoff" }[];
@@ -188,8 +191,8 @@ export type SchedulingData = {
   availability: Record<string, string[]>;
 };
 
-/** Franjas, canchas y disponibilidad (por equipo) para programar partidos. */
-export const getSchedulingData = cache(async (tournamentId: string): Promise<SchedulingData> => {
+/** Franjas, canchas y disponibilidad (por equipo) para programar partidos. Sin memoizar. */
+export async function fetchSchedulingData(tournamentId: string): Promise<SchedulingData> {
   const supabase = await createClient();
   const [slots, courts, teamRows] = await Promise.all([
     supabase.from("time_slots").select("id, starts_at, ends_at, court_id, stage").eq("tournament_id", tournamentId).order("starts_at").limit(5000),
@@ -218,4 +221,7 @@ export const getSchedulingData = cache(async (tournamentId: string): Promise<Sch
     courts: courts.data,
     availability,
   };
-});
+}
+
+/** Franjas, canchas y disponibilidad (por equipo) para programar partidos (versión cacheada por request). */
+export const getSchedulingData = cache(fetchSchedulingData);

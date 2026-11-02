@@ -2788,3 +2788,48 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
     - El badge superior de cada grupo utiliza `options.sportName` para mostrar `${count} equipos` en lugar de parejas.
 - **Motivo:** responder a la solicitud del usuario ("fijate que a los equipos en torneos de futbol los identifica como parejas, cambia eso, que en torneos de padel tenis sean parejas pero en futbol identifique como equipos").
 - **Cómo aplicar:** implementado en `lib/domain/tournament-status.ts`, `lib/domain/tournament-status.test.ts`, `components/admin/admin-tournament-list.tsx`, `components/tournaments/tournament-card.tsx`, `app/t/[slug]/page.tsx`, `app/(app)/unirse/[code]/page.tsx`, `app/(app)/inscripciones/[teamId]/page.tsx`, `app/(app)/torneos/[id]/inscripciones/page.tsx`, `components/registration/registrations-list.tsx`, `components/registration/close-registration-button.tsx`, `components/registration/replace-player-dialog.tsx`, `components/registration/team-availability-dialog.tsx`, `components/registration/team-form.tsx`, `components/tournaments/tournament-stats-summary.tsx`, `components/tournaments/tournament-setup-stepper.tsx`, `app/(app)/torneos/[id]/grupos/page.tsx`, `app/(app)/torneos/[id]/grupos/actions.ts`, `app/(app)/torneos/[id]/inscripciones/actions.ts`, `app/(app)/torneos/[id]/categorias/actions.ts`, `lib/graphics/groups-image.ts` y `docs/PROYECTO.md`.
+
+
+### D-192 — Transición Automática a Playoffs, Refresco React Cache y Armado de Cruces en Torneos Multicategoría (2026-11-02)
+- **Decisión:**
+  - **Diagnóstico del problema:**
+    - Al simular o concluir la fase de grupos en un torneo multicategoría (como el mega torneo de prueba de 8 categorías y 108 parejas):
+      1. La acción `simulateTournamentResults` en `partidos/actions.ts` simulaba los partidos de grupos pero no invocaba `ensurePlayoffBracket` ni actualizaba `status` de las categorías ni del torneo a `'playoffs'`.
+      2. En `ensurePlayoffBracket` (`cuadro/actions.ts`), la condición de reconstrucción chequeaba únicamente `existing.length > plan.matches.length`. Si el cuadro inicial se había proyectado con un tamaño inferior al final (ej. 7 partidos vs 15 tras clasificar 3 parejas por grupo en GSL de 4), `shouldRebuild` no se activaba, provocando un descalce estructural.
+      3. Además, en torneos con categorías, `ensurePlayoffBracket` actualizaba `tournament_categories.status = 'playoffs'` pero nunca promovía `tournaments.status = 'playoffs'`, dejando al torneo bloqueado permanentemente en `'group_stage'`. Esto impedía simular los playoffs (`simulateTournamentResults` requiere `tournament.status === 'playoffs'`) y mostraba etiquetas desactualizadas.
+      4. En `MatchesPage` (`partidos/page.tsx`) y `BracketPage` (`cuadro/page.tsx`), la función `getCompetition` estaba memoizada con React `cache(...)`. Al ejecutarse `ensurePlayoffBracket` durante el render, la posterior llamada `await getCompetition(tournament.id)` devolvía la misma referencia en memoria previa a la inserción/actualización de los cruces de playoffs, mostrando `homeTeamId: null` y `awayTeamId: null` ("A definir") y ocultando los botones de carga de resultados.
+  - **Corrección implementada:**
+    1. **Desacoplamiento de caché fresca (`lib/data/competition.ts`):**
+       - Se separan y exportan las funciones base `fetchCompetition(tournamentId)` y `fetchSchedulingData(tournamentId)` sin memoizar, manteniendo `getCompetition = cache(fetchCompetition)` y `getSchedulingData = cache(fetchSchedulingData)` para consultas normales.
+       - En `ensurePlayoffBracket` (`cuadro/actions.ts`), se invoca directamente `fetchCompetition(tournamentId)`, garantizando que el armado y cálculo de clasificados siempre opere sobre el estado más reciente de la base de datos.
+       - En `MatchesPage` (`partidos/page.tsx`) y `BracketPage` (`cuadro/page.tsx`), tras ejecutar `ensurePlayoffBracket`, se recargan los datos con `fetchCompetition` y `fetchSchedulingData`, y se sincroniza `tournament.status` en tiempo real.
+    2. **Transición atómica de estados a playoffs en multicategoría (`ensurePlayoffBracket`):**
+       - Tanto en la rama de actualización como en la de inserción de partidos, si una categoría concluye sus grupos se actualiza a `'playoffs'`. Inmediatamente se verifica si todas las categorías del torneo salieron de la fase de grupos; de ser así, se asciende `tournaments.status = 'playoffs'`.
+       - En el bucle principal multicategoría (cuando se llama a `ensurePlayoffBracket` sin `categoryId`), al finalizar la iteración de categorías se realiza la misma verificación para asegurar el torneo.
+       - Detección estricta de descalce de tamaño: `existing.length !== plan.matches.length` activa `shouldRebuild = true` para regenerar limpiamente cualquier estructura incompleta o corrupta.
+    3. **Automatización en `simulateTournamentResults` y avance inmediato (`partidos/actions.ts`):**
+       - Al completar los partidos de grupos pendientes, se dispara automáticamente `ensurePlayoffBracket(supabase, tournamentId, { force: true, revalidate: false })`, sembrando los clasificados en primera ronda y propagando los byes a la siguiente ronda.
+       - Se actualizan las categorías y el torneo a `'playoffs'`.
+       - Si la acción se dispara cuando la fase de grupos ya estaba simulada con anterioridad (`simulatedGroupCount === 0`), promueve automáticamente el estado y continúa fluidamente a simular los cruces de playoffs ronda a ronda hasta la final y coronación de campeones.
+    4. **Aseguramiento al sortear categorías (`drawAllCategories` en `grupos/actions.ts`):**
+       - Al sortear grupos, si el torneo estaba en `'registration_open'` o `'draft'`, se asegura su avance a `'group_stage'` y se crea la estructura base de partidos de playoffs en la base de datos para habilitar su programación horaria en cualquier momento (D-168).
+- **Motivo:** responder a la incidencia reportada por el usuario ("fijate que simule fase de grupos pero no me armo los cruces en play off, no me deja cargar resultados desde el apartado de partidos ni me aparecen los cruces").
+- **Cómo aplicar:** implementado en `lib/data/competition.ts`, `app/(app)/torneos/[id]/cuadro/actions.ts`, `app/(app)/torneos/[id]/cuadro/page.tsx`, `app/(app)/torneos/[id]/grupos/actions.ts`, `app/(app)/torneos/[id]/partidos/actions.ts`, `app/(app)/torneos/[id]/partidos/page.tsx` y `docs/PROYECTO.md`.
+
+### D-193 — Gestión de Organizadores por Correo Electrónico desde el Panel de Superadmin (2026-11-02)
+- **Decisión:**
+  - **Contexto y necesidad:**
+    - Al registrarse en la plataforma, las cuentas de usuario reciben de forma predeterminada el rol `'player'` (`20261021180000_account_roles.sql`), impidiéndoles crear torneos por sí mismos hasta que sean designados como organizadores.
+    - Se requería que los superadministradores, de manera idéntica a como gestionan los superadmins mediante correo electrónico, puedan promover usuarios a organizadores (`'organizer'`) o revocarlos a `'player'` directamente desde la interfaz del Panel Administrador Global (`/admin`).
+  - **Base de datos y funciones de seguridad (`supabase/migrations/20261102170000_admin_manage_organizers.sql`):**
+    - `get_organizer_users()`: RPC `security definer` que lista id, email, full_name y created_at de todos los usuarios con rol `'organizer'` (o `'superadmin'`), verificando con `private.is_account_superadmin()`.
+    - `set_user_organizer(p_email, p_is_organizer)`: RPC `security definer` que busca al usuario en `auth.users` mediante correo en minúsculas y actualiza `public.profiles.account_role` a `'organizer'` (si `p_is_organizer` es true) o `'player'` (si es false). Protege contra degradar superadministradores existentes.
+  - **Capa de datos y Server Action (`lib/data/admin.ts` y `app/(app)/admin/actions.ts`):**
+    - `lib/data/admin.ts`: incorpora el tipo `OrganizerUser`, agrega `totalOrganizers` en `AdminDashboardStats` y consulta tanto RPC como fallback para nutrir el panel con los organizadores y su conteo global.
+    - `manageOrganizerAction`: Server Action validada con Zod (`email`, `action: 'add' | 'remove'`), protegida por `isSuperAdmin()`, con revalidación de ruta `/admin` y mensajes amigables.
+  - **Interfaz de usuario en Panel Admin (`components/admin/organizers-dialog.tsx` y `/admin/page.tsx`):**
+    - Componente modal `OrganizersDialog` con botón de acceso en el encabezado principal rotulado con badge esmeralda e icono `UserCheck`.
+    - Permite buscar y agregar usuarios por correo electrónico para habilitarlos como organizadores, mostrando la nómina completa con badges de fecha de alta y opción de remover rol.
+    - `AdminStatsOverview`: tarjeta de "Deportistas y Cuentas" expone el total de organizadores activos en la plataforma.
+- **Motivo:** responder a la solicitud del usuario ("asi como se pueden agregar super admins quiero que se piedan agregar organizadores de torneos de la misma forma con mail ya que la etiqueta predeterminada cuando se registran es de jugador").
+- **Cómo aplicar:** aplicar `supabase/migrations/20261102170000_admin_manage_organizers.sql` en el SQL Editor de Supabase y desplegar los cambios en frontend.

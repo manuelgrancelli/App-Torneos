@@ -376,7 +376,7 @@ export const recordResult = createAction(recordResultSchema, async (input, { sup
       await ensurePlayoffBracket(
         supabase,
         input.tournamentId,
-        categoryId ? { categoryId } : undefined,
+        categoryId ? { categoryId, force: true } : { force: true },
       );
     }
   }
@@ -579,11 +579,40 @@ export const simulateTournamentResults = createAction(
         }
       }
 
-      revalidate(tournamentId);
-      return actionOk(
-        { count: simulatedCount },
-        `Simulamos los resultados de ${simulatedCount} ${simulatedCount === 1 ? "partido" : "partidos"} de la fase de grupos.`,
-      );
+      // Concluida la fase de grupos: asegurar cruces de playoffs
+      await ensurePlayoffBracket(supabase, tournamentId, { force: true, revalidate: false });
+
+      // Verificar si concluyeron todos los partidos de grupos
+      const { data: pendingGroupMatches } = await (supabase as any)
+        .from("matches")
+        .select("id")
+        .eq("tournament_id", tournamentId)
+        .eq("stage", "group")
+        .is("result_status", null)
+        .limit(1);
+
+      if (!pendingGroupMatches || pendingGroupMatches.length === 0) {
+        await (supabase as any)
+          .from("tournament_categories")
+          .update({ status: "playoffs", updated_at: new Date().toISOString() })
+          .eq("tournament_id", tournamentId)
+          .in("status", ["draft", "registration_open", "group_stage"]);
+
+        await (supabase as any)
+          .from("tournaments")
+          .update({ status: "playoffs", updated_at: new Date().toISOString() })
+          .eq("id", tournamentId);
+
+        tournament.status = "playoffs";
+      }
+
+      if (simulatedCount > 0) {
+        revalidate(tournamentId);
+        return actionOk(
+          { count: simulatedCount },
+          `Simulamos los resultados de ${simulatedCount} ${simulatedCount === 1 ? "partido" : "partidos"} de la fase de grupos y armamos los cruces de playoffs.`,
+        );
+      }
     }
 
     if (tournament.status === "playoffs") {

@@ -15,6 +15,7 @@ export type AdminDashboardStats = {
   totalMatches: number;
   completedMatches: number;
   totalUsers: number;
+  totalOrganizers: number;
 };
 
 export type AdminTournamentItem = {
@@ -45,6 +46,13 @@ export type SuperAdminUser = {
   createdAt: string;
 };
 
+export type OrganizerUser = {
+  id: string;
+  fullName: string;
+  email: string;
+  createdAt: string;
+};
+
 /**
  * Consulta global de torneos y métricas de plataforma para el Panel de Superadmin.
  * Acceso estrictamente protegido por isSuperAdmin().
@@ -53,6 +61,7 @@ export const getAdminDashboardData = cache(async (): Promise<{
   stats: AdminDashboardStats;
   tournaments: AdminTournamentItem[];
   superAdmins: SuperAdminUser[];
+  organizers: OrganizerUser[];
 } | null> => {
   const authorized = await isSuperAdmin();
   if (!authorized) return null;
@@ -171,20 +180,6 @@ export const getAdminDashboardData = cache(async (): Promise<{
     };
   });
 
-  // 5. Calcular estadísticas agregadas
-  const stats: AdminDashboardStats = {
-    totalTournaments: mappedTournaments.length,
-    runningTournaments: mappedTournaments.filter((t) => t.status === "group_stage" || t.status === "playoffs").length,
-    openRegistrationTournaments: mappedTournaments.filter((t) => t.status === "registration_open").length,
-    finishedTournaments: mappedTournaments.filter((t) => t.status === "finished").length,
-    draftTournaments: mappedTournaments.filter((t) => t.status === "draft").length,
-    totalTeams: teamsRaw.length,
-    approvedTeams: teamsRaw.filter((t) => t.status === "approved").length,
-    totalMatches: matchesRaw.length,
-    completedMatches: matchesRaw.filter((m) => m.result_status === "confirmed").length,
-    totalUsers: usersCount ?? 0,
-  };
-
   // 6. Obtener lista de superadministradores actuales
   let superAdmins: SuperAdminUser[] = [];
   try {
@@ -230,10 +225,59 @@ export const getAdminDashboardData = cache(async (): Promise<{
     });
   }
 
+  // 7. Obtener lista de organizadores de torneos actuales
+  let organizers: OrganizerUser[] = [];
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: orgData, error: orgError } = await (supabase as any).rpc("get_organizer_users");
+    if (!orgError && orgData && Array.isArray(orgData) && orgData.length > 0) {
+      organizers = orgData.map((u: Record<string, unknown>) => ({
+        id: String(u.id),
+        fullName: String(u.full_name || "Sin nombre"),
+        email: String(u.email || "Sin email"),
+        createdAt: String(u.created_at || ""),
+      }));
+    }
+  } catch {
+    // ignorar error de RPC para pasar al fallback
+  }
+
+  if (organizers.length === 0) {
+    const { data: pData } = await supabase
+      .from("profiles")
+      .select("id, full_name, created_at")
+      .eq("account_role", "organizer");
+
+    if (pData && pData.length > 0) {
+      organizers = pData.map((p) => ({
+        id: p.id,
+        fullName: p.full_name,
+        email: p.full_name || "Organizador",
+        createdAt: p.created_at,
+      }));
+    }
+  }
+
+  // 8. Calcular estadísticas agregadas
+  const stats: AdminDashboardStats = {
+    totalTournaments: mappedTournaments.length,
+    runningTournaments: mappedTournaments.filter((t) => t.status === "group_stage" || t.status === "playoffs").length,
+    openRegistrationTournaments: mappedTournaments.filter((t) => t.status === "registration_open").length,
+    finishedTournaments: mappedTournaments.filter((t) => t.status === "finished").length,
+    draftTournaments: mappedTournaments.filter((t) => t.status === "draft").length,
+    totalTeams: teamsRaw.length,
+    approvedTeams: teamsRaw.filter((t) => t.status === "approved").length,
+    totalMatches: matchesRaw.length,
+    completedMatches: matchesRaw.filter((m) => m.result_status === "confirmed").length,
+    totalUsers: usersCount ?? 0,
+    totalOrganizers: organizers.length,
+  };
+
   return {
     stats,
     tournaments: mappedTournaments,
     superAdmins,
+    organizers,
   };
 });
 

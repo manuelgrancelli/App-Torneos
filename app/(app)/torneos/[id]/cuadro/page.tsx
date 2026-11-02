@@ -16,7 +16,12 @@ import {
   buildTeamSeedMap,
   cardsFromMatches,
 } from "@/lib/competition-view";
-import { getCompetition, getSchedulingData } from "@/lib/data/competition";
+import {
+  fetchCompetition,
+  fetchSchedulingData,
+  getCompetition,
+  getSchedulingData,
+} from "@/lib/data/competition";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
 import { createClient } from "@/lib/supabase/server";
 import { normalizePlayoffConfig } from "@/lib/domain/bracket";
@@ -65,7 +70,14 @@ export default async function BracketPage({
       { revalidate: false }
     );
     if (res.ok && (res.count ?? 0) > 0) {
-      competition = await getCompetition(tournament.id);
+      competition = await fetchCompetition(tournament.id);
+      scheduling = await fetchSchedulingData(tournament.id);
+      const { data: updatedTour } = await supabase
+        .from("tournaments")
+        .select("status")
+        .eq("id", tournament.id)
+        .maybeSingle();
+      if (updatedTour?.status) tournament.status = updatedTour.status;
     }
   }
 

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { actionError, actionOk, createAction } from "@/lib/actions/safe-action";
 import { refreshPublicTournament } from "@/lib/public-cache";
 import { groupStandings, qualifiersFromStandings } from "@/lib/competition-view";
-import { getCompetition } from "@/lib/data/competition";
+import { fetchCompetition, getCompetition } from "@/lib/data/competition";
 import type { SupabaseServerClient } from "@/lib/supabase/server";
 import { buildBracket, normalizePlayoffConfig, playoffConfigSchema } from "@/lib/domain/bracket";
 import { normalizeScoringConfig, scoringConfigSchema } from "@/lib/domain/scoring";
@@ -43,7 +43,7 @@ export async function ensurePlayoffBracket(
     .maybeSingle();
   if (tourError || !tournament) return { ok: false, error: "No encontramos el torneo." };
 
-  const competition = await getCompetition(tournamentId);
+  const competition = await fetchCompetition(tournamentId);
 
   // Si el torneo tiene múltiples categorías y no se especificó una en particular,
   // aseguramos el cuadro de playoffs de cada categoría individualmente.
@@ -63,6 +63,23 @@ export async function ensurePlayoffBracket(
         if (res.warnings) allWarnings.push(...res.warnings);
       }
     }
+
+    // Si todas las categorías pasaron de grupos o no quedan partidos de grupo pendientes, actualizar el torneo a playoffs
+    const { data: pendingCats } = await (supabase as any)
+      .from("tournament_categories")
+      .select("id")
+      .eq("tournament_id", tournamentId)
+      .in("status", ["draft", "registration_open", "group_stage"]);
+
+    if (!pendingCats || pendingCats.length === 0) {
+      if (tournament.status === "group_stage" || tournament.status === "registration_open") {
+        await (supabase as any)
+          .from("tournaments")
+          .update({ status: "playoffs", updated_at: new Date().toISOString() })
+          .eq("id", tournamentId);
+      }
+    }
+
     if (options?.revalidate !== false) {
       revalidatePath(`/torneos/${tournamentId}`, "layout");
       refreshPublicTournament(tournamentId);
@@ -137,9 +154,10 @@ export async function ensurePlayoffBracket(
   const plan = buildBracket(qualifiers, { thirdPlace });
 
   // Detectar si la base de datos contiene cruces duplicados (por inserciones fallidas o regeneraciones previas)
+  // o si el número de partidos existentes no coincide con el calculado para los clasificados
   const hasDuplicates = Boolean(
     existing &&
-      (existing.length > plan.matches.length ||
+      (existing.length !== plan.matches.length ||
         new Set(existing.map((e) => `${e.round}-${e.position}-${Boolean(e.is_third_place)}`)).size < existing.length),
   );
 
@@ -177,8 +195,22 @@ export async function ensurePlayoffBracket(
           .from("tournament_categories")
           .update({ status: "playoffs", updated_at: new Date().toISOString() })
           .eq("id", options.categoryId);
+
+        // Verificar si todas las categorías pasaron a playoffs
+        const { data: pendingCats } = await (supabase as any)
+          .from("tournament_categories")
+          .select("id")
+          .eq("tournament_id", tournamentId)
+          .in("status", ["draft", "registration_open", "group_stage"]);
+
+        if (!pendingCats || pendingCats.length === 0) {
+          await (supabase as any)
+            .from("tournaments")
+            .update({ status: "playoffs", updated_at: new Date().toISOString() })
+            .eq("id", tournamentId);
+        }
       }
-      if (!options?.categoryId && tournament.status === "group_stage") {
+      if (!options?.categoryId && (tournament.status === "group_stage" || tournament.status === "registration_open")) {
         await (supabase as any)
           .from("tournaments")
           .update({ status: "playoffs", updated_at: new Date().toISOString() })
@@ -288,8 +320,21 @@ export async function ensurePlayoffBracket(
         .from("tournament_categories")
         .update({ status: "playoffs", updated_at: new Date().toISOString() })
         .eq("id", options.categoryId);
+
+      const { data: pendingCats } = await (supabase as any)
+        .from("tournament_categories")
+        .select("id")
+        .eq("tournament_id", tournamentId)
+        .in("status", ["draft", "registration_open", "group_stage"]);
+
+      if (!pendingCats || pendingCats.length === 0) {
+        await (supabase as any)
+          .from("tournaments")
+          .update({ status: "playoffs", updated_at: new Date().toISOString() })
+          .eq("id", tournamentId);
+      }
     }
-    if (!options?.categoryId && tournament.status === "group_stage") {
+    if (!options?.categoryId && (tournament.status === "group_stage" || tournament.status === "registration_open")) {
       await (supabase as any)
         .from("tournaments")
         .update({ status: "playoffs", updated_at: new Date().toISOString() })

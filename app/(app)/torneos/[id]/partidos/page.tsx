@@ -7,7 +7,12 @@ import { SimulateResultsButton } from "@/components/matches/simulate-results-but
 import { EmptyState } from "@/components/shared/empty-state";
 import { ShareFixtureModal } from "@/components/tournaments/share-fixture-modal";
 import { buildBoardMatches } from "@/lib/competition-view";
-import { getCompetition, getSchedulingData } from "@/lib/data/competition";
+import {
+  fetchCompetition,
+  fetchSchedulingData,
+  getCompetition,
+  getSchedulingData,
+} from "@/lib/data/competition";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
 import { createClient } from "@/lib/supabase/server";
 import { ensurePlayoffBracket } from "../cuadro/actions";
@@ -29,7 +34,14 @@ export default async function MatchesPage({ params }: PageProps<"/torneos/[id]/p
   if (competition.groups.length > 0) {
     const res = await ensurePlayoffBracket(supabase, tournament.id, { revalidate: false });
     if (res.ok && (res.count ?? 0) > 0) {
-      competition = await getCompetition(tournament.id);
+      competition = await fetchCompetition(tournament.id);
+      scheduling = await fetchSchedulingData(tournament.id);
+      const { data: updatedTour } = await supabase
+        .from("tournaments")
+        .select("status")
+        .eq("id", tournament.id)
+        .maybeSingle();
+      if (updatedTour?.status) tournament.status = updatedTour.status;
     }
   }
 
