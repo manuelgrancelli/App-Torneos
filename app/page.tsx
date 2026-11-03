@@ -5,7 +5,12 @@ import { TrophyLogo } from "@/components/brand/trophy-logo";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth";
-import { APP_DESCRIPTION, APP_NAME } from "@/lib/config";
+import {
+  APP_DESCRIPTION,
+  APP_NAME,
+  ORGANIZER_CONTACT_PHONE,
+  ORGANIZER_CONTACT_WHATSAPP_URL,
+} from "@/lib/config";
 import { DEFAULT_REDIRECT } from "@/lib/utils/redirect";
 
 const FEATURES = [
@@ -29,6 +34,23 @@ export default async function HomePage() {
           </p>
           <ThemeToggle />
         </div>
+
+        <div>
+          <a
+            href={ORGANIZER_CONTACT_WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group inline-flex flex-wrap items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1.5 text-xs sm:text-sm font-medium text-foreground hover:bg-emerald-500/20 hover:border-emerald-500/50 transition-all shadow-xs"
+          >
+            <span className="flex size-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
+            <span>¿Querés organizar torneos?</span>
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 group-hover:underline">
+              Contactanos: {ORGANIZER_CONTACT_PHONE}
+              <span aria-hidden="true" className="transition-transform group-hover:translate-x-0.5">→</span>
+            </span>
+          </a>
+        </div>
+
         <h1 className="max-w-2xl text-3xl font-bold tracking-tight sm:text-5xl">
           Tus torneos, de la inscripción a la final.
         </h1>

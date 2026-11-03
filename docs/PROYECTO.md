@@ -2925,3 +2925,16 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
     - Se reemplaza el icono suelto de candado sin texto por una pastilla identificable: `🔒 Fijado` con tooltip detallado: *"Horario fijado manualmente por el organizador. El algoritmo de programación automática no moverá este partido"*.
 - **Motivo:** responder a la duda del usuario (*"quise cambiar de dia que se juegue ese partido me decia cancha 1 y 4 en verde como disponible, pero no me ponia el horario en el que estaba disponible, es decir no me decia el horario de franjas, me dejo cambiar el partido para el viernes y me pone ese candado"*).
 - **Cómo aplicar:** implementado en `components/matches/assign-slot-dialog.tsx` y `components/matches/matches-board.tsx`.
+
+### D-199 — Etiqueta y Canales de Contacto para Habilitación de Organizadores (2026-11-03)
+- **Decisión:**
+  - **Constantes de contacto centralizadas (`lib/config.ts`):** Se definen `ORGANIZER_CONTACT_PHONE = "3434472721"` y `ORGANIZER_CONTACT_WHATSAPP_URL = "https://wa.me/5493434472721?text=Hola!%20Quiero%20organizar%20torneos%20en%20la%20plataforma"`.
+  - **Etiqueta en la portada previa al inicio de sesión (`app/page.tsx`):**
+    - Entre el encabezado y el título principal se añade un pill / badge visible:
+      `¿Querés organizar torneos? Contactanos: 3434472721 →` con indicador verde pulsante y enlace directo a WhatsApp.
+  - **Claridad en autenticación (`app/(auth)/registro/page.tsx` y `app/(auth)/login/page.tsx`):**
+    - En el pie de las tarjetas de registro e ingreso se incorpora una nota informativa orientando a los directivos/organizadores de clubes y complejos para contactar al 3434472721 y solicitar la habilitación de su perfil de organizador, dado que los registros estándar inician como cuenta de jugador por seguridad y control de roles.
+  - **Aviso en el panel de jugador (`PlayerHome` en `app/(app)/torneos/page.tsx`):**
+    - Para usuarios con rol `player`, al pie de "Mis torneos" se presenta una tarjeta con acceso directo a WhatsApp para solicitar el alta como organizador de club o complejo deportivo.
+- **Motivo:** responder a la solicitud del usuario (*"me gustaria que ahi al inicio antes de loguearte aparezca como una etiqueta que diga '¿Queres organizar torneos? Contactanos 3434472721' o algo asi ya que como hemos hecho anteriormente los administradores cargan a los organizadores, sino ingresarian como jugadores"*).
+- **Cómo aplicar:** implementado en `lib/config.ts`, `app/page.tsx`, `app/(auth)/registro/page.tsx`, `app/(auth)/login/page.tsx` y `app/(app)/torneos/page.tsx`.

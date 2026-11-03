@@ -12,6 +12,7 @@ import { getAccountRole, getCurrentUser } from "@/lib/auth";
 import { type MyMatchRow, getMyMatches } from "@/lib/data/history";
 import { listOrganizedTournaments, listParticipations } from "@/lib/data/tournaments";
 import { compareMatchesChronological } from "@/lib/competition-view";
+import { ORGANIZER_CONTACT_PHONE, ORGANIZER_CONTACT_WHATSAPP_URL } from "@/lib/config";
 
 export const metadata: Metadata = { title: "Mis torneos" };
 
@@ -135,6 +136,21 @@ async function PlayerHome({
           hideOrganized={organized.length === 0}
         />
       ) : null}
+
+      <div className="rounded-xl border border-border/70 bg-card p-4 text-xs text-muted-foreground flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+        <div>
+          <p className="font-semibold text-foreground text-sm">¿Tenés un club o complejo y querés organizar torneos?</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Los administradores habilitan cuentas de organizador para gestionar torneos y fixtures.</p>
+        </div>
+        <a
+          href={ORGANIZER_CONTACT_WHATSAPP_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition-colors shrink-0 w-fit"
+        >
+          Contactanos al {ORGANIZER_CONTACT_PHONE} →
+        </a>
+      </div>
     </div>
   );
 }
