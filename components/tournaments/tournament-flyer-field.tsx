@@ -15,16 +15,25 @@ interface TournamentFlyerFieldProps {
   value?: string | null;
   onChange: (url: string | null) => void;
   disabled?: boolean;
+  sportName?: string;
 }
 
 export function TournamentFlyerField({
   value,
   onChange,
   disabled = false,
+  sportName,
 }: TournamentFlyerFieldProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+
+  const isFootball =
+    sportName?.toLowerCase().includes("fútbol") || sportName?.toLowerCase().includes("futbol");
+  const title = isFootball ? "Flyer y reglamento del torneo" : "Flyer del torneo";
+  const description = isFootball
+    ? "Subí un afiche con las reglas, formato (ej. Fútbol 5, 7 u 11), tiempos y premios. Los jugadores lo verán al inscribirse."
+    : "Agregar datos o afiche del torneo (opcional). Los jugadores lo verán al inscribirse.";
 
   async function handleFile(file: File) {
     if (!ALLOWED_TYPES.includes(file.type)) {
@@ -92,10 +101,10 @@ export function TournamentFlyerField({
         <div>
           <h4 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             <ImagePlus className="size-4 text-primary" aria-hidden="true" />
-            Flyer y reglamento del torneo
+            {title}
           </h4>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Subí un afiche con las reglas, formato (ej. Fútbol 5, 7 u 11), tiempos y premios. Los jugadores lo verán al inscribirse.
+            {description}
           </p>
         </div>
         <span className="text-[11px] font-medium text-muted-foreground border border-border/80 rounded-md px-2 py-0.5 bg-muted/40 shrink-0">

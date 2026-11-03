@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, FileEdit } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -9,21 +9,24 @@ import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import type { z } from "zod";
 import { createTournament } from "@/app/(app)/torneos/actions";
-import { NumberInput } from "@/components/shared/number-input";
 import { WizardSteps } from "@/components/shared/wizard-steps";
 import { Button } from "@/components/ui/button";
-import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { DEFAULT_TIMEZONE } from "@/lib/dates";
 import { applyServerErrors } from "@/lib/forms";
+import {
+  clearTournamentDraft,
+  getTournamentDraft,
+  saveTournamentDraft,
+} from "@/lib/storage/tournament-draft";
 import { type CreateTournamentInput, createTournamentSchema } from "@/lib/validation/tournament";
 import { RulesSections } from "./rules-sections";
 import { SportSelector } from "./sport-selector";
 import { TournamentFlyerField } from "./tournament-flyer-field";
 import {
   ConfirmationField,
-  CourtCountField,
   DateFields,
   DescriptionField,
   NameField,
@@ -59,44 +62,151 @@ function stepOfFirstError(names: readonly string[]): number {
 }
 
 /**
- * Asistente de alta de torneo en 4 pasos (D-054, D-072): básico → fechas y cupo → reglas → revisión.
- * Un solo formulario de React Hook Form: los valores se conservan al ir y volver, y cada
- * paso valida solo sus campos. Con microinteracciones, selección sensorial de deportes
- * y acento esmeralda SaaS.
+ * Asistente de alta de torneo en 4 pasos (D-054, D-072, D-196): básico → fechas y cupo → reglas → revisión.
+ * Con auto-guardado de borrador en localStorage y sincronización con el historial del navegador.
  */
 export function TournamentWizard({ sports }: { sports: SportOption[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [step, setStep] = useState(0);
   const [isTestTournament, setIsTestTournament] = useState(false);
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const skipFocus = useRef(true);
+  const isLoadedRef = useRef(false);
 
   // La página garantiza al menos un deporte en el catálogo.
   const initialSport = sports[0] as SportOption;
 
+  const defaultFormValues: CreateTournamentInput = {
+    name: "",
+    description: "",
+    startsOn: "",
+    endsOn: "",
+    timezone: DEFAULT_TIMEZONE,
+    maxTeams: 128,
+    courtCount: 2,
+    resultsRequireConfirmation: false,
+    sportId: initialSport.id,
+    scoringConfig: initialSport.defaultScoringConfig,
+    standingsConfig: initialSport.defaultStandingsConfig,
+    playoffConfig: { qualifiersPerGroup: 2, thirdPlace: false },
+    bannerUrl: null,
+    hasMultipleVenues: false,
+    venueName: "",
+    venues: [],
+    isTest: false,
+  };
+
   const form = useForm<CreateTournamentInput, unknown, z.output<typeof createTournamentSchema>>({
     resolver: zodResolver(createTournamentSchema),
-    defaultValues: {
-      name: "",
-      description: "",
-      startsOn: "",
-      endsOn: "",
-      timezone: DEFAULT_TIMEZONE,
-      maxTeams: 128,
-      courtCount: 2,
-      resultsRequireConfirmation: false,
-      sportId: initialSport.id,
-      scoringConfig: initialSport.defaultScoringConfig,
-      standingsConfig: initialSport.defaultStandingsConfig,
-      playoffConfig: { qualifiersPerGroup: 2, thirdPlace: false },
-      bannerUrl: null,
-    },
+    defaultValues: defaultFormValues,
   });
 
   const sportId = useWatch({ control: form.control, name: "sportId" });
   const sport = sports.find((s) => s.id === sportId) ?? initialSport;
   const values = useWatch({ control: form.control }) as CreateTournamentInput;
+
+  // 1. Cargar borrador persistido desde localStorage al montar
+  useEffect(() => {
+    if (isLoadedRef.current) return;
+    isLoadedRef.current = true;
+
+    const draft = getTournamentDraft();
+    if (draft && draft.values) {
+      const hasContent =
+        Boolean(draft.values.name?.trim()) ||
+        Boolean(draft.values.startsOn) ||
+        (draft.values.venues && draft.values.venues.length > 0) ||
+        draft.step > 0;
+
+      if (hasContent) {
+        form.reset({
+          ...defaultFormValues,
+          ...draft.values,
+        });
+
+        if (typeof draft.step === "number" && draft.step >= 0 && draft.step <= LAST_STEP) {
+          setStep(draft.step);
+          window.history.replaceState({ step: draft.step }, "");
+        } else {
+          window.history.replaceState({ step: 0 }, "");
+        }
+
+        if (typeof draft.isTestTournament === "boolean") {
+          setIsTestTournament(draft.isTestTournament);
+        }
+
+        setHasRestoredDraft(true);
+      } else {
+        window.history.replaceState({ step: 0 }, "");
+      }
+    } else {
+      window.history.replaceState({ step: 0 }, "");
+    }
+  }, [form]);
+
+  // 2. Sincronizar botón "Atrás" del navegador (popstate) con los pasos del wizard
+  useEffect(() => {
+    const onPopState = (e: PopStateEvent) => {
+      if (e.state && typeof e.state.step === "number") {
+        setStep(e.state.step);
+      } else {
+        setStep(0);
+      }
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  // 3. Auto-guardar borrador ante cualquier cambio en el formulario (debounced)
+  useEffect(() => {
+    const subscription = form.watch((currValues) => {
+      if (!isLoadedRef.current) return;
+
+      const hasContent =
+        Boolean(currValues.name?.trim()) ||
+        Boolean(currValues.startsOn) ||
+        (currValues.venues && currValues.venues.length > 0) ||
+        step > 0;
+
+      if (!hasContent) return;
+
+      const timer = setTimeout(() => {
+        saveTournamentDraft({
+          values: currValues as Partial<CreateTournamentInput>,
+          step,
+          isTestTournament,
+          updatedAt: new Date().toISOString(),
+        });
+      }, 350);
+
+      return () => clearTimeout(timer);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [form, step, isTestTournament]);
+
+  // 4. Guardar paso e isTestTournament cuando cambian
+  useEffect(() => {
+    if (!isLoadedRef.current) return;
+    const currentValues = form.getValues();
+    const hasContent =
+      Boolean(currentValues.name?.trim()) ||
+      Boolean(currentValues.startsOn) ||
+      (currentValues.venues && currentValues.venues.length > 0) ||
+      step > 0;
+
+    if (hasContent) {
+      saveTournamentDraft({
+        values: currentValues,
+        step,
+        isTestTournament,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }, [step, isTestTournament, form]);
 
   // Al cambiar de paso el foco va al título, para que lectores de pantalla y teclado sigan el flujo.
   useEffect(() => {
@@ -106,6 +216,34 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
     }
     headingRef.current?.focus();
   }, [step]);
+
+  const goToStep = (nextStep: number) => {
+    if (nextStep === step) return;
+    window.history.pushState({ step: nextStep }, "");
+    setStep(nextStep);
+  };
+
+  const handleBack = () => {
+    if (step > 0) {
+      if (window.history.state && typeof window.history.state.step === "number" && window.history.state.step > 0) {
+        window.history.back();
+      } else {
+        const prev = step - 1;
+        window.history.replaceState({ step: prev }, "");
+        setStep(prev);
+      }
+    }
+  };
+
+  const handleDiscardDraft = () => {
+    clearTournamentDraft();
+    form.reset(defaultFormValues);
+    setStep(0);
+    setIsTestTournament(false);
+    setHasRestoredDraft(false);
+    window.history.replaceState({ step: 0 }, "");
+    toast.info("Borrador descartado. Comenzando nuevo torneo.");
+  };
 
   async function goNext() {
     const fields = STEP_FIELDS[step];
@@ -117,7 +255,8 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
       toast.error("Revisá los campos marcados para continuar.");
       return;
     }
-    setStep((current) => Math.min(current + 1, LAST_STEP));
+    const nextStep = Math.min(step + 1, LAST_STEP);
+    goToStep(nextStep);
   }
 
   const submit = form.handleSubmit(
@@ -130,7 +269,13 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
           toast.error(result.error);
           return;
         }
-        toast.success(result.message ? `${result.message} Ahora configurá las canchas y franjas horarias.` : "Torneo creado. Ahora configurá las canchas y franjas horarias.");
+        // Limpiar el borrador local al crearse exitosamente
+        clearTournamentDraft();
+        toast.success(
+          result.message
+            ? `${result.message} Ahora configurá las canchas y franjas horarias.`
+            : "Torneo creado. Ahora configurá las canchas y franjas horarias."
+        );
         router.push(`/torneos/${result.data.tournamentId}/canchas-franjas?asistente=1`);
       });
     },
@@ -152,7 +297,25 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
 
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-6">
-      <WizardSteps steps={STEPS} current={step} onSelect={setStep} />
+      {hasRestoredDraft && (
+        <div className="flex items-center justify-between rounded-xl bg-amber-500/10 border border-amber-500/30 px-3.5 py-2.5 text-xs text-foreground animate-in fade-in-50 duration-200">
+          <div className="flex items-center gap-2">
+            <span className="flex size-2 rounded-full bg-amber-500" />
+            <span>
+              Recuperamos tu borrador en progreso de <strong>{values.name || "Torneo sin título"}</strong>.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleDiscardDraft}
+            className="text-xs font-semibold text-muted-foreground hover:text-destructive underline cursor-pointer"
+          >
+            Empezar de cero
+          </button>
+        </div>
+      )}
+
+      <WizardSteps steps={STEPS} current={step} onSelect={goToStep} />
 
       <section aria-labelledby="wizard-step-title" className="space-y-6">
         <div key={step} className="space-y-6 animate-in fade-in-50 slide-in-from-right-3 duration-200">
@@ -174,101 +337,22 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
               <Controller
                 name="sportId"
                 control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <div className="space-y-1">
-                      <FieldLabel htmlFor="t-sport" className="text-sm font-bold text-foreground">
-                        Deporte
-                      </FieldLabel>
-                      <FieldDescription className="text-xs text-muted-foreground">
-                        Elegí la disciplina del torneo. Configura automáticamente las reglas, tanteos y desempates recomendados.
-                      </FieldDescription>
-                    </div>
-                    <SportSelector
-                      sports={sports}
-                      value={field.value}
-                      onChange={(nextSportId) => {
-                        const next = sports.find((s) => s.id === nextSportId);
-                        field.onChange(nextSportId);
-                        if (next) {
-                          form.setValue("scoringConfig", next.defaultScoringConfig);
-                          form.setValue("standingsConfig", next.defaultStandingsConfig);
-                        }
-                      }}
-                    />
-                    {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
-                  </Field>
+                render={({ field }) => (
+                  <SportSelector
+                    sports={sports}
+                    value={field.value}
+                    onChange={(newSportId) => {
+                      field.onChange(newSportId);
+                      const s = sports.find((item) => item.id === newSportId);
+                      if (s) {
+                        form.setValue("scoringConfig", s.defaultScoringConfig, { shouldValidate: true });
+                        form.setValue("standingsConfig", s.defaultStandingsConfig, { shouldValidate: true });
+                      }
+                    }}
+                  />
                 )}
               />
               <DescriptionField form={form} />
-              {sport.defaultScoringConfig.type === "goals" ? (
-                <div className="rounded-xl border border-border/80 bg-muted/40 p-4 space-y-3">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                      ⚽ Límites de jugadores por equipo (Fútbol)
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Definí el mínimo de jugadores obligatorio para inscribir un equipo (ej. 5 para F5, 7 para F7, 11 para F11) y el máximo permitido con suplentes. Al anotarse, cada equipo debe cumplir estos límites.
-                    </p>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Controller
-                      name="scoringConfig"
-                      control={form.control}
-                      render={({ field, fieldState }) => {
-                        const cfg =
-                          field.value?.type === "goals"
-                            ? field.value
-                            : {
-                                type: "goals" as const,
-                                playoffTiebreak: "penalties" as const,
-                                minTeamSize: 5,
-                                maxTeamSize: 15,
-                              };
-                        return (
-                          <>
-                            <Field data-invalid={Boolean(fieldState.error?.message?.includes("mínimo") || fieldState.error?.message?.includes("minTeamSize"))}>
-                              <FieldLabel htmlFor="wizard-min-team-size" className="text-xs font-semibold">
-                                Mínimo de jugadores por equipo *
-                              </FieldLabel>
-                              <NumberInput
-                                id="wizard-min-team-size"
-                                min={1}
-                                max={30}
-                                value={cfg.minTeamSize ?? 5}
-                                onChange={(v) => field.onChange({ ...cfg, minTeamSize: v ?? 5 })}
-                              />
-                              <FieldDescription className="text-[11px]">
-                                Obligatorio para que el equipo pueda inscribirse.
-                              </FieldDescription>
-                            </Field>
-                            <Field data-invalid={Boolean(fieldState.error?.message?.includes("máximo") || fieldState.error?.message?.includes("maxTeamSize"))}>
-                              <FieldLabel htmlFor="wizard-max-team-size" className="text-xs font-semibold">
-                                Máximo de jugadores por equipo *
-                              </FieldLabel>
-                              <NumberInput
-                                id="wizard-max-team-size"
-                                min={1}
-                                max={30}
-                                value={cfg.maxTeamSize ?? 15}
-                                onChange={(v) => field.onChange({ ...cfg, maxTeamSize: v ?? 15 })}
-                              />
-                              <FieldDescription className="text-[11px]">
-                                Límite total de la lista de buena fe (con suplentes).
-                              </FieldDescription>
-                            </Field>
-                            {fieldState.error ? (
-                              <div className="sm:col-span-2">
-                                <FieldError errors={[fieldState.error]} />
-                              </div>
-                            ) : null}
-                          </>
-                        );
-                      }}
-                    />
-                  </div>
-                </div>
-              ) : null}
             </FieldGroup>
           ) : null}
 
@@ -289,6 +373,7 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
                     value={field.value}
                     onChange={field.onChange}
                     disabled={isPending}
+                    sportName={sport.name}
                   />
                 )}
               />
@@ -305,7 +390,7 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
                 values={values}
                 sportName={sport.name}
                 teamSize={sport.minTeamSize}
-                onEdit={setStep}
+                onEdit={goToStep}
               />
               <Field orientation="horizontal">
                 <Switch id="t-test-mode" checked={isTestTournament} onCheckedChange={setIsTestTournament} />
@@ -332,7 +417,7 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
             type="button"
             variant="outline"
             size="lg"
-            onClick={() => setStep(step - 1)}
+            onClick={handleBack}
             disabled={isPending}
             className="border-border/80 hover:bg-muted font-medium transition-all"
           >

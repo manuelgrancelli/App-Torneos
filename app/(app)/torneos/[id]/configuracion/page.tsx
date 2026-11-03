@@ -103,7 +103,7 @@ export default async function TournamentSettingsPage({ params }: PageProps<"/tor
         locks={locks}
       />
 
-      {tournament.isOwner && canDeleteTournament(tournament.status) ? (
+      {(tournament.canDelete ?? (tournament.isOwner && canDeleteTournament(tournament.status))) ? (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardHeader>
             <CardTitle className="text-base font-semibold text-destructive">

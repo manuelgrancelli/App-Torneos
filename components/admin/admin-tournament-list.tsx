@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Search, Trophy, ExternalLink, Shield, Users, Calendar, ArrowRight, Activity } from "lucide-react";
 import type { AdminTournamentItem } from "@/lib/data/admin";
 import { StatusBadge, getSportEmoji } from "@/components/tournaments/status-badge";
+import { DeleteTournamentButton } from "@/components/tournaments/delete-tournament-button";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -182,6 +183,11 @@ export function AdminTournamentList({
                             Prueba
                           </Badge>
                         )}
+                        {t.isSuperAdminTournament && (
+                          <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/10">
+                            SuperAdmin
+                          </Badge>
+                        )}
                         <span className="text-xs text-muted-foreground">
                           · {t.sportName}
                         </span>
@@ -258,7 +264,15 @@ export function AdminTournamentList({
                       <span>Modo auditoría protegido (sólo lectura)</span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+<div className="flex items-center gap-2">
+                      {t.isSuperAdminTournament && (
+                        <DeleteTournamentButton
+                          tournamentId={t.id}
+                          tournamentName={t.name}
+                          compact
+                          redirectUrl={null}
+                        />
+                      )}
                       {t.status !== "draft" && (
                         <Button
                           asChild

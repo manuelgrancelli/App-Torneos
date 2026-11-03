@@ -95,7 +95,7 @@ export const createTournamentSchema = z
     hasMultipleVenues: z.boolean().default(false),
     venueName: z.string().trim().max(100).optional(),
     venues: z.array(venueConfigSchema).optional(),
-    isTest: z.boolean().optional(),
+    isTest: z.boolean().default(false),
   })
   .superRefine((data, ctx) => {
     crossFieldChecks(data, ctx);

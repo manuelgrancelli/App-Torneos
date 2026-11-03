@@ -172,7 +172,8 @@ export default async function BracketPage({
     categoryMatches,
     categoryScoring,
     categoryStandings,
-    effectiveQualifiers
+    effectiveQualifiers,
+    categoryPlayoff.advance3FromGroupsOf4 ?? true
   );
 
   const projectedCards = buildProjectedBracket(

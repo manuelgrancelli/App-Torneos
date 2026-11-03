@@ -5,6 +5,7 @@ import type { StandingsConfig } from "@/lib/domain/standings";
 import type { PlayoffConfig } from "@/lib/domain/bracket";
 import type { TournamentStatus } from "@/lib/domain/tournament-status";
 import { createClient } from "@/lib/supabase/server";
+import { isSuperAdmin } from "@/lib/auth";
 import type { Tables } from "@/lib/supabase/database.types";
 
 /**
@@ -329,6 +330,7 @@ export type OrganizerTournament = {
   adminInviteCode?: string | null;
   isTest: boolean;
   isOwner: boolean;
+  canDelete?: boolean;
 };
 
 /**
@@ -360,7 +362,28 @@ export const getOrganizerTournament = cache(
       if (adminRow) isAuthorized = true;
     }
 
+    const userIsSuper = await isSuperAdmin();
+    if (!isAuthorized && userIsSuper) {
+      isAuthorized = true;
+    }
+
     if (!isAuthorized) return null;
+
+    let canDelete = isOwner && data.status !== "finished";
+    if (userIsSuper) {
+      if (isOwner) {
+        canDelete = true;
+      } else {
+        const { data: orgProfile } = await supabase
+          .from("profiles")
+          .select("account_role")
+          .eq("id", data.organizer_id)
+          .maybeSingle();
+        if (orgProfile?.account_role === "superadmin") {
+          canDelete = true;
+        }
+      }
+    }
 
     let adminInviteCode: string | null = null;
     if (isOwner) {
@@ -395,6 +418,7 @@ export const getOrganizerTournament = cache(
       adminInviteCode,
       isTest: data.is_test,
       isOwner,
+      canDelete,
     };
   },
 );

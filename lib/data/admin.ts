@@ -30,6 +30,7 @@ export type AdminTournamentItem = {
   organizerName: string;
   organizerEmail: string | null;
   isTest: boolean;
+  isSuperAdminTournament?: boolean;
   teamsCount: number;
   approvedTeamsCount: number;
   maxTeams: number;
@@ -83,7 +84,7 @@ export const getAdminDashboardData = cache(async (): Promise<{
       organizer_id,
       created_at,
       sports(name),
-      profiles!tournaments_organizer_id_fkey(full_name)
+      profiles!tournaments_organizer_id_fkey(full_name, account_role)
     `)
     .order("created_at", { ascending: false });
 
@@ -170,6 +171,7 @@ export const getAdminDashboardData = cache(async (): Promise<{
       organizerName: profile?.full_name ?? "Organizador",
       organizerEmail: null,
       isTest: t.is_test ?? false,
+      isSuperAdminTournament: profile?.account_role === "superadmin",
       teamsCount: teamStats.total,
       approvedTeamsCount: teamStats.approved,
       maxTeams: t.max_teams ?? 0,

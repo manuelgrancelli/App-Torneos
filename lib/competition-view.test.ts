@@ -287,6 +287,9 @@ describe("qualifiersFromStandings", () => {
     const qualifiers = qualifiersFromStandings([{ group, rows }], 2, "sets");
     expect(qualifiers.map((q) => q.teamId)).toEqual(["t1", "t2", "t3"]);
     expect(qualifiers).toHaveLength(3);
+    const qualifiersWithoutAdvance3 = qualifiersFromStandings([{ group, rows }], 2, "sets", false);
+    expect(qualifiersWithoutAdvance3.map((q) => q.teamId)).toEqual(["t1", "t2"]);
+    expect(qualifiersWithoutAdvance3).toHaveLength(2);
   });
 });
 

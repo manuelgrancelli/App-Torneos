@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   CircleAlert,
   Clock,
+  Lock,
   TriangleAlert,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -619,9 +620,14 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
           {/* Selector de cancha (cuando la franja no está prefijada a una cancha específica) */}
           {slot && !slot.courtId && courts.length > 0 ? (
             <Field className="space-y-2">
-              <FieldLabel className="text-xs sm:text-sm font-semibold">
-                Cancha para el partido
-              </FieldLabel>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                <FieldLabel className="text-xs sm:text-sm font-semibold">
+                  Cancha para el partido
+                </FieldLabel>
+                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                  Franja: {formatDayHeading(localDateKey(slot.startsAt, timezone))} · {formatTimeRange(slot.startsAt, slot.endsAt, timezone)}
+                </span>
+              </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {courts.map((c) => {
                   const isBusy = overlappingWithSelectedSlot.some((o) => o.courtId === c.id);
@@ -633,7 +639,7 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
                       type="button"
                       onClick={() => setCourtId(c.id)}
                       className={cn(
-                        "rounded-xl border p-2.5 text-left transition-all text-xs flex flex-col justify-between gap-1",
+                        "rounded-xl border p-2.5 text-left transition-all text-xs flex flex-col justify-between gap-1 cursor-pointer",
                         isSelected
                           ? "border-primary bg-primary/10 ring-2 ring-primary shadow-xs font-semibold"
                           : "border-border hover:bg-muted bg-card",
@@ -647,13 +653,32 @@ export function AssignSlotDialog(props: AssignSlotDialogProps) {
                           isBusy ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400",
                         )}
                       >
-                        {isBusy ? "● Ocupada a esta hora" : "● Cancha libre"}
+                        {isBusy ? "● Ocupada a esta hora" : `● Libre (${formatTimeRange(slot.startsAt, slot.endsAt, timezone)})`}
                       </span>
                     </button>
                   );
                 })}
               </div>
             </Field>
+          ) : null}
+
+          {/* Resumen de horario seleccionado y aviso de candado */}
+          {slot && effectiveCourt ? (
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs space-y-1.5 animate-in fade-in-50 duration-150">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-bold text-foreground flex items-center gap-1.5">
+                  <Calendar className="size-3.5 text-emerald-500" />
+                  {formatDayHeading(localDateKey(slot.startsAt, timezone))} · {formatTimeRange(slot.startsAt, slot.endsAt, timezone)}
+                </span>
+                <Badge variant="outline" className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300 font-semibold text-[11px] bg-emerald-500/10">
+                  {courtName.get(effectiveCourt) ?? "Cancha"}
+                </Badge>
+              </div>
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 pt-0.5">
+                <Lock className="size-3 text-amber-500 shrink-0" />
+                <span>Al guardar a mano, el partido queda <strong>fijado con candado 🔒</strong> para que el algoritmo automático no te lo modifique.</span>
+              </p>
+            </div>
           ) : null}
 
           {/* Análisis de descanso de los equipos si disputan otro partido ese día */}

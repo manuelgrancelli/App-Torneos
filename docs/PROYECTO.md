@@ -2859,3 +2859,69 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
     - Las tarjetas de partido en fixture, partidos, cuadro, selector de franjas y página pública muestran claramente el identificador combinado: `Cancha X · Nombre de Sede`.
 - **Motivo:** responder a la solicitud del usuario ("que se diferencie sedes de canchas en una sede puede haber muchas canchas, entonces el organizador del torneo tendria que poner cuantas sedes tiene disponible... que en grupos todos los partidos de ese grupo deben ser en la misma sede... y en cruces si van a partir de cuartos que por la parte de arriba se juegue en una sede y por abajo en la otra, y a partir de semis en la misma sede").
 - **Cómo aplicar:** implementado en `lib/domain/scheduler.ts`, `lib/domain/scheduler.test.ts`, `lib/scheduling.ts`, `lib/validation/tournament.ts`, `lib/validation/tournament.test.ts`, `components/tournaments/venues-and-courts-field.tsx`, `components/tournaments/tournament-wizard.tsx`, `components/tournaments/tournament-review.tsx`, `components/tournaments/slots-manager.tsx`, `components/tournaments/configured-slots-list.tsx`, `app/(app)/torneos/actions.ts`, `app/(app)/torneos/[id]/partidos/page.tsx`, `app/(app)/torneos/[id]/cuadro/page.tsx`, `app/t/[slug]/page.tsx` y `docs/PROYECTO.md`.
+
+### D-195 — Borrado Cruzado de Torneos entre Superadministradores (2026-11-03)
+- **Decisión:**
+  - **Permisos de eliminación cruzada para Superadministradores:**
+    - Se habilita que cualquier superadministrador de la plataforma (por ejemplo, Manuel o Lautaro) pueda eliminar torneos creados por cualquier otro superadministrador, además de sus propios torneos, sin importar el estado en que se encuentren (incluso en `finished` para depuración y limpieza de torneos de prueba masivos).
+    - Los torneos creados por organizadores regulares mantienen la protección habitual (solo el propio organizador puede borrarlos y únicamente antes de que finalicen).
+  - **Seguridad en base de datos (Migración `20261103000000_superadmin_delete_tournaments.sql`):**
+    - Se refuerza `private.is_superadmin(p_user_id)` para contemplar tanto `account_role = 'superadmin'` como el email de rescate en `auth.users`.
+    - Se reemplaza la política de `DELETE` en `public.tournaments` por una política dual:
+      1. El organizador borra su propio torneo si `status <> 'finished'`.
+      2. Un superadministrador autenticado puede borrar cualquier torneo cuyo organizador sea superadministrador o sea él mismo.
+    - Se crea la función RPC con `SECURITY DEFINER` `public.delete_tournament_superadmin(p_tournament_id uuid)` para un borrado atómico y validado desde Server Actions. Todas las entidades dependientes (categorías, canchas, inscripciones, partidos, grupos, franjas) se eliminan limpiamente mediante `ON DELETE CASCADE`.
+  - **Integración en Server Actions y Vistas:**
+    - `app/(app)/torneos/[id]/actions.ts` (`deleteTournament`): si el usuario que invoca es superadmin, intenta la RPC `delete_tournament_superadmin` y revalida `/torneos`, `/torneos/historial`, `/historial` y `/admin`.
+    - `lib/data/tournaments.ts` (`getOrganizerTournament`): autoriza el acceso a superadmins (`isAuthorized = true`) e informa el flag `canDelete: boolean`.
+    - `app/(app)/torneos/[id]/configuracion/page.tsx`: muestra la *"Zona de peligro"* con el botón de eliminar cuando `tournament.canDelete` es verdadero.
+    - `components/admin/admin-tournament-list.tsx` y `components/tournaments/delete-tournament-button.tsx`:
+      - Se agrega el badge distintivo `SuperAdmin` en la tarjeta del torneo en el panel de auditoría.
+      - Se incorpora el botón de eliminación directa `<DeleteTournamentButton ... compact redirectUrl={null} />` en la tarjeta de cada torneo de superadmin en `/admin`, permitiendo purgar torneos de prueba con un solo clic y refresco inmediato.
+- **Motivo:** responder a la solicitud del usuario (*"quiero que los torneos de superadmins, los mismos superadmins puedna eliminarlos, por ejemplo actualmente hay 2 superadmins manuel y lautaro, manuel puede eliminar torneos creados por lautaro y sus propios torneos y viceversa"*).
+- **Cómo aplicar:** ejecutar `supabase/migrations/20261103000000_superadmin_delete_tournaments.sql` en el SQL Editor de Supabase y desplegar los cambios de frontend.
+
+### D-196 — Persistencia de Borrador y Navegación Segura en el Asistente de Creación (2026-11-03)
+- **Decisión:**
+  - **Auto-guardado continuo del borrador (Draft):**
+    - Se implementa el módulo de almacenamiento cliente `lib/storage/tournament-draft.ts` (`TOURNAMENT_DRAFT_KEY = "app_torneos_wizard_draft_v1"`).
+    - Guarda en tiempo real con debounce: todos los campos del formulario (`name`, `description`, `sportId`, `startsOn`, `endsOn`, `venues`, `courtCount`, `hasMultipleVenues`, `rules`, `bannerUrl`), el paso actual (`step`) y la bandera de torneo de prueba.
+  - **Sincronización con el botón "Atrás" del navegador (`popstate` / `pushState`):**
+    - Cada avance de paso en el asistente registra una entrada en el historial (`window.history.pushState({ step: nextStep }, "")`).
+    - Si el usuario presiona el botón "Atrás" de su navegador, mouse o celular, o el botón "Volver" del formulario, el asistente retrocede al paso anterior de forma natural sin abandonar la pantalla ni resetear los valores.
+  - **Restauración y gestión de borradores:**
+    - Al ingresar a `/torneos/nuevo`, si existe un borrador guardado, se restauran automáticamente todos los valores, sedes y configuraciones en el paso exacto donde quedó.
+    - Se muestra una barra superior que notifica la recuperación del borrador y ofrece un botón *"Empezar de cero"* para descartarlo si se desea.
+    - Al crearse exitosamente el torneo, el borrador se elimina de forma limpia.
+  - **Banner de borrador en el Dashboard (`TournamentDraftBanner` en `app/(app)/torneos/page.tsx`):**
+    - Si el usuario sale a la lista de torneos (`/torneos`), una tarjeta destacada le informa que tiene un torneo en borrador pendiente con nombre, sedes y canchas, ofreciendo los accesos directos *"Continuar creación"* y *"Descartar"*.
+- **Motivo:** responder a la solicitud del usuario (*"cuando voy a crear un torneo ya puse 2 veces continuar por ejemplo y si vuelvo atras me borra el torneo, es decir, tengo que ingresar de vuelta sedes, fecha nombre del torneo, me gustaria que quede el torneo en borrador, no que haya que hacer todo de vuelta"*).
+- **Cómo aplicar:** implementado en `lib/storage/tournament-draft.ts`, `components/tournaments/tournament-wizard.tsx`, `components/tournaments/tournament-draft-banner.tsx` y `app/(app)/torneos/page.tsx`.
+
+### D-197 — Configuración Explícita de Clasificación en Grupos de 4 Parejas (2026-11-03)
+- **Decisión:**
+  - **Claridad y control explícito en Playoffs (`PlayoffFields` en `components/tournaments/config-fields.tsx`):**
+    - Se añade la propiedad `advance3FromGroupsOf4: boolean` (por defecto `true`) a `playoffConfigSchema` y `normalizePlayoffConfig` en `lib/domain/bracket.ts`.
+    - En el panel de configuración de Playoffs y en el paso de Reglas del asistente:
+      1. El selector general aclara: *"Clasifican por grupo: Los 2 primeros (estándar)"* con la nota *"Aplica a los grupos habituales de 3 parejas"*.
+      2. Se incorpora una sección destacada con switch:
+         **"En grupos de 4 parejas clasifican 3"**
+         *"Si una zona queda con 4 parejas, clasifican el 1°, 2° y 3° al cuadro eliminatorio para dar más juego y compensar el partido extra. Si lo desactivás, clasificarán solo los 2 primeros (igual que en grupos de 3)."*
+  - **Soporte en todo el motor de torneos:**
+    - `lib/competition-view.ts` (`qualifiersFromStandings`, `buildTeamSeedMap`, `buildProjectedBracket`): toma en cuenta `advance3FromGroupsOf4` para determinar si de las zonas de 4 se extraen 3 clasificados o únicamente 2.
+    - `lib/player-progress.ts` (`qualifiersForGroup`): actualiza la meta y avance del jugador según esta configuración.
+    - Vistas de grupos (`app/(app)/torneos/[id]/grupos/page.tsx` y `app/t/[slug]/page.tsx`): resaltan en verde exactamente la cantidad de parejas clasificadas según la opción elegida.
+- **Motivo:** responder a la solicitud del usuario (*"fijate que podes hacer aca para darle la opcion al organizador si quiere que de un grupo de 4 pasen 3, es decir, eso funciona bien, pero no esta explicito, ya que solo te da esa opcion"*).
+- **Cómo aplicar:** implementado en `lib/domain/bracket.ts`, `components/tournaments/config-fields.tsx`, `lib/competition-view.ts`, `lib/competition-view.test.ts`, `lib/player-progress.ts`, `app/(app)/torneos/[id]/cuadro/actions.ts`, `app/(app)/torneos/[id]/cuadro/page.tsx`, `app/(app)/torneos/[id]/grupos/page.tsx` y `app/t/[slug]/page.tsx`.
+
+### D-198 — Claridad en Asignación Manual de Horarios y Candado de Protección (schedule_locked) (2026-11-03)
+- **Decisión:**
+  - **Explicación del candado (🔒 Fijado):** El candado amarillo que aparece en el partido al asignarle cancha/horario manualmente representa que el partido está "fijado" (`schedule_locked: true`). Es una función de seguridad fundamental del sistema: evita que cualquier programación automática posterior o re-sorteo de horarios mueva de lugar ese partido que el organizador ubicó a mano por alguna razón particular (ej. pedido de descanso o cambio de día solicitado). Si el organizador desea desbloquearlo, basta con abrir el modal y presionar *"Quitar horario"* (`schedule_locked: false`).
+  - **Claridad del horario en el selector de canchas (`components/matches/assign-slot-dialog.tsx`):**
+    - En la cabecera de la sección de canchas se expone en texto destacado y en color esmeralda el día y rango horario de la franja elegida: *"Franja: Viernes 6/11 · 14:00 – 15:30"*.
+    - En cada botón de cancha disponible se sustituye la frase genérica *"● Cancha libre"* por el horario específico *"● Libre (14:00 – 15:30)"*, eliminando la duda de en qué horario exacto está disponible la cancha seleccionada.
+    - Se agrega una tarjeta previa al guardado que resume día, horario y cancha seleccionados, junto a un aviso explícito con el icono de candado: *"Al guardar a mano, el partido queda fijado con candado 🔒 para que el algoritmo automático no te lo modifique"*.
+  - **Pastilla informativa en el tablero de partidos (`components/matches/matches-board.tsx`):**
+    - Se reemplaza el icono suelto de candado sin texto por una pastilla identificable: `🔒 Fijado` con tooltip detallado: *"Horario fijado manualmente por el organizador. El algoritmo de programación automática no moverá este partido"*.
+- **Motivo:** responder a la duda del usuario (*"quise cambiar de dia que se juegue ese partido me decia cancha 1 y 4 en verde como disponible, pero no me ponia el horario en el que estaba disponible, es decir no me decia el horario de franjas, me dejo cambiar el partido para el viernes y me pone ese candado"*).
+- **Cómo aplicar:** implementado en `components/matches/assign-slot-dialog.tsx` y `components/matches/matches-board.tsx`.

@@ -249,7 +249,7 @@ export default async function GroupsPage({
                 teamMembers={teamMembersMap}
                 scoringType={categoryScoring.type}
                 qualifiers={
-                  group.teamIds.length === 4
+                  (categoryPlayoff.advance3FromGroupsOf4 ?? true) && group.teamIds.length === 4
                     ? 3
                     : groups.length === 1 && categoryPlayoff.qualifiersPerGroup < 2
                       ? 2

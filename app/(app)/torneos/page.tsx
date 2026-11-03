@@ -6,6 +6,7 @@ import { JoinCodeForm } from "@/components/registration/join-code-form";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { TournamentDashboard } from "@/components/tournaments/tournament-dashboard";
+import { TournamentDraftBanner } from "@/components/tournaments/tournament-draft-banner";
 import { Button } from "@/components/ui/button";
 import { getAccountRole, getCurrentUser } from "@/lib/auth";
 import { type MyMatchRow, getMyMatches } from "@/lib/data/history";
@@ -57,6 +58,7 @@ export default async function TournamentsPage() {
         }
       />
 
+      <TournamentDraftBanner />
       <JoinCodeForm />
 
       <TournamentDashboard

@@ -284,9 +284,10 @@ export function qualifiersFromStandings(
   standings: { group: GroupView; rows: StandingRow[] }[],
   perGroup: number,
   scoringType: "sets" | "goals",
+  advance3FromGroupsOf4: boolean = true,
 ): Qualifier[] {
   return standings.flatMap(({ group, rows }, groupIndex) => {
-    const effectiveQualifiers = group.teamIds.length === 4 ? 3 : perGroup;
+    const effectiveQualifiers = advance3FromGroupsOf4 && group.teamIds.length === 4 ? 3 : perGroup;
     return rows.slice(0, effectiveQualifiers).map((row) => {
       const played = Math.max(row.played, 1);
       const diff = scoringType === "sets" ? row.setsFor - row.setsAgainst : row.goalsFor - row.goalsAgainst;
@@ -360,6 +361,7 @@ export function buildTeamSeedMap(
   scoring: ScoringConfig,
   standingsConfig: StandingsConfig,
   perGroup: number,
+  advance3FromGroupsOf4: boolean = true,
 ): Map<string, string> {
   const map = new Map<string, string>();
   const standings = groupStandings(groups, matches, scoring, standingsConfig);
@@ -368,7 +370,7 @@ export function buildTeamSeedMap(
     const groupLetter = (rawLetter.length <= 2 ? rawLetter : "") || String.fromCharCode(65 + g);
     const rows = standings[g]?.rows ?? [];
     const effectivePerGroup =
-      group.teamIds.length === 4 ? 3 : groups.length === 1 && perGroup < 2 ? 2 : perGroup;
+      advance3FromGroupsOf4 && group.teamIds.length === 4 ? 3 : groups.length === 1 && perGroup < 2 ? 2 : perGroup;
     for (let i = 0; i < Math.min(effectivePerGroup, rows.length); i++) {
       const row = rows[i];
       if (row) {
@@ -388,7 +390,7 @@ export function buildProjectedBracket(
   matches: MatchView[],
   scoring: ScoringConfig,
   standingsConfig: StandingsConfig,
-  playoffConfig: { qualifiersPerGroup: number; thirdPlace: boolean },
+  playoffConfig: { qualifiersPerGroup: number; thirdPlace: boolean; advance3FromGroupsOf4?: boolean },
   teamNames: Map<string, string>,
   categoryId?: string | null,
 ): BracketCard[] | null {
@@ -406,8 +408,9 @@ export function buildProjectedBracket(
   if (targetGroups.length === 0) return null;
 
   const rawPerGroup = Math.max(1, playoffConfig.qualifiersPerGroup);
+  const advance3 = playoffConfig.advance3FromGroupsOf4 ?? true;
   const groupEffectiveQualifiers = (g: GroupView) =>
-    g.teamIds.length === 4 ? 3 : targetGroups.length === 1 && rawPerGroup < 2 ? 2 : rawPerGroup;
+    advance3 && g.teamIds.length === 4 ? 3 : targetGroups.length === 1 && rawPerGroup < 2 ? 2 : rawPerGroup;
 
   const totalQualifiers = targetGroups.reduce((acc, g) => acc + groupEffectiveQualifiers(g), 0);
   if (totalQualifiers < 2 || totalQualifiers > 64) return null;

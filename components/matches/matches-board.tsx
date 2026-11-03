@@ -160,8 +160,12 @@ function MatchRow({
               ) : null}
 
               {match.scheduleLocked ? (
-                <span className="inline-flex items-center justify-center size-5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30" title="Horario fijado a mano">
-                  <Lock className="size-2.5" aria-label="Horario fijado a mano" />
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-xs font-semibold text-amber-500 dark:text-amber-400"
+                  title="Horario fijado manualmente por el organizador. El algoritmo de programación automática no moverá este partido."
+                >
+                  <Lock className="size-3 text-amber-500 shrink-0" aria-hidden="true" />
+                  <span>Fijado</span>
                 </span>
               ) : null}
             </>

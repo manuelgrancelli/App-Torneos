@@ -52,8 +52,8 @@ export type PlayerProgressInput = {
 };
 
 /** Clasificados por grupo con las mismas reglas que la página pública (zonas de 4 → 3; zona única → al menos 2). */
-export function qualifiersForGroup(group: GroupView, groupsInCategory: number, perGroup: number): number {
-  if (group.teamIds.length === 4) return 3;
+export function qualifiersForGroup(group: GroupView, groupsInCategory: number, perGroup: number, advance3FromGroupsOf4: boolean = true): number {
+  if (advance3FromGroupsOf4 && group.teamIds.length === 4) return 3;
   if (groupsInCategory === 1 && perGroup < 2) return 2;
   return perGroup;
 }
@@ -120,7 +120,7 @@ export function buildPlayerProgress(input: PlayerProgressInput): PlayerProgress 
       group: myGroup,
       rows,
       position: index >= 0 ? index + 1 : null,
-      qualifiers: qualifiersForGroup(myGroup, categoryGroups.length, playoffConfig.qualifiersPerGroup),
+      qualifiers: qualifiersForGroup(myGroup, categoryGroups.length, playoffConfig.qualifiersPerGroup, playoffConfig.advance3FromGroupsOf4 ?? true),
     };
   }
 

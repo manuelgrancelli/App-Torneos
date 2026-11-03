@@ -9,6 +9,7 @@ import { normalizeScoringConfig } from "@/lib/domain/scoring";
 import { normalizeStandingsConfig } from "@/lib/domain/standings";
 import { dbErrorMessage } from "@/lib/supabase/errors";
 import { canUserManageTournament } from "@/lib/data/tournaments";
+import { isSuperAdmin } from "@/lib/auth";
 import {
   adminInviteCodeSchema,
   changeStatusSchema,
@@ -60,6 +61,24 @@ export const updateTournament = createAction(updateTournamentSchema, async (inpu
 
 /** Borra el torneo (solo si no está en estado finalizado: lo aplica la política de RLS). */
 export const deleteTournament = createAction(tournamentIdSchema, async ({ tournamentId }, { supabase }) => {
+  const superAdmin = await isSuperAdmin();
+
+  if (superAdmin) {
+    // Intentar borrado por RPC para superadministradores (permite borrado cruzado de torneos de superadmins y finalizados)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: rpcRes, error: rpcErr } = await (supabase as any).rpc("delete_tournament_superadmin", {
+      p_tournament_id: tournamentId,
+    });
+
+    if (!rpcErr && rpcRes?.ok) {
+      revalidatePath("/torneos");
+      revalidatePath("/torneos/historial");
+      revalidatePath("/historial");
+      revalidatePath("/admin");
+      return actionOk(undefined, "Eliminamos el torneo.");
+    }
+  }
+
   const { data, error } = await supabase.from("tournaments").delete().eq("id", tournamentId).select("id");
   if (error) return actionError(dbErrorMessage(error));
   if (data.length === 0) {
@@ -68,6 +87,7 @@ export const deleteTournament = createAction(tournamentIdSchema, async ({ tourna
   revalidatePath("/torneos");
   revalidatePath("/torneos/historial");
   revalidatePath("/historial");
+  revalidatePath("/admin");
   return actionOk(undefined, "Eliminamos el torneo.");
 });
 

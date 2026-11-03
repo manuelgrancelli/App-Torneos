@@ -254,7 +254,7 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
                         teamLogos={teamLogos}
                         scoringType={(activeCategory?.scoringConfig ?? tournament.scoringConfig).type}
                         qualifiers={
-                          group.teamIds.length === 4
+                          (activeCategory?.playoffConfig?.advance3FromGroupsOf4 ?? tournament.playoffConfig.advance3FromGroupsOf4 ?? true) && group.teamIds.length === 4
                             ? 3
                             : filteredGroups.length === 1 &&
                               (activeCategory?.playoffConfig?.qualifiersPerGroup ?? tournament.playoffConfig.qualifiersPerGroup) < 2

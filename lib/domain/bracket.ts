@@ -16,6 +16,8 @@ import { z } from "zod";
 export const playoffConfigSchema = z.object({
   qualifiersPerGroup: z.number().int().min(1).max(8),
   thirdPlace: z.boolean(),
+  advance3FromGroupsOf4: z.boolean().optional(),
+  mainVenue: z.string().nullable().optional(),
 });
 export type PlayoffConfig = z.infer<typeof playoffConfigSchema>;
 
@@ -26,6 +28,7 @@ export function normalizePlayoffConfig(raw: unknown): PlayoffConfig {
   const fallback: PlayoffConfig = {
     qualifiersPerGroup: 2,
     thirdPlace: false,
+    advance3FromGroupsOf4: true,
   };
   if (!raw || typeof raw !== "object") return fallback;
   const obj = raw as Record<string, unknown>;
@@ -36,7 +39,15 @@ export function normalizePlayoffConfig(raw: unknown): PlayoffConfig {
       ? obj.qualifiersPerGroup
       : 2;
   const thirdPlace = Boolean(obj.thirdPlace);
-  return { qualifiersPerGroup, thirdPlace };
+  const advance3FromGroupsOf4 =
+    obj.advance3FromGroupsOf4 === undefined ? true : Boolean(obj.advance3FromGroupsOf4);
+  const mainVenue = typeof obj.mainVenue === "string" ? obj.mainVenue : null;
+  return {
+    qualifiersPerGroup,
+    thirdPlace,
+    advance3FromGroupsOf4,
+    ...(mainVenue ? { mainVenue } : {}),
+  };
 }
 
 export const MAX_BRACKET_SIZE = 64;

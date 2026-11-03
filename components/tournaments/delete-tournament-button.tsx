@@ -6,8 +6,18 @@ import { toast } from "sonner";
 import { deleteTournament } from "@/app/(app)/torneos/[id]/actions";
 import { ConfirmActionButton } from "@/components/shared/confirm-action-button";
 
-/** Borrado del torneo (solo antes de empezar, D-009). */
-export function DeleteTournamentButton({ tournamentId, tournamentName }: { tournamentId: string; tournamentName: string }) {
+/** Borrado del torneo (D-009, D-195). */
+export function DeleteTournamentButton({
+  tournamentId,
+  tournamentName,
+  compact = false,
+  redirectUrl = "/torneos",
+}: {
+  tournamentId: string;
+  tournamentName: string;
+  compact?: boolean;
+  redirectUrl?: string | null;
+}) {
   const router = useRouter();
 
   async function remove() {
@@ -17,23 +27,34 @@ export function DeleteTournamentButton({ tournamentId, tournamentName }: { tourn
       return false;
     }
     toast.success(result.message ?? "Eliminamos el torneo.");
-    router.push("/torneos");
+    if (redirectUrl) {
+      router.push(redirectUrl);
+    } else {
+      router.refresh();
+    }
   }
 
   return (
     <ConfirmActionButton
-      variant="ghost"
+      variant={compact ? "outline" : "ghost"}
       destructive
-      className="text-destructive"
+      className={
+        compact
+          ? "h-8 px-2.5 text-xs text-destructive hover:bg-destructive/10 border-destructive/30"
+          : "text-destructive"
+      }
       title={`¿Eliminar "${tournamentName}"?`}
       description={
-        <p>Se eliminarán permanentemente el torneo, sus equipos, partidos, grupos y configuraciones. Esta acción no se puede deshacer.</p>
+        <p>
+          Se eliminarán permanentemente el torneo, sus equipos, partidos, grupos y configuraciones.
+          Esta acción no se puede deshacer.
+        </p>
       }
       confirmLabel="Eliminar torneo"
       onConfirm={remove}
     >
-      <Trash2 aria-hidden="true" />
-      Eliminar torneo
+      <Trash2 className="size-3.5" aria-hidden="true" />
+      <span>{compact ? "Eliminar" : "Eliminar torneo"}</span>
     </ConfirmActionButton>
   );
 }

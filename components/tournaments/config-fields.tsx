@@ -329,33 +329,63 @@ type PlayoffFieldsProps = {
 };
 
 export function PlayoffFields({ value, onChange, disabled }: PlayoffFieldsProps) {
+  const advance3 = value.advance3FromGroupsOf4 ?? true;
+
   return (
-    <FieldGroup className="grid gap-4 sm:grid-cols-2">
-      <Field>
-        <FieldLabel htmlFor="playoff-qualifiers">Clasifican por grupo</FieldLabel>
-        <NativeSelect
-          id="playoff-qualifiers"
-          className="w-full"
-          value={String(value.qualifiersPerGroup)}
-          disabled={disabled}
-          onChange={(e) => onChange({ ...value, qualifiersPerGroup: Number(e.target.value) })}
-        >
-          {[1, 2, 3, 4].map((n) => (
-            <NativeSelectOption key={n} value={String(n)}>
-              {n === 1 ? "El primero" : `Los ${n} primeros`}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      </Field>
-      <Field orientation="horizontal" className="self-end">
-        <Switch
-          id="playoff-third"
-          checked={value.thirdPlace}
-          disabled={disabled}
-          onCheckedChange={(checked) => onChange({ ...value, thirdPlace: checked })}
-        />
-        <FieldLabel htmlFor="playoff-third">Partido por el 3er puesto</FieldLabel>
-      </Field>
-    </FieldGroup>
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field>
+          <FieldLabel htmlFor="playoff-qualifiers">Clasifican por grupo</FieldLabel>
+          <NativeSelect
+            id="playoff-qualifiers"
+            className="w-full"
+            value={String(value.qualifiersPerGroup)}
+            disabled={disabled}
+            onChange={(e) => onChange({ ...value, qualifiersPerGroup: Number(e.target.value) })}
+          >
+            {[1, 2, 3, 4].map((n) => (
+              <NativeSelectOption key={n} value={String(n)}>
+                {n === 1 ? "El primero" : n === 2 ? "Los 2 primeros (estándar)" : `Los ${n} primeros`}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+          <FieldDescription className="text-[11px]">
+            Aplica a los grupos habituales de 3 parejas.
+          </FieldDescription>
+        </Field>
+
+        <Field orientation="horizontal" className="sm:self-center pt-2 sm:pt-0">
+          <Switch
+            id="playoff-third"
+            checked={value.thirdPlace}
+            disabled={disabled}
+            onCheckedChange={(checked) => onChange({ ...value, thirdPlace: checked })}
+          />
+          <FieldLabel htmlFor="playoff-third">Partido por el 3er puesto</FieldLabel>
+        </Field>
+      </div>
+
+      <div className="rounded-xl border border-border/80 bg-muted/25 p-3.5 space-y-2">
+        <Field orientation="horizontal" className="items-start justify-between gap-3">
+          <div className="space-y-0.5">
+            <FieldLabel htmlFor="playoff-advance-4" className="text-xs font-semibold cursor-pointer">
+              En grupos de 4 parejas clasifican 3
+            </FieldLabel>
+            <FieldDescription className="text-[11px] leading-relaxed text-muted-foreground">
+              Si una zona queda con 4 parejas, clasifican el 1°, 2° y 3° al cuadro eliminatorio para dar más juego y compensar el partido extra. Si lo desactivás, clasificarán solo los 2 primeros (igual que en grupos de 3).
+            </FieldDescription>
+          </div>
+          <Switch
+            id="playoff-advance-4"
+            checked={advance3}
+            disabled={disabled}
+            onCheckedChange={(checked) =>
+              onChange({ ...value, advance3FromGroupsOf4: checked })
+            }
+            className="shrink-0 mt-0.5"
+          />
+        </Field>
+      </div>
+    </div>
   );
 }

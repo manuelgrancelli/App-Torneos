@@ -1,17 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { actionError, actionOk, createAction } from "@/lib/actions/safe-action";
 import { isAccountOrganizer } from "@/lib/auth";
 import { dbErrorMessage } from "@/lib/supabase/errors";
 import { slugWithSuffix } from "@/lib/utils/slug";
 import { createTournamentSchema } from "@/lib/validation/tournament";
 
-const createTournamentActionSchema = createTournamentSchema.extend({ isTest: z.boolean() });
 
 /** Crea el torneo con sus canchas ("Cancha 1…N"). Devuelve el id para navegar al panel. */
-export const createTournament = createAction(createTournamentActionSchema, async (input, { supabase }) => {
+export const createTournament = createAction(createTournamentSchema, async (input, { supabase }) => {
   if (!(await isAccountOrganizer())) return actionError("Tu cuenta es de jugador: no podés crear torneos.");
   const { data: sport, error: sportError } = await supabase
     .from("sports")

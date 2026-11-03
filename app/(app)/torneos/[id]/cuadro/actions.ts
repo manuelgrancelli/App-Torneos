@@ -145,7 +145,7 @@ export async function ensurePlayoffBracket(
   const thirdPlace = options?.thirdPlace ?? defaultPlayoffConfig.thirdPlace;
 
   const standings = groupStandings(groups, matches, scoring, standingsConfig);
-  const qualifiers = qualifiersFromStandings(standings, qualifiersPerGroup, scoring.type);
+  const qualifiers = qualifiersFromStandings(standings, qualifiersPerGroup, scoring.type, defaultPlayoffConfig.advance3FromGroupsOf4 ?? true);
 
   if (qualifiers.length < 2 || qualifiers.length > 64) {
     return { ok: true, count: 0 };
