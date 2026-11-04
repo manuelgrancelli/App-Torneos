@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { isAmericanTournament } from "@/lib/data/american";
 import { CalendarRange } from "lucide-react";
 import type { Metadata } from "next";
 import { AutoScheduleDialog } from "@/components/matches/auto-schedule-dialog";
@@ -23,6 +25,10 @@ export const metadata: Metadata = { title: "Partidos" };
 export default async function MatchesPage({ params }: PageProps<"/torneos/[id]/partidos">) {
   const { id } = await params;
   const tournament = await requireOrganizerTournament(id);
+
+  if (isAmericanTournament(tournament)) {
+    redirect(`/torneos/${id}/americano`);
+  }
   const supabase = await createClient();
   let [competition, scheduling] = await Promise.all([getCompetition(tournament.id), getSchedulingData(tournament.id)]);
 

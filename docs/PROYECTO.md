@@ -2938,3 +2938,143 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
     - Para usuarios con rol `player`, al pie de "Mis torneos" se presenta una tarjeta con acceso directo a WhatsApp para solicitar el alta como organizador de club o complejo deportivo.
 - **Motivo:** responder a la solicitud del usuario (*"me gustaria que ahi al inicio antes de loguearte aparezca como una etiqueta que diga '¿Queres organizar torneos? Contactanos 3434472721' o algo asi ya que como hemos hecho anteriormente los administradores cargan a los organizadores, sino ingresarian como jugadores"*).
 - **Cómo aplicar:** implementado en `lib/config.ts`, `app/page.tsx`, `app/(auth)/registro/page.tsx`, `app/(auth)/login/page.tsx` y `app/(app)/torneos/page.tsx`.
+
+### D-200 — Torneos Americanos de Pádel: Selector en Wizard y Configuración Dinámica (Fase 1) (2026-11-03)
+- **Decisión:**
+  - **Selector de tipo de torneo dentro de la tarjeta de Pádel (`SportSelector`):**
+    - Siguiendo el diseño establecido en Tenis (D-156), la tarjeta de Pádel incorpora un sub-selector interactivo con dos opciones: *"Torneo común"* (por categorías, seleccionado por defecto) y *"Torneo americano"*.
+    - Al alternar a Torneo Americano, la tarjeta actualiza su subtítulo contextual a *"Torneo Americano (Puntos o tiempo)"* y su etiqueta de reglas a *"Puntos o tiempo rotativo"*.
+  - **Campos condicionales en el Asistente de Creación (`AmericanTournamentFields`):**
+    - **Formato:** `INDIVIDUAL_ROTATIVO` (default, jugadores individuales que rotan de compañero y rivales cada ronda) vs `PAREJAS_FIJAS` (duplas predefinidas compitiendo en round-robin).
+    - **Cantidad de participantes:** Selector y botones de acceso rápido (8, 12, 16, 20, 24). Para la modalidad Individual Rotativo se valida estrictamente que la cantidad sea múltiplo de 4, mostrando feedback visual en vivo con cálculo de partidos simultáneos por ronda.
+    - **Sistema de puntuación:**
+      - Por puntos fijos: opciones rápidas (16, 24 recomendado, 32 pts) o número libre.
+      - Por tiempo: opciones rápidas (15, 20 recomendado, 25, 30 min) o número libre.
+    - **Canchas y logística estimada:** Selector de canchas conectadas directamente al formulario con tarjeta de cálculo en tiempo real de cuántos turnos tomará cada ronda.
+  - **Esquema de Validación Zod (`lib/validation/tournament.ts`):**
+    - Se definen `americanFormatSchema`, `americanScoringModeSchema` y `americanConfigSchema`.
+    - Refinamiento con superRefine para asegurar múltiplo de 4 en Individual Rotativo, mínimo de puntos o minutos y validación de canchas.
+  - **Resumen en Paso 3 (`TournamentReview`):**
+    - Muestra de forma concisa el deporte como *"Pádel Americano"*, detallando modalidad, cupo, puntos/tiempo y formato de competencia.
+- **Motivo:** responder a la solicitud del usuario para la Fase 1 del módulo de Torneos Americanos de Pádel.
+- **Cómo aplicar:** implementado en `components/tournaments/sport-selector.tsx`, `components/tournaments/american-tournament-fields.tsx`, `components/tournaments/tournament-wizard.tsx`, `components/tournaments/tournament-review.tsx`, `lib/validation/tournament.ts`, `app/(app)/torneos/actions.ts` y testeado en `lib/validation/tournament.test.ts`.
+
+### D-201 — Modelo de Datos, Migración SQL y Capa de Acceso para Torneos Americanos (Fase 2) (2026-11-03)
+- **Decisión:**
+  - **Migración SQL (`20261103010000_american_padel_tournaments.sql`):**
+    - Enums tipados: `american_format` (`INDIVIDUAL_ROTATIVO`, `PAREJAS_FIJAS`), `american_scoring_mode` (`fixed_points`, `timed_round`), `american_match_status` (`pending`, `in_progress`, `completed`).
+    - Tabla `public.american_participants`: Registro de participantes individuales con soporte de vínculo a perfiles de usuario (`user_id`), teléfono, siembra y nombre secundario para duplas fijas.
+    - Tabla `public.american_matches`: Partidos americanos con control estricto de ronda, cancha, turno y posición de jugadores (A1, A2, B1, B2) garantizando integridad de asignación (ningún jugador duplicado en un mismo cruce).
+    - Tabla `public.american_standings`: Tabla de posiciones con partidos jugados, ganados, perdidos, tantos a favor, en contra, diferencia generada automáticamente y ranking calculado.
+    - Políticas RLS completas con aislamiento por organizador (`private.is_tournament_organizer`) y lectura pública condicional (`private.can_read_tournament`).
+    - Procedimientos RPC:
+      - `recalculate_american_standings(p_tournament_id, p_category_id)`: Recalcula en la base de datos estadísticas y puestos (1° puntos a favor, 2° diferencia, 3° ganados).
+      - `save_american_match_score(p_match_id, p_score_a, p_score_b, p_status)`: Registra marcadores y dispara el recálculo automático.
+  - **Capa de acceso y tipos TypeScript (`lib/data/american.ts`):**
+    - Métodos reactivos en servidor con caché: `listAmericanParticipants`, `listAmericanMatches`, `getAmericanStandings`, `isAmericanTournament` y `getAmericanConfig`.
+    - Actualizado `lib/supabase/database.types.ts` incorporando las nuevas tablas y enums.
+- **Motivo:** responder a la solicitud del usuario para la Fase 2 del módulo de Torneos Americanos de Pádel.
+- **Cómo aplicar:** implementado en `supabase/migrations/20261103010000_american_padel_tournaments.sql`, `lib/data/american.ts` y `lib/supabase/database.types.ts`.
+
+### D-202 — Algoritmo de Fixture Rotativo (Individual) y Motor de Cálculo de Posiciones (Fase 3) (2026-11-03)
+- **Decisión:**
+  - **Generador de Fixture Rotativo Individual (`lib/domain/american-rotative.ts`):**
+    - `generateAmericanRotativeFixture`: Resuelve el problema de emparejamiento rotativo para $N$ participantes ($N$ múltiplo de 4).
+    - Para $N=4$: Generación canónica de 3 rondas (todas las parejas posibles sin repetición).
+    - Para $N=8$: Implementación canónica del Whist Tournament $Wh(8)$ en $\mathbb{Z}_7 \cup \{\infty\}$, garantizando que en 7 rondas ningún jugador repite compañero (7 compañeros distintos para cada uno) y enfrenta a cada rival exactamente 2 veces.
+    - Para $N \ge 12$: Solver combinatorio voraz determinístico con semilla (`seed`) y matrices de historial (`partners` y `opponents`) que minimiza repetición de parejas y rivales en milisegundos.
+    - Distribución automática de canchas y turnos: Asigna `courtNumber` (1 a `courtCount`) y `shiftNumber` secuencial cuando hay menos canchas que partidos simultáneos.
+    - `generateAmericanFixedPairsFixture`: Soporte para modalidad `PAREJAS_FIJAS` mediante round-robin con asignación de canchas y turnos.
+  - **Motor de Tabla de Posiciones y Desempates (`lib/domain/american-standings.ts`):**
+    - `computeAmericanStandings`: Acumula partidos jugados (PJ), ganados (PG), perdidos (PP), puntos a favor (PF), en contra (PC) y diferencia de tantos (`pointDiff`).
+    - En partidos individuales rotativos (A1 + A2 vs B1 + B2), ambos compañeros suman los puntos logrados a su acumulado individual.
+    - Implementación de los 4 criterios de desempate canónicos:
+      1° Puntos acumulados (puntos a favor logrados)
+      2° Diferencia de puntos (+/-)
+      3° Partidos ganados
+      4° Enfrentamiento directo (*Head to Head*, analizando los tantos en cruces donde jugaron como rivales directos)
+      5° Sorteo determinístico con hash FNV-1a para desempates totales sin estado.
+  - **Pruebas unitarias completas:**
+    - `lib/domain/american-rotative.test.ts` (7 tests).
+    - `lib/domain/american-standings.test.ts` (4 tests).
+- **Motivo:** responder a la solicitud del usuario para la Fase 3 del módulo de Torneos Americanos de Pádel.
+- **Cómo aplicar:** implementado en `lib/domain/american-rotative.ts`, `lib/domain/american-standings.ts`, y testeado en `lib/domain/american-rotative.test.ts` y `lib/domain/american-standings.test.ts`.
+
+### D-203 — Pantalla de Gestión, Tablero de Partidos y Carga Rápida de Marcadores del Torneo Americano (Fase 4) (2026-11-03)
+- **Decisión:**
+  - **Página de gestión centralizada (`app/(app)/torneos/[id]/americano/page.tsx`):**
+    - Redirección automática desde la raíz del torneo (`app/(app)/torneos/[id]/page.tsx`) hacia `/torneos/[id]/americano` para torneos creados con formato americano (`isAmericanTournament`).
+    - Navegación adaptada (`components/tournaments/tournament-nav.tsx`): reemplaza los items tradicionales de grupos y playoffs por la sección unificada *"Torneo Americano"*, junto a *"Canchas"* y *"Configuración"*.
+  - **Dashboard del Torneo Americano (`components/american/american-dashboard.tsx`):**
+    - Banner de cabecera con modalidad (Individual Rotativo vs Parejas Fijas), sistema de puntuación (puntos fijos o tiempo corrido), progreso de partidos jugados y barra visual de completitud.
+    - Pestañas interactivas:
+      1. **Partidos y Marcadores (`components/american/american-matches-board.tsx`):** Filtro por rondas (Todas, Ronda 1, Ronda 2...), tarjetas de partido con información de Cancha y Turno, cruce de duplas e inputs de tanteador con guardado instantáneo y feedback visual en tiempo real.
+      2. **Tabla de Posiciones (`components/american/american-standings-table.tsx`):** Ranking en tiempo real con medallas y badges para podio (1°, 2°, 3°), PJ, PG, PP, PF, PC y DIF con pastillas de color según balance positivo o negativo.
+      3. **Participantes (`components/american/american-participants-manager.tsx`):** Panel para dar de alta jugadores, completar cupo con 1 clic para torneos de prueba o testing del organizador, y botón para generar el fixture rotativo de inmediato.
+  - **Server Actions dedicadas (`app/(app)/torneos/[id]/americano/actions.ts`):**
+    - `addAmericanParticipant`, `removeAmericanParticipant`, `fillTestAmericanParticipants`, `generateAmericanFixture`, `updateAmericanMatchScore`, `resetAmericanFixture`.
+- **Motivo:** responder a la solicitud del usuario para la Fase 4 del módulo de Torneos Americanos de Pádel.
+- **Cómo aplicar:** implementado en `components/american/*`, `app/(app)/torneos/[id]/americano/*`, `components/tournaments/tournament-nav.tsx`, `app/(app)/torneos/[id]/layout.tsx`, `app/(app)/torneos/[id]/page.tsx` y `lib/data/american.ts`.
+
+### D-204 — Modelo de Inscripciones en Torneo Americano: Mails Opcionales y Auto-Inscripción de Jugadores (2026-11-03)
+- **Contexto:** En torneos americanos de pádel conviven jugadores federados o con cuenta en la app y participantes ocasionales o mayores que no usan la plataforma. El módulo anterior solicitaba número telefónico, lo cual rompía la consistencia con el resto de la plataforma (basada en emails) y complicaba la carga ágil por parte del organizador.
+- **Decisión:**
+  1. **Eliminación de teléfono y unificación con emails:** Se descarta el campo teléfono y se utiliza el modelo estándar de emails de la app.
+  2. **Inscripción manual por organizador con email opcional:** El organizador puede inscribir participantes cargando únicamente su nombre (ideal para personas mayores o cuando no se conoce el correo). Si ingresa un email válido y coincide con un usuario registrado en `profiles`, se vincula automáticamente su `user_id`.
+  3. **Auto-inscripción de jugadores vía link de invitación:** Se habilita la auto-inscripción mediante el enlace `/unirse/[code]` con un formulario especializado (`AmericanJoinCard`) y una función RPC segura (`register_american_participant`) que valida estado, cupo y duplicados.
+- **Cómo aplicar:** implementado en `AmericanParticipantsManager` (`components/american/american-participants-manager.tsx`), `AmericanJoinCard` (`components/american/american-join-card.tsx`), `app/(app)/unirse/[code]/page.tsx`, `app/(app)/torneos/[id]/americano/actions.ts` y migración `20261103010000_american_padel_tournaments.sql`.
+
+### D-205 — Visibilidad de Torneos Americanos para Cuentas de Jugador ("Participo", "En curso" y Vista Pública /t/[slug]) (2026-11-03)
+- **Contexto:** Al inscribirse o ser inscripto en un torneo americano, el jugador no veía el torneo en la pestaña "Participo" ni en la sección "En curso" de su inicio (`/torneos` o `/perfil`). Esto sucedía porque `listParticipations` consultaba exclusivamente `team_members` (torneos tradicionales con equipos), omitiendo la tabla `american_participants`. Además, las tarjetas del jugador intentaban redirigir a `/inscripciones/[teamId]` (inexistente en torneos americanos) y la vista pública `/t/[slug]` solo soportaba torneos tradicionales con grupos y playoffs.
+- **Decisión:**
+  1. **Integración en `listParticipations` (`lib/data/tournaments.ts`):**
+     - Se consulta en paralelo `american_participants` buscando coincidencias por `user_id = userId` o por `email = userEmail` (en caso de que el organizador haya cargado su email previamente).
+     - Si existían registros con `user_id IS NULL` que coinciden con el email de la sesión activa, se auto-vinculan en la base de datos para persistir el enlace con su perfil.
+     - Se mapea cada participante como un `ParticipationItem` con bandera `isAmerican: true`, deporte *"Pádel Americano"* y estado *"approved"*.
+  2. **Tarjetas de Jugador adaptadas (`ParticipationCard` y `ActiveTournamentCard`):**
+     - Si `participation.isAmerican` es verdadero, la tarjeta redirige a la vista pública del torneo `/t/[slug]`.
+     - Se adapta la descripción visual: *"Tu lugar: [Nombre]"*, rol *"Participante"* y acción *"Ver torneo americano"*.
+  3. **Vista pública y del jugador para Torneos Americanos (`app/t/[slug]/page.tsx`):**
+     - Si el torneo es americano (`isAmericanTournament`), la página pública monta el `AmericanDashboard` en modo solo lectura (`readOnly: true`).
+     - Los jugadores pueden consultar en vivo los cruces por ronda, sus compañeros y rivales asignados, las canchas, los turnos y la tabla de posiciones actualizada.
+  4. **Seguridad y RLS (`20261103010000_american_padel_tournaments.sql`):**
+     - Se actualizan las funciones de seguridad `private.is_tournament_participant` y `private.can_read_tournament` para incluir a los integrantes de `american_participants`.
+     - La política select de `american_participants` permite al jugador autenticado leer siempre sus propias inscripciones (`user_id = auth.uid()` o coincidencia de email).
+- **Cómo aplicar:** implementado en `lib/data/tournaments.ts`, `components/tournaments/tournament-card.tsx`, `components/player/active-tournament-card.tsx`, `components/american/american-dashboard.tsx`, `components/american/american-matches-board.tsx`, `components/american/american-participants-manager.tsx`, `app/t/[slug]/page.tsx` y migración `supabase/migrations/20261103010000_american_padel_tournaments.sql`.
+
+### D-206 — Modo Solo Lectura Estricto para Jugadores y Prevención/Deduplicación de Participantes en Torneos Americanos (2026-11-03)
+- **Contexto:**
+  1. Al navegar como jugador o espectador a `/t/[slug]`, la interfaz de `AmericanDashboard` continuaba mostrando botones de administración: "Guardar resultado" / "Modificar" en cada partido, el formulario "Inscribir participante manualmente" y los botones de control ("Sumarme al torneo", "Generar Fixture", "Completar con prueba", tachos de basura).
+  2. Al hacer clic en "Sumarme al torneo", si el organizador ya había precargado manualmente al participante con su mismo email pero sin `user_id`, el sistema insertaba una segunda fila duplicada en `american_participants` (como se evidenció con un jugador apareciendo repetido con el mismo mail).
+- **Decisión:**
+  1. **Modo Solo Lectura Estricto (`readOnly = true`):**
+     - En `AmericanMatchesBoard`: Se oculta por completo el botón de guardar/modificar tanteador. Los marcadores se visualizan como etiquetas claras y fijas.
+     - En `AmericanParticipantsManager`: Se oculta por completo el formulario manual de alta de jugadores, la barra de acciones administrativas ("Sumarme al torneo", "Generar Fixture", "Reiniciar fixture", selector de rondas) y los iconos de eliminación (papeleras).
+     - En `AmericanDashboard`: Se ajusta el encabezado a *"Torneo Americano de Pádel"* con descripción orientada a la experiencia del jugador.
+  2. **Vinculación Inteligente sin Duplicación (`joinSelfAsAmericanParticipant`):**
+     - Antes de insertar, se verifica si ya existe una inscripción con el mismo `user_id` o el mismo `email`.
+     - Si ya existe un participante con ese correo pero `user_id IS NULL`, se actualiza esa fila vinculando la cuenta activa del usuario en lugar de crear un participante duplicado.
+  3. **Validación Anti-Duplicados en Alta Manual (`addAmericanParticipant`):**
+     - Se rechazan altas si el email ya existe en el torneo o si el nombre es exactamente idéntico.
+  4. **Detección y Unificación de Duplicados Existentes (`cleanupDuplicateAmericanParticipants`):**
+     - Se incorpora una acción y un banner en el panel del organizador que detecta emails duplicados y los unifica en un solo clic, preservando el vínculo de usuario y la integridad del fixture.
+     - En base de datos se agrega índice único parcial `(tournament_id, lower(email)) WHERE email IS NOT NULL`.
+- **Cómo aplicar:** implementado en `components/american/american-matches-board.tsx`, `components/american/american-participants-manager.tsx`, `components/american/american-dashboard.tsx`, `app/(app)/torneos/[id]/americano/actions.ts` y migración `supabase/migrations/20261103010000_american_padel_tournaments.sql`.
+
+### D-207 — Validación Reglamentaria de Marcadores en Torneos Americanos y Aislamiento de Flujos Tradicionales (2026-11-04)
+- **Contexto:**
+  1. En torneos americanos con modalidad por puntos fijos (ej. 24 puntos), el sistema aceptaba cualquier número no negativo como 3-0, lo cual desvirtuaba la tabla de posiciones y violaba las reglas del pádel americano donde se disputan todos los puntos pactados por partido.
+  2. En el panel del torneo, un enlace "Canchas" enviaba a la pantalla tradicional `canchas-franjas`, arrastrando al organizador a un asistente de franjas horarias y apertura de inscripciones de torneos convencionales cuando sus participantes ya estaban anotados.
+- **Decisión:**
+  1. **Validación reglamentaria estricta de marcadores (`lib/domain/american-scoring.ts`):**
+     - En `fixed_points` (ej. 24 puntos): El tanteador es válido únicamente si la suma de ambos lados equivale a `targetPoints` (ej. 14-10, 13-11, 16-8, 20-4) o si el ganador alcanza `targetPoints` (ej. 24-18). Tanteadores incompletos como 3-0 o 5-2 son estrictamente rechazados tanto en cliente como en el Server Action `updateAmericanMatchScore`.
+     - En `single_set`: Se exige un set completo reglamentario (6-0 a 6-4, 7-5 o 7-6; o set corto 4-0 a 4-2, 5-3, 5-4). Marcadores parciales como 3-0 o empates no definidos quedan deshabilitados.
+     - En `timed_round`: Ambos no pueden ser cero y deben ser valores válidos.
+  2. **Feedback interactivo y autocompletado en el tablero (`AmericanMatchesBoard`):**
+     - Mensaje de validación en tiempo real debajo de los inputs.
+     - Botón "Guardar resultado" deshabilitado mientras el tanteador no sea reglamentario.
+     - Botón inteligente de autocompletado (`⚡ Autocompletar a N pts`) para asignar los puntos restantes al rival con 1 clic.
+  3. **Aislamiento total de rutas tradicionales:**
+     - `TournamentNav` solo expone "Torneo Americano" y "Configuración".
+     - Rutas tradicionales (`canchas-franjas`, `inscripciones`, `grupos`, `partidos`, `cuadro`, `categorias`, `disponibilidad`) redirigen automáticamente a `/torneos/[id]/americano` si el torneo es americano.
+- **Cómo aplicar:** implementado en `lib/domain/american-scoring.ts`, `lib/domain/american-scoring.test.ts`, `components/american/american-matches-board.tsx`, `app/(app)/torneos/[id]/americano/actions.ts` y páginas en `app/(app)/torneos/[id]/*`.

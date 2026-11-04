@@ -22,8 +22,14 @@ export function TournamentReview({
   onEdit: (step: number) => void;
 }) {
   const description = values.description.trim();
-  const modality =
-    values.scoringConfig.type === "goals"
+  const isAmerican = values.isAmerican && values.sportId === "padel";
+  const american = values.americanConfig;
+
+  const modality = isAmerican
+    ? american?.format === "INDIVIDUAL_ROTATIVO"
+      ? "Americano · Individual (Parejas Rotativas)"
+      : "Americano · Parejas Fijas"
+    : values.scoringConfig.type === "goals"
       ? `Equipos (${values.scoringConfig.minTeamSize ?? 5} a ${values.scoringConfig.maxTeamSize ?? 15} jugadores)`
       : teamSize === 1
         ? "Individual (1 vs 1)"
@@ -33,8 +39,17 @@ export function TournamentReview({
 
   const rows: ReviewRow[] = [
     { label: "Nombre", value: values.name, step: 0 },
-    { label: "Deporte", value: sportName, step: 0 },
+    { label: "Deporte", value: isAmerican ? "Pádel Americano" : sportName, step: 0 },
     { label: "Modalidad", value: modality, step: 0 },
+    ...(isAmerican && american
+      ? [
+          {
+            label: "Participantes",
+            value: `${american.participantCount} ${american.format === "INDIVIDUAL_ROTATIVO" ? "jugadores individuales (múltiplo de 4)" : "parejas fijas"}`,
+            step: 0,
+          },
+        ]
+      : []),
     ...(description ? [{ label: "Descripción", value: description, step: 0 }] : []),
     { label: "Fechas", value: formatDateRange(values.startsOn, values.endsOn), step: 1 },
     ...(values.hasMultipleVenues && values.venues && values.venues.length > 0
@@ -59,9 +74,45 @@ export function TournamentReview({
       value: values.resultsRequireConfirmation ? "Los equipos los confirman" : "Los carga el organizador",
       step: 2,
     },
-    { label: "Puntuación", value: scoringSummary(values.scoringConfig), step: 2 },
-    { label: "Tabla de posiciones", value: standingsSummary(values.standingsConfig, values.scoringConfig.type), step: 2 },
-    { label: "Playoffs", value: playoffSummary(values.playoffConfig), step: 2 },
+    ...(isAmerican && american
+      ? [
+          {
+            label: "Puntuación",
+            value:
+              american.scoringMode === "fixed_points"
+                ? `A ${american.targetPoints ?? 24} puntos corridos`
+                : american.scoringMode === "timed_round"
+                  ? `A tiempo corrido (${american.roundDurationMinutes ?? 20} minutos por ronda)`
+                  : "A 1 set clásico (clasifica por diferencia de games)",
+            step: 2,
+          },
+          {
+            label: "Rondas a disputar",
+            value: `${american.roundsCount ?? 5} rondas programadas`,
+            step: 0,
+          },
+          {
+            label: "Tabla de posiciones",
+            value:
+              american.scoringMode === "single_set"
+                ? "1° Diferencia de games (+/-) · 2° Partidos ganados · 3° Games a favor · 4° Duelo directo"
+                : "1° Puntos acumulados · 2° Diferencia (+/-) · 3° Puntos a favor · 4° Duelo directo",
+            step: 2,
+          },
+          {
+            label: "Formato de competencia",
+            value:
+              american.format === "INDIVIDUAL_ROTATIVO"
+                ? "Rotación continua de parejas y rivales por ronda"
+                : "Fase de grupos corta / todos contra todos (round-robin)",
+            step: 2,
+          },
+        ]
+      : [
+          { label: "Puntuación", value: scoringSummary(values.scoringConfig), step: 2 },
+          { label: "Tabla de posiciones", value: standingsSummary(values.standingsConfig, values.scoringConfig.type), step: 2 },
+          { label: "Playoffs", value: playoffSummary(values.playoffConfig), step: 2 },
+        ]),
     ...(values.bannerUrl ? [{ label: "Flyer con reglas", value: "Cargado", step: 2 }] : []),
   ];
 

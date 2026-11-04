@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { isAmericanTournament } from "@/lib/data/american";
 import type { Metadata } from "next";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
@@ -29,6 +31,10 @@ export default async function RegistrationsPage({
   const { id } = await params;
   const { estado, asistente } = await searchParams;
   const tournament = await requireOrganizerTournament(id);
+
+  if (isAmericanTournament(tournament)) {
+    redirect(`/torneos/${id}/americano`);
+  }
   const [teams, { courts, slots }, categories, origin] = await Promise.all([
     listTournamentTeams(tournament.id),
     getCourtsAndSlots(tournament.id),

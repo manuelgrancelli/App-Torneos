@@ -15,6 +15,8 @@ import { approvedTeamsLabel, teamNoun } from "@/lib/domain/tournament-status";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeInviteCode } from "@/lib/validation/registration";
 import { getTournamentCategories } from "@/lib/data/categories";
+import { getAmericanConfig, isAmericanTournament } from "@/lib/data/american";
+import { AmericanJoinCard } from "@/components/american/american-join-card";
 
 export const metadata: Metadata = { title: "Inscripción" };
 
@@ -62,6 +64,19 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
 
   const bannerUrl = tourExtra.data?.banner_url ?? null;
   const description = tourExtra.data?.description ?? null;
+  const isAmerican = isAmericanTournament(tourExtra.data);
+
+  let myAmericanParticipant: { id: string; display_name: string } | null = null;
+  if (isAmerican) {
+    const { data: pData } = await supabase
+      .from("american_participants" as any)
+      .select("id, display_name")
+      .eq("tournament_id", tournament.tournament_id)
+      .or(`user_id.eq.${user.id},email.eq.${user.email.toLowerCase()}`)
+      .maybeSingle();
+    myAmericanParticipant = (pData as any) ?? null;
+  }
+
   const normalizedScoring = normalizeScoringConfig(tourExtra.data?.scoring_config);
   const minTeamSize =
     normalizedScoring.type === "goals"
@@ -157,7 +172,36 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
       </header>
 
       {/* Estados del torneo o formulario de inscripción */}
-      {tournament.my_team_id ? (
+      {isAmerican ? (
+        myAmericanParticipant ? (
+          <EmptyState
+            icon={CircleCheck}
+            title="Ya estás inscripto en este Torneo Americano"
+            description={`Estás registrado como "${myAmericanParticipant.display_name}". Cuando el organizador genere el fixture, podrás ver tus partidos y tabla de posiciones.`}
+            action={
+              <Button asChild size="sm" className="h-8 text-xs font-medium">
+                <Link href={`/t/${tournament.slug}`}>Ver torneo y resultados</Link>
+              </Button>
+            }
+          />
+        ) : tournament.status !== "registration_open" && tournament.status !== "draft" ? (
+          <EmptyState
+            icon={Lock}
+            title="La inscripción está cerrada"
+            description="El organizador ya cerró las inscripciones o el torneo ya comenzó."
+          />
+        ) : (
+          <AmericanJoinCard
+            code={code}
+            tournamentName={tournament.name}
+            isIndividual={
+              (getAmericanConfig(tourExtra.data)?.format ?? "INDIVIDUAL_ROTATIVO") === "INDIVIDUAL_ROTATIVO"
+            }
+            defaultName={user.fullName}
+            userEmail={user.email}
+          />
+        )
+      ) : tournament.my_team_id ? (
         <EmptyState
           icon={CircleCheck}
           title="Ya estás inscripto en este torneo"

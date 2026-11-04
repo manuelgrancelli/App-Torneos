@@ -18,11 +18,13 @@ type Props = {
  */
 export function ActiveTournamentCard({ participation, nextMatch }: Props) {
   const { tournament } = participation;
+  const isAmerican = participation.isAmerican;
+  const href = isAmerican ? `/t/${tournament.slug || tournament.id}` : `/inscripciones/${participation.teamId}`;
   const playing = tournament.status === "group_stage" || tournament.status === "playoffs";
 
   return (
     <Link
-      href={`/inscripciones/${participation.teamId}`}
+      href={href}
       className="group relative block overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card/95 to-primary/5 p-4 sm:p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="flex items-start justify-between gap-3">
@@ -37,7 +39,7 @@ export function ActiveTournamentCard({ participation, nextMatch }: Props) {
               {tournament.name}
             </h3>
             <p className="truncate text-xs text-muted-foreground">
-              Tu equipo: <span className="font-medium text-foreground">{participation.teamName}</span>
+              {isAmerican ? "Tu lugar: " : "Tu equipo: "}<span className="font-medium text-foreground">{participation.teamName}</span>
             </p>
           </div>
         </div>
@@ -45,7 +47,12 @@ export function ActiveTournamentCard({ participation, nextMatch }: Props) {
       </div>
 
       <div className="mt-3.5 rounded-xl border border-border/70 bg-background/60 p-3 text-sm backdrop-blur-xs transition-colors group-hover:border-primary/20">
-        {participation.teamStatus === "pending" ? (
+        {isAmerican ? (
+          <p className="flex items-start gap-2 text-xs sm:text-sm text-muted-foreground">
+            <Users className="mt-0.5 size-4 shrink-0 text-emerald-500" aria-hidden="true" />
+            <span>Participante del Torneo Americano de Pádel. Consultá tus cruces, compañeros y posiciones en vivo.</span>
+          </p>
+        ) : participation.teamStatus === "pending" ? (
           <p className="flex items-start gap-2 text-xs sm:text-sm text-amber-900 dark:text-amber-200">
             <Clock className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
             <span>

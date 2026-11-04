@@ -59,6 +59,13 @@ export const createTournament = createAction(createTournamentSchema, async (inpu
 
   // El slug lleva un sufijo aleatorio; ante un choque (muy improbable) se reintenta una vez.
   for (let attempt = 0; attempt < 2; attempt++) {
+    const effectiveScoringConfig = input.isAmerican && input.americanConfig
+      ? { ...input.scoringConfig, american: input.americanConfig }
+      : input.scoringConfig;
+    const effectiveMaxTeams = input.isAmerican && input.americanConfig?.participantCount
+      ? input.americanConfig.participantCount
+      : input.maxTeams;
+
     const values = {
       p_sport_id: input.sportId,
       p_name: input.name,
@@ -67,9 +74,9 @@ export const createTournament = createAction(createTournamentSchema, async (inpu
       p_starts_on: input.startsOn,
       p_ends_on: input.endsOn,
       p_timezone: input.timezone,
-      p_max_teams: input.maxTeams,
+      p_max_teams: effectiveMaxTeams,
       p_court_names: courtNames,
-      p_scoring_config: input.scoringConfig,
+      p_scoring_config: effectiveScoringConfig,
       p_standings_config: input.standingsConfig,
       p_playoff_config: effectivePlayoffConfig,
       p_results_require_confirmation: input.resultsRequireConfirmation,
@@ -80,6 +87,10 @@ export const createTournament = createAction(createTournamentSchema, async (inpu
     if (!error) {
       if (input.bannerUrl) {
         await supabase.from("tournaments").update({ banner_url: input.bannerUrl }).eq("id", data);
+      }
+
+      if (input.isAmerican) {
+        await supabase.from("tournaments").update({ status: "registration_open" }).eq("id", data);
       }
 
       // Asignar sede a cada cancha creada

@@ -5,6 +5,7 @@ import { buildPhaseGuide } from "@/components/tournaments/phase-guide-model";
 import { type NavGroupKey, TournamentNav } from "@/components/tournaments/tournament-nav";
 import { TournamentProgress } from "@/components/tournaments/tournament-progress";
 import { TournamentMatchesProgress } from "@/components/tournaments/tournament-matches-progress";
+import { isAmericanTournament } from "@/lib/data/american";
 import { getTournamentCategories } from "@/lib/data/categories";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
 import { getTournamentCounts } from "@/lib/data/tournaments";
@@ -35,6 +36,8 @@ export default async function TournamentPanelLayout({ children, params }: Layout
     teamSize: tournament.sport.min_team_size,
   });
 
+  const isAmerican = isAmericanTournament(tournament);
+
   return (
     <div className="space-y-6">
       <header className="space-y-4">
@@ -42,7 +45,7 @@ export default async function TournamentPanelLayout({ children, params }: Layout
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-semibold tracking-tight">{tournament.name}</h1>
-              <SportBadge sport={tournament.sport.name} />
+              <SportBadge sport={isAmerican ? "Pádel Americano" : tournament.sport.name} />
               <StatusBadge status={tournament.status} />
             </div>
             {tournament.status !== "draft" ? (
@@ -62,21 +65,26 @@ export default async function TournamentPanelLayout({ children, params }: Layout
             </span>
           </p>
         </div>
-        <TournamentProgress
-          tournamentId={tournament.id}
-          tournamentName={tournament.name}
-          status={tournament.status}
-          detail={guide.progress.short || undefined}
-          canFinish={tournament.status !== "finished" && counts.allCategoriesFinished}
-        />
-        <TournamentMatchesProgress
-          status={tournament.status}
-          counts={counts}
-          maxTeams={tournament.maxTeams}
-        />
+        {!isAmerican ? (
+          <>
+            <TournamentProgress
+              tournamentId={tournament.id}
+              tournamentName={tournament.name}
+              status={tournament.status}
+              detail={guide.progress.short || undefined}
+              canFinish={tournament.status !== "finished" && counts.allCategoriesFinished}
+            />
+            <TournamentMatchesProgress
+              status={tournament.status}
+              counts={counts}
+              maxTeams={tournament.maxTeams}
+            />
+          </>
+        ) : null}
         <TournamentNav
           tournamentId={tournament.id}
           status={tournament.status}
+          isAmerican={isAmerican}
           recommended={RECOMMENDED_TAB[tournament.status]}
           badges={{
             categorias: categories.length,

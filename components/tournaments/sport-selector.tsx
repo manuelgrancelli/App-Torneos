@@ -8,6 +8,8 @@ type SportSelectorProps = {
   sports: SportOption[];
   value: string;
   onChange: (sportId: string) => void;
+  isAmerican?: boolean;
+  onAmericanChange?: (isAmerican: boolean) => void;
   disabled?: boolean;
 };
 
@@ -25,7 +27,14 @@ function getSportIcon(id: string) {
   return Flame;
 }
 
-export function SportSelector({ sports, value, onChange, disabled }: SportSelectorProps) {
+export function SportSelector({
+  sports,
+  value,
+  onChange,
+  isAmerican = false,
+  onAmericanChange,
+  disabled,
+}: SportSelectorProps) {
   const tenisSingleSport = sports.find((s) => s.id === "tenis-single");
   const tenisDoublesSport = sports.find((s) => s.id === "tenis");
 
@@ -40,6 +49,7 @@ export function SportSelector({ sports, value, onChange, disabled }: SportSelect
     >
       {visibleSports.map((sport) => {
         const isTenisCard = sport.id === "tenis";
+        const isPadelCard = sport.id === "padel";
         const isSelected = isTenisCard
           ? value === "tenis" || value === "tenis-single"
           : sport.id === value;
@@ -51,18 +61,24 @@ export function SportSelector({ sports, value, onChange, disabled }: SportSelect
           ? isTenisSingle
             ? "Individual (Singles · 1 vs 1)"
             : "Parejas (Dobles · 2 vs 2)"
-          : sport.id.includes("futbol")
-            ? "Equipos · Reglas y formato por afiche"
-            : sport.minTeamSize === 2
-              ? "Parejas (2 por equipo)"
-              : sport.minTeamSize === 1
-                ? "Individual (1 vs 1)"
-                : `Equipos de ${sport.minTeamSize}`;
+          : isPadelCard
+            ? isAmerican
+              ? "Torneo Americano (Puntos o tiempo)"
+              : "Torneo común (Por categorías)"
+            : sport.id.includes("futbol")
+              ? "Equipos · Reglas y formato por afiche"
+              : sport.minTeamSize === 2
+                ? "Parejas (2 por equipo)"
+                : sport.minTeamSize === 1
+                  ? "Individual (1 vs 1)"
+                  : `Equipos de ${sport.minTeamSize}`;
 
         const ruleSummary =
-          sport.defaultScoringConfig.type === "sets"
-            ? `Sets a ${sport.defaultScoringConfig.gamesPerSet} games`
-            : "Marcador por goles";
+          isPadelCard && isAmerican
+            ? "Puntos o tiempo rotativo"
+            : sport.defaultScoringConfig.type === "sets"
+              ? `Sets a ${sport.defaultScoringConfig.gamesPerSet} games`
+              : "Marcador por goles";
 
         return (
           <div
@@ -73,13 +89,17 @@ export function SportSelector({ sports, value, onChange, disabled }: SportSelect
             onClick={() => {
               if (disabled) return;
               if (isTenisCard) {
+                onAmericanChange?.(false);
                 // Si ya está seleccionado alguno de tenis, preserva la modalidad; si no, toma la activa
                 if (value === "tenis-single") {
                   onChange(tenisSingleSport?.id ?? "tenis-single");
                 } else {
                   onChange(tenisDoublesSport?.id ?? "tenis");
                 }
+              } else if (isPadelCard) {
+                onChange("padel");
               } else {
+                onAmericanChange?.(false);
                 onChange(sport.id);
               }
             }}
@@ -88,8 +108,12 @@ export function SportSelector({ sports, value, onChange, disabled }: SportSelect
                 e.preventDefault();
                 if (disabled) return;
                 if (isTenisCard) {
+                  onAmericanChange?.(false);
                   onChange(isTenisSingle ? (tenisSingleSport?.id ?? "tenis-single") : (tenisDoublesSport?.id ?? "tenis"));
+                } else if (isPadelCard) {
+                  onChange("padel");
                 } else {
+                  onAmericanChange?.(false);
                   onChange(sport.id);
                 }
               }
@@ -143,6 +167,52 @@ export function SportSelector({ sports, value, onChange, disabled }: SportSelect
               </div>
             </div>
 
+            {/* Selector de modalidad dentro del mismo recuadro para Pádel */}
+            {isPadelCard ? (
+              <div
+                className="mt-3.5 pt-3 border-t border-border/70"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p className="text-[11px] font-semibold text-foreground mb-1.5">
+                  Tipo de torneo de pádel:
+                </p>
+                <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-border/80 bg-muted/50 p-1">
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => {
+                      onChange("padel");
+                      onAmericanChange?.(false);
+                    }}
+                    className={cn(
+                      "rounded-md py-1.5 px-2 text-center text-xs font-medium transition-all cursor-pointer",
+                      !isAmerican && isSelected
+                        ? "bg-background text-foreground shadow-xs font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/40"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Torneo común
+                  </button>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => {
+                      onChange("padel");
+                      onAmericanChange?.(true);
+                    }}
+                    className={cn(
+                      "rounded-md py-1.5 px-2 text-center text-xs font-medium transition-all cursor-pointer",
+                      isAmerican && isSelected
+                        ? "bg-background text-foreground shadow-xs font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/40"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Torneo americano
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             {/* Selector de modalidad dentro del mismo recuadro para Tenis (D-156) */}
             {isTenisCard ? (
               <div
@@ -156,9 +226,12 @@ export function SportSelector({ sports, value, onChange, disabled }: SportSelect
                   <button
                     type="button"
                     disabled={disabled}
-                    onClick={() => onChange(tenisSingleSport?.id ?? "tenis-single")}
+                    onClick={() => {
+                      onAmericanChange?.(false);
+                      onChange(tenisSingleSport?.id ?? "tenis-single");
+                    }}
                     className={cn(
-                      "rounded-md py-1.5 px-2 text-center text-xs font-medium transition-all",
+                      "rounded-md py-1.5 px-2 text-center text-xs font-medium transition-all cursor-pointer",
                       isTenisSingle && isSelected
                         ? "bg-background text-foreground shadow-xs font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/40"
                         : "text-muted-foreground hover:text-foreground"
@@ -169,9 +242,12 @@ export function SportSelector({ sports, value, onChange, disabled }: SportSelect
                   <button
                     type="button"
                     disabled={disabled}
-                    onClick={() => onChange(tenisDoublesSport?.id ?? "tenis")}
+                    onClick={() => {
+                      onAmericanChange?.(false);
+                      onChange(tenisDoublesSport?.id ?? "tenis");
+                    }}
                     className={cn(
-                      "rounded-md py-1.5 px-2 text-center text-xs font-medium transition-all",
+                      "rounded-md py-1.5 px-2 text-center text-xs font-medium transition-all cursor-pointer",
                       !isTenisSingle && isSelected
                         ? "bg-background text-foreground shadow-xs font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/40"
                         : "text-muted-foreground hover:text-foreground"

@@ -24,6 +24,7 @@ import {
 import { type CreateTournamentInput, createTournamentSchema } from "@/lib/validation/tournament";
 import { RulesSections } from "./rules-sections";
 import { SportSelector } from "./sport-selector";
+import { AmericanTournamentFields } from "./american-tournament-fields";
 import { TournamentFlyerField } from "./tournament-flyer-field";
 import {
   ConfirmationField,
@@ -50,7 +51,7 @@ const STEP_TITLES = [
 
 /** Campos que se validan en cada paso (el último solo revisa). */
 const STEP_FIELDS = [
-  ["name", "sportId", "description", "scoringConfig"],
+  ["name", "sportId", "description", "scoringConfig", "isAmerican", "americanConfig", "courtCount"],
   ["startsOn", "endsOn", "courtCount", "hasMultipleVenues", "venueName", "venues"],
   ["resultsRequireConfirmation", "scoringConfig", "standingsConfig", "playoffConfig", "bannerUrl"],
 ] as const satisfies readonly (readonly (keyof CreateTournamentInput)[])[];
@@ -96,6 +97,16 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
     venueName: "",
     venues: [],
     isTest: false,
+    isAmerican: false,
+    americanConfig: {
+      enabled: false,
+      format: "INDIVIDUAL_ROTATIVO",
+      scoringMode: "fixed_points",
+      targetPoints: 24,
+      roundDurationMinutes: 20,
+      participantCount: 12,
+      roundsCount: 5,
+    },
   };
 
   const form = useForm<CreateTournamentInput, unknown, z.output<typeof createTournamentSchema>>({
@@ -271,12 +282,21 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
         }
         // Limpiar el borrador local al crearse exitosamente
         clearTournamentDraft();
-        toast.success(
-          result.message
-            ? `${result.message} Ahora configurá las canchas y franjas horarias.`
-            : "Torneo creado. Ahora configurá las canchas y franjas horarias."
-        );
-        router.push(`/torneos/${result.data.tournamentId}/canchas-franjas?asistente=1`);
+        if (data.isAmerican) {
+          toast.success(
+            result.message
+              ? `${result.message} ¡Bienvenido al panel del Torneo Americano!`
+              : "Torneo Americano creado con éxito."
+          );
+          router.push(`/torneos/${result.data.tournamentId}/americano`);
+        } else {
+          toast.success(
+            result.message
+              ? `${result.message} Ahora configurá las canchas y franjas horarias.`
+              : "Torneo creado. Ahora configurá las canchas y franjas horarias."
+          );
+          router.push(`/torneos/${result.data.tournamentId}/canchas-franjas?asistente=1`);
+        }
       });
     },
     // Si algo de un paso anterior quedó inválido, se vuelve a ese paso.
@@ -341,8 +361,21 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
                   <SportSelector
                     sports={sports}
                     value={field.value}
+                    isAmerican={values.isAmerican}
+                    onAmericanChange={(isAmerican) => {
+                      form.setValue("isAmerican", isAmerican, { shouldValidate: true });
+                      form.setValue("americanConfig.enabled", isAmerican, { shouldValidate: true });
+                      if (isAmerican) {
+                        const count = form.getValues("americanConfig.participantCount") ?? 12;
+                        form.setValue("maxTeams", count, { shouldValidate: true });
+                      }
+                    }}
                     onChange={(newSportId) => {
                       field.onChange(newSportId);
+                      if (newSportId !== "padel") {
+                        form.setValue("isAmerican", false, { shouldValidate: true });
+                        form.setValue("americanConfig.enabled", false, { shouldValidate: true });
+                      }
                       const s = sports.find((item) => item.id === newSportId);
                       if (s) {
                         form.setValue("scoringConfig", s.defaultScoringConfig, { shouldValidate: true });
@@ -352,6 +385,11 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
                   />
                 )}
               />
+
+              {values.isAmerican && values.sportId === "padel" ? (
+                <AmericanTournamentFields form={form} />
+              ) : null}
+
               <DescriptionField form={form} />
             </FieldGroup>
           ) : null}
@@ -378,9 +416,39 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
                 )}
               />
               <ConfirmationField form={form} />
-              <div className="space-y-3">
-                <RulesSections form={form} />
-              </div>
+              {values.isAmerican && values.sportId === "padel" ? (
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 sm:p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="flex size-2 rounded-full bg-emerald-500" />
+                    <h3 className="text-sm font-bold text-foreground">Reglas del Torneo Americano</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {values.americanConfig?.format === "INDIVIDUAL_ROTATIVO"
+                      ? "Modalidad Individual con Parejas Rotativas: cada jugador suma puntos individuales, cambiando de compañero y rivales en cada ronda."
+                      : "Modalidad Parejas Fijas: las duplas compiten en formato todos contra todos (round-robin)."}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-xs">
+                    <div className="rounded-xl border border-border/70 bg-card p-3">
+                      <span className="font-semibold text-foreground block">Puntuación de los partidos:</span>
+                      <span className="text-muted-foreground">
+                        {values.americanConfig?.scoringMode === "fixed_points"
+                          ? `A ${values.americanConfig?.targetPoints ?? 24} puntos corridos`
+                          : `A tiempo corrido (${values.americanConfig?.roundDurationMinutes ?? 20} minutos por ronda)`}
+                      </span>
+                    </div>
+                    <div className="rounded-xl border border-border/70 bg-card p-3">
+                      <span className="font-semibold text-foreground block">Tabla de posiciones:</span>
+                      <span className="text-muted-foreground">
+                        1° Puntos acumulados · 2° Diferencia (+/-) · 3° Puntos a favor · 4° Duelo directo
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <RulesSections form={form} />
+                </div>
+              )}
             </div>
           ) : null}
 

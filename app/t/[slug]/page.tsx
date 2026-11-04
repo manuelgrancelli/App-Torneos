@@ -1,4 +1,14 @@
-import { CalendarDays, LayoutGrid, Trophy, Users } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { AmericanDashboard } from "@/components/american/american-dashboard";
+import {
+  getAmericanConfig,
+  getAmericanStandings,
+  isAmericanTournament,
+  listAmericanMatches,
+  listAmericanParticipants,
+} from "@/lib/data/american";
+import { CalendarDays, LayoutGrid, Shield, Trophy, Users } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -38,8 +48,58 @@ type View = (typeof VIEWS)[number]["value"];
 
 async function loadTournament(slug: string): Promise<PublicTournament | null> {
   const tournamentId = await getPublicTournamentId(slug);
-  if (!tournamentId) return null;
-  return getPublicTournament(tournamentId);
+  if (tournamentId) {
+    const pub = await getPublicTournament(tournamentId);
+    if (pub) return pub;
+  }
+
+  // Fallback con cliente autenticado para organizadores y participantes de torneos de prueba o privados
+  try {
+    const authClient = await createClient();
+    let query = authClient
+      .from("tournaments")
+      .select("id, organizer_id, name, slug, description, banner_url, status, starts_on, ends_on, timezone, scoring_config, standings_config, playoff_config, champion_team_id, sports(name, min_team_size)");
+
+    if (slug.length === 36 && /^[0-9a-f-]{36}$/i.test(slug)) {
+      query = query.or(`slug.eq.${slug},id.eq.${slug}`);
+    } else {
+      query = query.eq("slug", slug);
+    }
+
+    const { data: t, error: tErr } = await query.maybeSingle();
+    if (tErr) {
+      console.error("[loadTournament] Error en fallback de torneo:", tErr);
+    }
+
+    if (t) {
+      return {
+        id: t.id,
+        organizerId: t.organizer_id,
+        name: t.name,
+        slug: t.slug,
+        description: t.description,
+        bannerUrl: t.banner_url ?? null,
+        status: t.status,
+        startsOn: t.starts_on,
+        endsOn: t.ends_on,
+        timezone: t.timezone,
+        sportName: (t as any).sports?.name ?? "Pádel Americano",
+        teamSize: (t as any).sports?.min_team_size ?? 2,
+        scoringConfig: t.scoring_config as any,
+        standingsConfig: t.standings_config as any,
+        playoffConfig: t.playoff_config as any,
+        championTeamId: t.champion_team_id,
+        circuit: null,
+        circuitOrder: null,
+        competition: { teams: [], groups: [], matches: [], confirmations: [], categories: [] },
+        courts: [],
+      };
+    }
+  } catch (err) {
+    console.error("[loadTournament] Excepción en fallback:", err);
+  }
+
+  return null;
 }
 
 export async function generateMetadata({ params }: PageProps<"/t/[slug]">): Promise<Metadata> {
@@ -68,6 +128,98 @@ export default async function PublicTournamentPage({ params, searchParams }: Pag
   const [{ slug }, query] = await Promise.all([params, searchParams]);
   const tournament = await loadTournament(slug);
   if (!tournament) notFound();
+
+  if (isAmericanTournament(tournament)) {
+    const user = await getCurrentUser();
+    const isOrganizer = Boolean(user?.id && tournament.organizerId === user.id);
+
+    const config = getAmericanConfig(tournament);
+    const [participants, matches, standings] = await Promise.all([
+      listAmericanParticipants(tournament.id),
+      listAmericanMatches(tournament.id),
+      getAmericanStandings(tournament.id),
+    ]);
+
+    return (
+      <article className="space-y-6">
+        {isOrganizer && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-3.5 text-xs text-emerald-950 dark:text-emerald-200">
+            <div className="flex items-center gap-2">
+              <Shield className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <span>
+                <strong>Vista de Jugador activa:</strong> Estás viendo el torneo como lo ven los participantes. Para cargar resultados, editar participantes o generar fixture, ingresá a tu panel.
+              </span>
+            </div>
+            <Link
+              href={`/torneos/${tournament.id}/americano`}
+              className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 font-bold text-white shadow-xs transition-colors shrink-0"
+            >
+              Ir al panel de organizador &rarr;
+            </Link>
+          </div>
+        )}
+
+        <header className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <SportBadge sport="Pádel Americano" />
+            <StatusBadge status={tournament.status} />
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{tournament.name}</h1>
+          <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            <li className="inline-flex items-center gap-1.5">
+              <CalendarDays className="size-4" aria-hidden="true" />
+              {formatDateRange(tournament.startsOn, tournament.endsOn)}
+            </li>
+            <li className="inline-flex items-center gap-1.5">
+              <Users className="size-4" aria-hidden="true" />
+              {participants.length} participantes
+            </li>
+          </ul>
+          {tournament.description ? (
+            <p className="max-w-prose text-sm whitespace-pre-line">{tournament.description}</p>
+          ) : null}
+        </header>
+
+        {tournament.circuit ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs sm:text-sm text-amber-950 dark:text-amber-200">
+            <div className="flex items-center gap-2">
+              <Trophy className="size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+              <span>
+                Fecha {tournament.circuitOrder ? `${tournament.circuitOrder} del ` : "del "}
+                circuito <strong>{tournament.circuit.name}</strong>
+              </span>
+            </div>
+            <Link
+              href={`/circuitos/${tournament.circuit.id}`}
+              className="font-semibold text-primary underline underline-offset-2 hover:opacity-85 inline-flex items-center gap-1"
+            >
+              Ver tabla de posiciones &rarr;
+            </Link>
+          </div>
+        ) : null}
+
+        {tournament.bannerUrl ? (
+          <section aria-label="Afiche oficial del torneo">
+            <TournamentBanner
+              src={tournament.bannerUrl}
+              alt={`Afiche de ${tournament.name}`}
+            />
+          </section>
+        ) : null}
+
+        <AmericanDashboard
+          tournamentId={tournament.id}
+          tournamentName={tournament.name}
+          inviteCode={null}
+          config={config}
+          participants={participants}
+          matches={matches}
+          standings={standings}
+          readOnly={true}
+        />
+      </article>
+    );
+  }
 
   const { competition, timezone } = tournament;
   let categories = competition.categories ?? [];

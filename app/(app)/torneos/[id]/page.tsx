@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
+import { isAmericanTournament } from "@/lib/data/american";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
 
 /**
  * Redirección inteligente de la raíz del torneo al no existir más la pestaña Resumen.
  * Lleva al organizador directo a la sección activa según la fase actual:
- * - Borrador -> Categorías
+ * - Torneo Americano -> Americano
+ * - Borrador -> Canchas y franjas
  * - Inscripción abierta -> Inscripciones
  * - Fase de grupos -> Grupos
  * - Playoffs / Finalizado -> Cuadro
@@ -12,6 +14,10 @@ import { requireOrganizerTournament } from "@/lib/data/organizer";
 export default async function TournamentRootPage({ params }: PageProps<"/torneos/[id]">) {
   const { id } = await params;
   const tournament = await requireOrganizerTournament(id);
+
+  if (isAmericanTournament(tournament)) {
+    redirect(`/torneos/${id}/americano`);
+  }
 
   if (tournament.status === "draft") {
     redirect(`/torneos/${id}/canchas-franjas`);

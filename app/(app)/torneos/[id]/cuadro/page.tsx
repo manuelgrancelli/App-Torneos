@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { isAmericanTournament } from "@/lib/data/american";
 import { Network } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -40,6 +42,10 @@ export default async function BracketPage({
   const { id } = await params;
   const { cat } = await searchParams;
   const tournament = await requireOrganizerTournament(id);
+
+  if (isAmericanTournament(tournament)) {
+    redirect(`/torneos/${id}/americano`);
+  }
   const supabase = await createClient();
 
   let [competition, scheduling] = await Promise.all([

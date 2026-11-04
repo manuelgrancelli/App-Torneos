@@ -1,3 +1,4 @@
+import { isAmericanTournament } from "@/lib/data/american";
 import { Layers } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -23,6 +24,7 @@ export default async function TournamentSettingsPage({ params }: PageProps<"/tor
     getTournamentCounts(tournament.id),
     getTournamentAdmins(tournament.id),
   ]);
+  const isAmerican = isAmericanTournament(tournament);
   const inSetup = tournament.status === "draft" || tournament.status === "registration_open";
   const afterGroups = tournament.status === "playoffs" || tournament.status === "finished";
 
@@ -44,7 +46,8 @@ export default async function TournamentSettingsPage({ params }: PageProps<"/tor
         admins={admins}
       />
 
-      <Card>
+      {!isAmerican && (
+        <Card>
         <CardHeader>
           <CardTitle>
             <h2 className="text-base font-semibold">Categorías (Torneo Integrado)</h2>
@@ -63,6 +66,7 @@ export default async function TournamentSettingsPage({ params }: PageProps<"/tor
           </Button>
         </CardContent>
       </Card>
+      )}
 
       <Card>
         <CardHeader>

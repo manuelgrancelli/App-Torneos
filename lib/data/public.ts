@@ -15,6 +15,7 @@ import { createPublicClient } from "@/lib/supabase/public";
 
 export type PublicTournament = {
   id: string;
+  organizerId?: string | null;
   name: string;
   slug: string;
   description: string | null;

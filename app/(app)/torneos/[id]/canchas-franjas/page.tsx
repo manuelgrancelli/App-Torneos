@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { ConfiguredSlotsList } from "@/components/tournaments/configured-slots-list";
 import { SlotsManager } from "@/components/tournaments/slots-manager";
 import { TournamentSetupStepper } from "@/components/tournaments/tournament-setup-stepper";
+import { isAmericanTournament } from "@/lib/data/american";
 import { getTournamentCategories } from "@/lib/data/categories";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
 import { getCourtsAndSlots } from "@/lib/data/tournaments";
@@ -16,6 +18,11 @@ export default async function CourtsAndSlotsPage({
   const { id } = await params;
   const { asistente } = await searchParams;
   const tournament = await requireOrganizerTournament(id);
+
+  if (isAmericanTournament(tournament)) {
+    redirect(`/torneos/${id}/americano`);
+  }
+
   const [{ courts, slots }, categories] = await Promise.all([
     getCourtsAndSlots(tournament.id),
     getTournamentCategories(tournament.id),

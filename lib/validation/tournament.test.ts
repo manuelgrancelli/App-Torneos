@@ -161,3 +161,88 @@ describe("createTournamentSchema - multisede (D-194)", () => {
     }
   });
 });
+
+describe("createTournamentSchema - torneo americano de pádel (Fase 1)", () => {
+  const baseAmerican = {
+    name: "Torneo Americano Pádel Express",
+    description: "Americano de fin de semana",
+    startsOn: "2026-11-10",
+    endsOn: "2026-11-10",
+    timezone: "America/Argentina/Buenos_Aires",
+    courtCount: 3,
+    resultsRequireConfirmation: false,
+    sportId: "padel",
+    scoringConfig: {
+      type: "sets" as const,
+      bestOf: 3 as const,
+      gamesPerSet: 6,
+      tiebreak: true,
+      decidingSet: "super_tiebreak" as const,
+      superTiebreakPoints: 10 as const,
+    },
+    standingsConfig: {
+      points: { win: 3, draw: 0, loss: 0 },
+      tiebreakers: ["points" as const, "wins" as const, "head_to_head" as const, "set_diff" as const],
+    },
+    playoffConfig: {
+      qualifiersPerGroup: 2,
+      thirdPlace: false,
+    },
+    isAmerican: true,
+    americanConfig: {
+      enabled: true,
+      format: "INDIVIDUAL_ROTATIVO" as const,
+      scoringMode: "fixed_points" as const,
+      targetPoints: 24,
+      roundDurationMinutes: 20,
+      participantCount: 12,
+    },
+  };
+
+  it("acepta configuración válida individual rotativo con múltiplo de 4", () => {
+    const res = createTournamentSchema.safeParse(baseAmerican);
+    expect(res.success).toBe(true);
+  });
+
+  it("rechaza individual rotativo si los participantes no son múltiplo de 4", () => {
+    const res = createTournamentSchema.safeParse({
+      ...baseAmerican,
+      americanConfig: {
+        ...baseAmerican.americanConfig,
+        participantCount: 10, // No es múltiplo de 4
+      },
+    });
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      const issue = res.error.issues.find((i) => i.path.join(".") === "americanConfig.participantCount");
+      expect(issue?.message).toContain("múltiplo de 4");
+    }
+  });
+
+  it("acepta parejas fijas con cualquier cantidad par >= 2", () => {
+    const res = createTournamentSchema.safeParse({
+      ...baseAmerican,
+      americanConfig: {
+        ...baseAmerican.americanConfig,
+        format: "PAREJAS_FIJAS",
+        participantCount: 6,
+      },
+    });
+    expect(res.success).toBe(true);
+  });
+
+  it("rechaza si el puntaje objetivo es menor a 10 puntos", () => {
+    const res = createTournamentSchema.safeParse({
+      ...baseAmerican,
+      americanConfig: {
+        ...baseAmerican.americanConfig,
+        targetPoints: 5,
+      },
+    });
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      const issue = res.error.issues.find((i) => i.path.join(".") === "americanConfig.targetPoints");
+      expect(issue?.message).toContain("10 puntos");
+    }
+  });
+});

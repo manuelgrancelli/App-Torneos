@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { isAmericanTournament } from "@/lib/data/american";
 import { AlertCircle, LayoutGrid } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -22,6 +24,10 @@ export default async function GroupsPage({
   const { id } = await params;
   const { cat } = await searchParams;
   const tournament = await requireOrganizerTournament(id);
+
+  if (isAmericanTournament(tournament)) {
+    redirect(`/torneos/${id}/americano`);
+  }
   const competition = await getCompetition(tournament.id);
 
   const hasCategories = competition.categories.length > 0;

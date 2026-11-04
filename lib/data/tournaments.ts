@@ -5,7 +5,7 @@ import type { StandingsConfig } from "@/lib/domain/standings";
 import type { PlayoffConfig } from "@/lib/domain/bracket";
 import type { TournamentStatus } from "@/lib/domain/tournament-status";
 import { createClient } from "@/lib/supabase/server";
-import { isSuperAdmin } from "@/lib/auth";
+import { getCurrentUser, isSuperAdmin } from "@/lib/auth";
 import type { Tables } from "@/lib/supabase/database.types";
 
 /**
@@ -200,113 +200,200 @@ export type ParticipationItem = {
     endsOn: string;
     sportName: string;
   };
+  isAmerican?: boolean;
 };
 
-/** Torneos donde el usuario integra un equipo y participa efectivamente (excluye rechazados y sin categoría en torneos multicategoría). */
+/** Torneos donde el usuario integra un equipo o participa en un torneo americano (excluye rechazados y sin categoría en torneos multicategoría). */
 export const listParticipations = cache(async (userId: string): Promise<ParticipationItem[]> => {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const user = await getCurrentUser();
+  const userEmail = user?.email?.toLowerCase().trim();
+
+  // 1. Consultar participaciones tradicionales en equipos
+  const teamPromise = supabase
     .from("team_members")
     .select(
       "role, teams!inner(id, name, status, category_id, tournaments!teams_tournament_id_fkey!inner(id, name, slug, status, starts_on, ends_on, sports(name)))",
     )
     .eq("user_id", userId);
-  if (error) throw error;
-  if (!data || data.length === 0) return [];
 
-  // 1. Excluir equipos rechazados por el organizador
-  const nonRejected = data.filter((m) => m.teams?.status !== "rejected");
-  if (nonRejected.length === 0) return [];
-
-  // 2. Si el torneo ya comenzó o finalizó, las inscripciones que quedaron en 'pending' nunca ingresaron
-  const candidates = nonRejected.filter((m) => {
-    const tStatus = m.teams?.tournaments?.status;
-    if (tStatus && !["draft", "registration_open"].includes(tStatus)) {
-      return m.teams?.status === "approved";
-    }
-    return true;
-  });
-  if (candidates.length === 0) return [];
-
-  const tournamentIds = Array.from(new Set(candidates.map((m) => m.teams.tournaments.id)));
-
-  // 3. Consultar si los torneos tienen categorías configuradas
+  // 2. Consultar participantes americanos por user_id o por email (consulta directa sin inner join para evitar bloqueos por RLS)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: catRows, error: catError } = await (supabase as any)
-    .from("tournament_categories")
-    .select("id, tournament_id")
-    .in("tournament_id", tournamentIds);
+  let apQuery = (supabase as any)
+    .from("american_participants")
+    .select("id, tournament_id, display_name, secondary_display_name, email, user_id");
 
-  const categoriesByTournament = new Map<string, string[]>();
-  if (!catError && catRows) {
-    for (const cat of catRows) {
-      const list = categoriesByTournament.get(cat.tournament_id) ?? [];
-      list.push(cat.id);
-      categoriesByTournament.set(cat.tournament_id, list);
-    }
+  if (userEmail) {
+    apQuery = apQuery.or(`user_id.eq.${userId},email.ilike.${userEmail}`);
+  } else {
+    apQuery = apQuery.eq("user_id", userId);
   }
 
-  // 4. Fallback: equipos sin category_id directo asignados a un grupo (group_teams)
-  const teamsNeedingCategoryCheck = candidates
-    .filter((m) => {
-      const tourCats = categoriesByTournament.get(m.teams.tournaments.id);
-      return tourCats && tourCats.length > 0 && !m.teams.category_id;
-    })
-    .map((m) => m.teams.id);
+  const [teamRes, apRes] = await Promise.all([teamPromise, apQuery]);
 
-  const groupTeamCatMap = new Map<string, string>();
-  if (teamsNeedingCategoryCheck.length > 0) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: groupTeamRows } = await (supabase as any)
-      .from("group_teams")
-      .select("team_id, groups(category_id)")
-      .in("team_id", teamsNeedingCategoryCheck);
+  if (teamRes.error) throw teamRes.error;
+  if (apRes.error) {
+    console.error("Error fetching american_participants in listParticipations:", apRes.error);
+  }
 
-    for (const gt of groupTeamRows ?? []) {
-      if (gt.team_id && gt.groups?.category_id) {
-        groupTeamCatMap.set(gt.team_id, gt.groups.category_id);
+  const myAmericanParticipants: any[] = apRes.data ?? [];
+  let americanItems: ParticipationItem[] = [];
+
+  if (myAmericanParticipants.length > 0) {
+    // Auto-vincular user_id a registros de participantes americanos registrados previamente por email
+    const unlinked = myAmericanParticipants.filter(
+      (row: any) => !row.user_id && userEmail && row.email?.toLowerCase() === userEmail
+    );
+    if (unlinked.length > 0) {
+      const ids = unlinked.map((r: any) => r.id);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      void (supabase as any)
+        .from("american_participants")
+        .update({ user_id: userId })
+        .in("id", ids);
+    }
+
+    const tourIds = Array.from(new Set(myAmericanParticipants.map((p) => p.tournament_id).filter(Boolean)));
+    if (tourIds.length > 0) {
+      const { data: tourRows, error: tourErr } = await supabase
+        .from("tournaments")
+        .select("id, name, slug, status, starts_on, ends_on, sports(name)")
+        .in("id", tourIds);
+
+      if (tourErr) {
+        console.error("Error fetching tournaments for american participants:", tourErr);
+      }
+
+      const tourMap = new Map((tourRows ?? []).map((t) => [t.id, t]));
+
+      for (const p of myAmericanParticipants) {
+        const t = tourMap.get(p.tournament_id);
+        if (!t) continue;
+        const teamName = p.secondary_display_name
+          ? `${p.display_name} / ${p.secondary_display_name}`
+          : p.display_name;
+
+        americanItems.push({
+          teamId: p.id,
+          teamName,
+          teamStatus: "approved",
+          role: "player",
+          tournament: {
+            id: t.id,
+            name: t.name,
+            slug: t.slug,
+            status: t.status as TournamentStatus,
+            startsOn: t.starts_on,
+            endsOn: t.ends_on,
+            sportName: t.sports?.name ?? "Pádel Americano",
+          },
+          isAmerican: true,
+        });
       }
     }
   }
 
-  // 5. Si el torneo tiene categorías, el equipo debe estar asignado a una de ellas
-  const valid = candidates.filter((member) => {
-    const team = member.teams;
-    const tournament = team.tournaments;
-    const tourCategories = categoriesByTournament.get(tournament.id) ?? [];
-    const hasCategories = tourCategories.length > 0;
+  const data = teamRes.data;
+  let validTeamItems: ParticipationItem[] = [];
 
-    if (hasCategories) {
-      const effectiveCatId = team.category_id ?? groupTeamCatMap.get(team.id) ?? null;
-      if (!effectiveCatId || !tourCategories.includes(effectiveCatId)) {
-        return false;
+  if (data && data.length > 0) {
+    // 1. Excluir equipos rechazados por el organizador
+    const nonRejected = data.filter((m) => m.teams?.status !== "rejected");
+    if (nonRejected.length > 0) {
+      // 2. Si el torneo ya comenzó o finalizó, las inscripciones que quedaron en 'pending' nunca ingresaron
+      const candidates = nonRejected.filter((m) => {
+        const tStatus = m.teams?.tournaments?.status;
+        if (tStatus && !["draft", "registration_open"].includes(tStatus)) {
+          return m.teams?.status === "approved";
+        }
+        return true;
+      });
+
+      if (candidates.length > 0) {
+        const tournamentIds = Array.from(new Set(candidates.map((m) => m.teams.tournaments.id)));
+
+        // 3. Consultar si los torneos tienen categorías configuradas
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: catRows, error: catError } = await (supabase as any)
+          .from("tournament_categories")
+          .select("id, tournament_id")
+          .in("tournament_id", tournamentIds);
+
+        const categoriesByTournament = new Map<string, string[]>();
+        if (!catError && catRows) {
+          for (const cat of catRows) {
+            const list = categoriesByTournament.get(cat.tournament_id) ?? [];
+            list.push(cat.id);
+            categoriesByTournament.set(cat.tournament_id, list);
+          }
+        }
+
+        // 4. Fallback: equipos sin category_id directo asignados a un grupo (group_teams)
+        const teamsNeedingCategoryCheck = candidates
+          .filter((m) => {
+            const tourCats = categoriesByTournament.get(m.teams.tournaments.id);
+            return tourCats && tourCats.length > 0 && !m.teams.category_id;
+          })
+          .map((m) => m.teams.id);
+
+        const groupTeamCatMap = new Map<string, string>();
+        if (teamsNeedingCategoryCheck.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: groupTeamRows } = await (supabase as any)
+            .from("group_teams")
+            .select("team_id, groups(category_id)")
+            .in("team_id", teamsNeedingCategoryCheck);
+
+          for (const gt of groupTeamRows ?? []) {
+            if (gt.team_id && gt.groups?.category_id) {
+              groupTeamCatMap.set(gt.team_id, gt.groups.category_id);
+            }
+          }
+        }
+
+        // 5. Si el torneo tiene categorías, el equipo debe estar asignado a una de ellas
+        const valid = candidates.filter((member) => {
+          const team = member.teams;
+          const tournament = team.tournaments;
+          const tourCategories = categoriesByTournament.get(tournament.id) ?? [];
+          const hasCategories = tourCategories.length > 0;
+
+          if (hasCategories) {
+            const effectiveCatId = team.category_id ?? groupTeamCatMap.get(team.id) ?? null;
+            if (!effectiveCatId || !tourCategories.includes(effectiveCatId)) {
+              return false;
+            }
+          }
+
+          return true;
+        });
+
+        validTeamItems = valid.map((member) => {
+          const team = member.teams;
+          const tournament = team.tournaments;
+          return {
+            teamId: team.id,
+            teamName: team.name,
+            teamStatus: team.status,
+            role: member.role,
+            tournament: {
+              id: tournament.id,
+              name: tournament.name,
+              slug: tournament.slug,
+              status: tournament.status,
+              startsOn: tournament.starts_on,
+              endsOn: tournament.ends_on,
+              sportName: tournament.sports?.name ?? "",
+            },
+          };
+        });
       }
     }
+  }
 
-    return true;
-  });
-
-  return valid
-    .map((member) => {
-      const team = member.teams;
-      const tournament = team.tournaments;
-      return {
-        teamId: team.id,
-        teamName: team.name,
-        teamStatus: team.status,
-        role: member.role,
-        tournament: {
-          id: tournament.id,
-          name: tournament.name,
-          slug: tournament.slug,
-          status: tournament.status,
-          startsOn: tournament.starts_on,
-          endsOn: tournament.ends_on,
-          sportName: tournament.sports?.name ?? "",
-        },
-      };
-    })
-    .sort((a, b) => b.tournament.startsOn.localeCompare(a.tournament.startsOn));
+  return [...validTeamItems, ...americanItems].sort((a, b) =>
+    b.tournament.startsOn.localeCompare(a.tournament.startsOn)
+  );
 });
 
 export type OrganizerTournament = {
@@ -322,6 +409,7 @@ export type OrganizerTournament = {
   maxTeams: number;
   resultsRequireConfirmation: boolean;
   scoringConfig: ScoringConfig;
+  rawScoringConfig?: unknown;
   standingsConfig: StandingsConfig;
   playoffConfig: PlayoffConfig;
   championTeamId: string | null;
@@ -410,6 +498,7 @@ export const getOrganizerTournament = cache(
       resultsRequireConfirmation: data.results_require_confirmation,
       // Las configs las valida la app al guardar (y la base su forma mínima).
       scoringConfig: normalizeScoringConfig(data.scoring_config),
+      rawScoringConfig: data.scoring_config,
       standingsConfig: data.standings_config as StandingsConfig,
       playoffConfig: data.playoff_config as PlayoffConfig,
       championTeamId: data.champion_team_id,

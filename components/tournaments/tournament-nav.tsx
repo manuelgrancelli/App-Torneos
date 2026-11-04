@@ -63,17 +63,60 @@ export function TournamentNav({
   badges = {},
   recommended,
   status,
+  isAmerican = false,
 }: {
   tournamentId: string;
   badges?: Partial<Record<NavGroupKey, number>>;
   /** Pestaña donde está el trabajo de la fase actual (D-055). */
   recommended?: NavGroupKey;
   status?: TournamentStatus;
+  isAmerican?: boolean;
 }) {
   const pathname = usePathname();
   const base = `/torneos/${tournamentId}`;
   const hrefOf = (segment: string) => `${base}/${segment}`;
   const isActive = (segment: string) => pathname.startsWith(hrefOf(segment));
+
+  if (isAmerican) {
+    const americanItems = [
+      { key: "americano", segment: "americano", label: "Torneo Americano" },
+      { key: "configuracion", segment: "configuracion", label: "Configuración" },
+    ];
+
+    return (
+      <nav aria-label="Secciones del torneo americano" className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
+        <div className="flex min-w-max items-center justify-between border-b">
+          <ul className="flex gap-1">
+            {americanItems.map((item) => {
+              const active = isActive(item.segment);
+              return (
+                <li key={item.key}>
+                  <Link
+                    href={hrefOf(item.segment)}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "-mb-px inline-flex h-11 items-center gap-2 border-b-2 border-transparent px-3 text-sm font-medium text-muted-foreground transition-colors",
+                      linkClass,
+                      active && "border-emerald-500 text-emerald-600 dark:text-emerald-400 font-semibold"
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+
+          <Link
+            href={`/t/${tournamentId}`}
+            className="text-xs font-semibold text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 px-3 py-1 transition-colors"
+          >
+            Ver vista de jugador &rarr;
+          </Link>
+        </div>
+      </nav>
+    );
+  }
 
   const isClosed = status === "group_stage" || status === "playoffs" || status === "finished";
 

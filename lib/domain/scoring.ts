@@ -38,6 +38,8 @@ export const setsScoringConfigSchema = z.object({
   superTiebreakPoints: z.number().int().min(5).max(30).default(11),
   /** Hasta qué fase se juega super tie-break (por defecto hasta cuartos de final en pádel). */
   superTiebreakUntil: superTiebreakUntilSchema.default("quarterfinals"),
+  /** Configuración opcional para torneos de formato americano */
+  american: z.any().optional(),
 });
 
 export const goalsScoringConfigSchema = z.object({
@@ -48,6 +50,8 @@ export const goalsScoringConfigSchema = z.object({
   minTeamSize: z.number().int().min(1, "El mínimo es 1 jugador.").max(30, "El máximo es 30 jugadores.").default(5),
   /** Máximo permitido de jugadores por equipo con suplentes (ej: 10, 15, 20). */
   maxTeamSize: z.number().int().min(1, "El mínimo es 1 jugador.").max(30, "El máximo es 30 jugadores.").default(15),
+  /** Configuración opcional para torneos de formato americano */
+  american: z.any().optional(),
 });
 
 export const scoringConfigSchema = z.discriminatedUnion("type", [
@@ -76,6 +80,7 @@ export function normalizeScoringConfig(raw: unknown): ScoringConfig {
 
   if (!raw || typeof raw !== "object") return fallback;
   const obj = raw as Record<string, unknown>;
+  const american = obj.american;
 
   if (obj.type === "goals") {
     const minTeamSize =
@@ -92,6 +97,7 @@ export function normalizeScoringConfig(raw: unknown): ScoringConfig {
       playoffTiebreak: "penalties",
       minTeamSize,
       maxTeamSize,
+      ...(american ? { american } : {}),
     };
   }
 
@@ -130,6 +136,7 @@ export function normalizeScoringConfig(raw: unknown): ScoringConfig {
     decidingSet,
     superTiebreakPoints,
     superTiebreakUntil,
+    ...(american ? { american } : {}),
   };
 }
 

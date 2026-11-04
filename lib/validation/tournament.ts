@@ -22,6 +22,26 @@ const integer = (min: number, max: number, label: string) =>
     .min(min, { error: `El mínimo es ${min}.` })
     .max(max, { error: `El máximo es ${max}.` });
 
+/** Formatos soportados para Torneos Americanos de Pádel */
+export const americanFormatSchema = z.enum(["INDIVIDUAL_ROTATIVO", "PAREJAS_FIJAS"]);
+export type AmericanTournamentFormat = z.infer<typeof americanFormatSchema>;
+
+/** Modalidades de puntuación para Torneos Americanos */
+export const americanScoringModeSchema = z.enum(["fixed_points", "timed_round", "single_set"]);
+export type AmericanScoringMode = z.infer<typeof americanScoringModeSchema>;
+
+/** Configuración de Torneo Americano */
+export const americanConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  format: americanFormatSchema.default("INDIVIDUAL_ROTATIVO"),
+  scoringMode: americanScoringModeSchema.default("fixed_points"),
+  targetPoints: z.number().int().min(10, { error: "El mínimo es 10 puntos." }).max(100, { error: "El máximo es 100 puntos." }).default(24),
+  roundDurationMinutes: z.number().int().min(5, { error: "El mínimo es 5 minutos." }).max(120, { error: "El máximo es 120 minutos." }).default(20),
+  participantCount: z.number().int().min(4, { error: "El mínimo es 4 participantes." }).max(128, { error: "El máximo es 128 participantes." }).default(12),
+  roundsCount: z.number().int().min(1, { error: "El mínimo es 1 ronda." }).max(30, { error: "El máximo son 30 rondas." }).default(5),
+});
+export type AmericanConfig = z.infer<typeof americanConfigSchema>;
+
 /** Datos generales (comunes a crear y editar). */
 const tournamentInfoShape = {
   name: z
@@ -39,6 +59,16 @@ const tournamentInfoShape = {
   standingsConfig: standingsConfigSchema,
   playoffConfig: playoffConfigSchema,
   bannerUrl: z.string().url({ error: "Ingresá una URL válida." }).max(2048).nullable().optional(),
+  isAmerican: z.boolean().default(false),
+  americanConfig: americanConfigSchema.default({
+    enabled: false,
+    format: "INDIVIDUAL_ROTATIVO",
+    scoringMode: "fixed_points",
+    targetPoints: 24,
+    roundDurationMinutes: 20,
+    participantCount: 12,
+    roundsCount: 5,
+  }),
 };
 
 type ConfigFields = {
@@ -46,6 +76,8 @@ type ConfigFields = {
   endsOn: string;
   scoringConfig: z.infer<typeof scoringConfigSchema>;
   standingsConfig: z.infer<typeof standingsConfigSchema>;
+  isAmerican?: boolean;
+  americanConfig?: AmericanConfig;
 };
 
 /** Reglas que cruzan campos: fechas y desempates acordes al deporte. */
@@ -116,6 +148,58 @@ export const createTournamentSchema = z
             message: "Las sedes no pueden tener nombres repetidos.",
           });
         }
+      }
+    }
+    if (data.isAmerican || data.americanConfig?.enabled) {
+      const cfg = data.americanConfig;
+      if (cfg?.format === "INDIVIDUAL_ROTATIVO") {
+        if (!cfg.participantCount || cfg.participantCount < 4) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["americanConfig", "participantCount"],
+            message: "Se requiere un mínimo de 4 participantes.",
+          });
+        } else if (cfg.participantCount % 4 !== 0) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["americanConfig", "participantCount"],
+            message: "En modalidad individual rotativo debe ser múltiplo de 4 (8, 12, 16, etc.).",
+          });
+        }
+      } else if (cfg?.format === "PAREJAS_FIJAS") {
+        if (!cfg.participantCount || cfg.participantCount < 2) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["americanConfig", "participantCount"],
+            message: "Se requiere un mínimo de 2 parejas.",
+          });
+        }
+      }
+
+      if (cfg?.scoringMode === "fixed_points") {
+        if (!cfg.targetPoints || cfg.targetPoints < 10) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["americanConfig", "targetPoints"],
+            message: "El puntaje objetivo debe ser de al menos 10 puntos.",
+          });
+        }
+      } else if (cfg?.scoringMode === "timed_round") {
+        if (!cfg.roundDurationMinutes || cfg.roundDurationMinutes < 5) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["americanConfig", "roundDurationMinutes"],
+            message: "La duración mínima de cada ronda es de 5 minutos.",
+          });
+        }
+      }
+
+      if (!data.courtCount || data.courtCount < 1) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["courtCount"],
+          message: "Indicá al menos 1 cancha disponible.",
+        });
       }
     }
   });

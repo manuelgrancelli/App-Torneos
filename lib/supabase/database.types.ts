@@ -5,7 +5,40 @@ export type Database = {
   
   "public": {
           Tables: {
-            "circuits": {
+            "american_matches": {
+                  Row: {
+                    "category_id": string | null,"court_id": string | null,"court_number": number,"created_at": string,"id": string,"order_number": number,"played_at": string | null,"player_a1_id": string,"player_a2_id": string | null,"player_b1_id": string,"player_b2_id": string | null,"round_number": number,"score_side_a": number | null,"score_side_b": number | null,"shift_number": number,"status": "pending" | "in_progress" | "completed","tournament_id": string,"updated_at": string
+                  }
+                  Insert: {
+                    "category_id"?: string | null,"court_id"?: string | null,"court_number": number,"created_at"?: string,"id"?: string,"order_number"?: number,"played_at"?: string | null,"player_a1_id": string,"player_a2_id"?: string | null,"player_b1_id": string,"player_b2_id"?: string | null,"round_number": number,"score_side_a"?: number | null,"score_side_b"?: number | null,"shift_number"?: number,"status"?: "pending" | "in_progress" | "completed","tournament_id": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "category_id"?: string | null,"court_id"?: string | null,"court_number"?: number,"created_at"?: string,"id"?: string,"order_number"?: number,"played_at"?: string | null,"player_a1_id"?: string,"player_a2_id"?: string | null,"player_b1_id"?: string,"player_b2_id"?: string | null,"round_number"?: number,"score_side_a"?: number | null,"score_side_b"?: number | null,"shift_number"?: number,"status"?: "pending" | "in_progress" | "completed","tournament_id"?: string,"updated_at"?: string
+                  }
+                  Relationships: []
+                },"american_participants": {
+                  Row: {
+                    "category_id": string | null,"created_at": string,"display_name": string,"email": string | null,"id": string,"phone": string | null,"secondary_display_name": string | null,"seed_number": number | null,"tournament_id": string,"updated_at": string,"user_id": string | null
+                  }
+                  Insert: {
+                    "category_id"?: string | null,"created_at"?: string,"display_name": string,"email"?: string | null,"id"?: string,"phone"?: string | null,"secondary_display_name"?: string | null,"seed_number"?: number | null,"tournament_id": string,"updated_at"?: string,"user_id"?: string | null
+                  }
+                  Update: {
+                    "category_id"?: string | null,"created_at"?: string,"display_name"?: string,"email"?: string | null,"id"?: string,"phone"?: string | null,"secondary_display_name"?: string | null,"seed_number"?: number | null,"tournament_id"?: string,"updated_at"?: string,"user_id"?: string | null
+                  }
+                  Relationships: []
+                },"american_standings": {
+                  Row: {
+                    "category_id": string | null,"lost": number,"participant_id": string,"played": number,"point_diff": number,"points_against": number,"points_for": number,"rank": number | null,"tournament_id": string,"updated_at": string,"won": number
+                  }
+                  Insert: {
+                    "category_id"?: string | null,"lost"?: number,"participant_id": string,"played"?: number,"points_against"?: number,"points_for"?: number,"rank"?: number | null,"tournament_id": string,"updated_at"?: string,"won"?: number
+                  }
+                  Update: {
+                    "category_id"?: string | null,"lost"?: number,"participant_id"?: string,"played"?: number,"points_against"?: number,"points_for"?: number,"rank"?: number | null,"tournament_id"?: string,"updated_at"?: string,"won"?: number
+                  }
+                  Relationships: []
+                },"circuits": {
                   Row: {
                     "created_at": string,"description": string | null,"id": string,"name": string,"organizer_id": string,"points_config": NonNullable<Json>,"slug": string,"sport_id": string,"updated_at": string,"year": number
                   }
@@ -592,6 +625,9 @@ isOneToOne: false
                            }
           }
           Enums: {
+            "american_format": "INDIVIDUAL_ROTATIVO" | "PAREJAS_FIJAS",
+            "american_scoring_mode": "fixed_points" | "timed_round",
+            "american_match_status": "pending" | "in_progress" | "completed",
             "confirmation_response": "confirmed"|"disputed","match_side": "home"|"away","match_stage": "group"|"playoff","result_status": "provisional"|"confirmed"|"disputed","scoring_type": "sets"|"goals","team_member_role": "captain"|"player","team_status": "pending"|"approved"|"rejected","tournament_status": "draft"|"registration_open"|"group_stage"|"playoffs"|"finished"
           }
           CompositeTypes: {

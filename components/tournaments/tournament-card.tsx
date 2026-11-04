@@ -147,10 +147,12 @@ export function OrganizedTournamentCard({ tournament }: { tournament: Tournament
 /** Tarjeta táctil moderna de un torneo donde el usuario participa como jugador. */
 export function ParticipationCard({ participation }: { participation: ParticipationItem }) {
   const { tournament } = participation;
+  const isAmerican = participation.isAmerican;
+  const href = isAmerican ? `/t/${tournament.slug || tournament.id}` : `/inscripciones/${participation.teamId}`;
 
   return (
     <Link
-      href={`/inscripciones/${participation.teamId}`}
+      href={href}
       className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border-2 border-border bg-card p-4 sm:p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-primary hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="space-y-3.5">
@@ -182,7 +184,7 @@ export function ParticipationCard({ participation }: { participation: Participat
               <ShieldCheck className="size-4" aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <span className="text-[11px] text-muted-foreground block leading-tight">Tu equipo:</span>
+              <span className="text-[11px] text-muted-foreground block leading-tight">{isAmerican ? "Tu lugar / Inscripto:" : "Tu equipo:"}</span>
               <span className="font-semibold text-sm text-foreground truncate block">
                 {participation.teamName}
               </span>
@@ -191,7 +193,7 @@ export function ParticipationCard({ participation }: { participation: Participat
 
           <div className="flex items-center gap-2 shrink-0">
             <span className="rounded-md border border-border bg-background/80 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-              {participation.role === "captain" ? "Capitán" : "Jugador"}
+              {isAmerican ? "Participante" : participation.role === "captain" ? "Capitán" : "Jugador"}
             </span>
             <TeamStatusBadge status={participation.teamStatus} />
           </div>
@@ -206,7 +208,7 @@ export function ParticipationCard({ participation }: { participation: Participat
         </span>
 
         <span className="inline-flex items-center gap-1 font-medium text-foreground group-hover:text-primary transition-colors">
-          <span>Ver mi equipo</span>
+          <span>{isAmerican ? "Ver torneo americano" : "Ver mi equipo"}</span>
           <ChevronRight className="size-4 group-hover:translate-x-1 transition-transform" aria-hidden="true" />
         </span>
       </div>
