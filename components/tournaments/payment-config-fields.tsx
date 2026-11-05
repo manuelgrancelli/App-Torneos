@@ -178,9 +178,45 @@ export function PaymentConfigFields({
               </div>
 
               {mpEnabled && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-sky-500/20">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-sky-500/20">
+                  <div className="sm:col-span-2 rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 space-y-2">
+                    <Field>
+                      <div className="flex flex-wrap items-center justify-between gap-1">
+                        <FieldLabel className="text-xs font-bold text-sky-950 dark:text-sky-200">
+                          🔑 Access Token de Mercado Pago (para cobro directo con monto y tarjetas)
+                        </FieldLabel>
+                        <a
+                          href="https://www.mercadopago.com.ar/developers/panel/app"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] font-semibold text-sky-600 dark:text-sky-400 underline hover:opacity-80"
+                        >
+                          Obtener mi Access Token en Mercado Pago Developers ↗
+                        </a>
+                      </div>
+                      <Controller
+                        name="paymentConfig.methods.mercadopago.accessToken"
+                        control={form.control}
+                        render={({ field }) => (
+                          <Input
+                            type="password"
+                            autoComplete="off"
+                            placeholder="Pegá acá tu token: APP_USR-..."
+                            value={field.value ?? ""}
+                            onChange={(e) => field.onChange(e.target.value || null)}
+                            disabled={disabled}
+                            className="text-xs h-8 bg-card font-mono"
+                          />
+                        )}
+                      />
+                      <FieldDescription className="text-[11px] text-sky-900/80 dark:text-sky-200/80 leading-snug">
+                        Con tu <strong>Access Token</strong> (<code>APP_USR-...</code>), cuando el jugador toca pagar se le abre <strong>Mercado Pago One-Tap</strong> directamente con el monto exacto ya cargado y el carrusel de sus tarjetas / dinero en cuenta para elegir y confirmar.
+                      </FieldDescription>
+                    </Field>
+                  </div>
+
                   <Field>
-                    <FieldLabel className="text-[11px] font-semibold">Alias de Mercado Pago</FieldLabel>
+                    <FieldLabel className="text-[11px] font-semibold">Alias de Mercado Pago (para quien elija transferir)</FieldLabel>
                     <Controller
                       name="paymentConfig.methods.mercadopago.alias"
                       control={form.control}
@@ -197,7 +233,7 @@ export function PaymentConfigFields({
                   </Field>
 
                   <Field>
-                    <FieldLabel className="text-[11px] font-semibold">CVU de Mercado Pago</FieldLabel>
+                    <FieldLabel className="text-[11px] font-semibold">CVU de Mercado Pago (opcional)</FieldLabel>
                     <Controller
                       name="paymentConfig.methods.mercadopago.cvu"
                       control={form.control}
@@ -216,7 +252,7 @@ export function PaymentConfigFields({
                   <div className="sm:col-span-2">
                     <Field>
                       <FieldLabel className="text-[11px] font-semibold">
-                        Link de pago de Mercado Pago (opcional)
+                        Link de pago de Mercado Pago (alternativa sin Access Token)
                       </FieldLabel>
                       <Controller
                         name="paymentConfig.methods.mercadopago.paymentLink"
@@ -232,33 +268,7 @@ export function PaymentConfigFields({
                         )}
                       />
                       <FieldDescription className="text-[11px]">
-                        Si creaste un link de cobro en Mercado Pago, pegalo acá para que los jugadores paguen con 1 clic.
-                      </FieldDescription>
-                    </Field>
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <Field>
-                      <FieldLabel className="text-[11px] font-semibold">
-                        Access Token de Mercado Pago — API Checkout Pro (opcional)
-                      </FieldLabel>
-                      <Controller
-                        name="paymentConfig.methods.mercadopago.accessToken"
-                        control={form.control}
-                        render={({ field }) => (
-                          <Input
-                            type="password"
-                            autoComplete="off"
-                            placeholder="APP_USR-... o TEST-..."
-                            value={field.value ?? ""}
-                            onChange={(e) => field.onChange(e.target.value || null)}
-                            disabled={disabled}
-                            className="text-xs h-8 bg-card font-mono"
-                          />
-                        )}
-                      />
-                      <FieldDescription className="text-[11px]">
-                        Opcional: pegá tu Access Token de Mercado Pago Developers para generar un checkout online con el monto exacto y acreditación automática al pagar.
+                        Si no usás Access Token, podés pegar acá un link de cobro creado en tu app de Mercado Pago.
                       </FieldDescription>
                     </Field>
                   </div>

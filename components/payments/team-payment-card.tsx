@@ -114,7 +114,7 @@ export function TeamPaymentCard({
         teamId,
         teamName,
         returnPath: `/inscripciones/${teamId}`,
-        openInNewTab: true,
+        openInNewTab: false,
       });
     } finally {
       setIsLaunchingMp(false);

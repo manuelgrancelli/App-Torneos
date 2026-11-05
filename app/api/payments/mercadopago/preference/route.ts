@@ -84,6 +84,13 @@ export async function POST(request: Request) {
             unit_price: amount,
           },
         ],
+        payment_methods: {
+          excluded_payment_types: [
+            { id: "ticket" },
+            { id: "atm" },
+          ],
+        },
+        binary_mode: true,
         external_reference: JSON.stringify({
           tournamentId: tournament.id,
           teamId: body.teamId ?? null,
@@ -125,16 +132,14 @@ export async function POST(request: Request) {
       } else {
         const errText = await mpResponse.text().catch(() => "");
         console.error("[MP Checkout Pro API] Error creando preferencia:", mpResponse.status, errText);
-        // Si el token es inválido y no hay link/alias de respaldo, informar con claridad
-        if (!mpConfig.paymentLink && !mpConfig.alias && !mpConfig.cvu && !trConfig.alias && !trConfig.cbuOrCvu) {
-          return NextResponse.json(
-            {
-              ok: false,
-              error: "No se pudo conectar con la API de Mercado Pago. Verificá el Access Token configurado en el torneo.",
-            },
-            { status: 502 },
-          );
-        }
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "El Access Token de Mercado Pago rechazó la creación del cobro. Verificá que sea un Access Token válido (APP_USR-... o TEST-...).",
+          },
+          { status: 502 },
+        );
       }
     }
 
@@ -148,19 +153,16 @@ export async function POST(request: Request) {
       });
     }
 
-    // 3. Apertura directa de Mercado Pago (Web / App Deep-Link) con Alias / CVU pre-cargado
-    const alias = mpConfig.alias || trConfig.alias || null;
-    const cvu = mpConfig.cvu || trConfig.cbuOrCvu || null;
-
-    return NextResponse.json({
-      ok: true,
-      mode: "mp_app_transfer" as const,
-      initPoint: "https://www.mercadopago.com.ar/money-out/transfer",
-      deepLink: "mercadopago://home",
-      alias,
-      cvu,
-      amount,
-    });
+    // 3. Si no hay Access Token ni Link de pago, avisar explícitamente que para abrir Checkout One-Tap (con monto y carrusel de tarjetas) hace falta el Access Token
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "missing_access_token",
+        error:
+          "Para que Mercado Pago se abra directo con el monto a pagar y el selector de tarjetas, cargá tu Access Token (APP_USR-...) en la Configuración del torneo (o en MERCADOPAGO_ACCESS_TOKEN).",
+      },
+      { status: 400 },
+    );
   } catch (err) {
     console.error("[/api/payments/mercadopago/preference] Error:", err);
     return NextResponse.json(

@@ -66,13 +66,14 @@ export function AmericanJoinCard({
 
       toast.success(res.message);
       if (paymentConfig?.enabled && selectedPaymentMethod === "mercadopago" && tournamentId) {
-        await launchMercadoPagoPayment({
+        const opened = await launchMercadoPagoPayment({
           tournamentId,
           participantId: res.data.participantId,
           teamName: displayName.trim(),
           returnPath: `/unirse/${code}`,
-          openInNewTab: true,
+          openInNewTab: false,
         });
+        if (opened) return;
       }
       setIsRegistered(true);
       router.refresh();

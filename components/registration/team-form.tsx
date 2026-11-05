@@ -185,13 +185,14 @@ export function TeamForm(props: TeamFormProps) {
         }
         toast.success(result.message ?? "¡Listo!");
         if (props.paymentConfig?.enabled && selectedPaymentMethod === "mercadopago" && props.tournamentId) {
-          await launchMercadoPagoPayment({
+          const opened = await launchMercadoPagoPayment({
             tournamentId: props.tournamentId,
             teamId: result.data.teamId,
             teamName: payload.teamName,
             returnPath: `/inscripciones/${result.data.teamId}`,
-            openInNewTab: true,
+            openInNewTab: false,
           });
+          if (opened) return;
         }
         router.push(`/inscripciones/${result.data.teamId}`);
         return;
