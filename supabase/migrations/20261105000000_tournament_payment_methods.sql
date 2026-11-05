@@ -200,7 +200,17 @@ $$;
 revoke execute on function public.set_team_payment_method(uuid, text) from public, anon;
 grant execute on function public.set_team_payment_method(uuid, text) to authenticated;
 
--- 7. Actualizar register_team para incorporar payment_method y payment_status
+-- 7. Asegurar columnas de tamaño de equipo en tournaments y limpiar sobrecargas previas de register_team
+alter table public.tournaments
+  add column if not exists min_team_size smallint check (min_team_size >= 1),
+  add column if not exists max_team_size smallint check (max_team_size >= min_team_size);
+
+drop function if exists public.register_team(text, text, text[]);
+drop function if exists public.register_team(text, text, text[], uuid);
+drop function if exists public.register_team(text, text, text[], uuid, text);
+drop function if exists public.register_team(text, text, text[], uuid, text, text[]);
+drop function if exists public.register_team(text, text, text[], uuid, text, text[], text);
+
 create or replace function public.register_team(
   p_code text,
   p_team_name text,
@@ -262,7 +272,11 @@ begin
   end if;
 
   -- Determinar estado inicial del arancel
-  if coalesce((v_tournament.payment_config->>'enabled')::boolean, false) then
+  if coalesce(
+    (to_jsonb(v_tournament)->'payment_config'->>'enabled')::boolean,
+    (v_tournament.standings_config->'payment'->>'enabled')::boolean,
+    false
+  ) then
     if p_payment_method = 'cash' then
       v_payment_status := 'cash_on_arrival';
     else
@@ -280,7 +294,7 @@ begin
     if v_cat.status <> 'registration_open' then
       raise exception using errcode = 'P0001', message = 'La inscripción en esta categoría ya está cerrada.';
     end if;
-    if (select count(*) from public.teams where tournament_id = v_tournament.id and category_id = p_category_id and status = 'approved')
+    if v_cat.max_teams is not null and (select count(*) from public.teams where tournament_id = v_tournament.id and category_id = p_category_id and status = 'approved')
        >= v_cat.max_teams then
       raise exception using errcode = 'P0001', message = 'Esta categoría ya completó el cupo.';
     end if;
@@ -297,8 +311,8 @@ begin
   select * into v_sport from public.sports where id = v_tournament.sport_id;
   v_emails := coalesce(p_member_emails, '{}'::text[]);
   v_names := coalesce(p_member_names, '{}'::text[]);
-  v_min_team_size := coalesce(v_tournament.min_team_size, (v_tournament.scoring_config->>'minTeamSize')::integer, v_sport.min_team_size);
-  v_max_team_size := coalesce(v_tournament.max_team_size, (v_tournament.scoring_config->>'maxTeamSize')::integer, v_sport.max_team_size);
+  v_min_team_size := coalesce((to_jsonb(v_tournament)->>'min_team_size')::integer, (v_tournament.scoring_config->>'minTeamSize')::integer, v_sport.min_team_size);
+  v_max_team_size := coalesce((to_jsonb(v_tournament)->>'max_team_size')::integer, (v_tournament.scoring_config->>'maxTeamSize')::integer, v_sport.max_team_size);
 
   -- Contar compañeros válidos cargados
   v_max_items := greatest(cardinality(v_emails), cardinality(v_names));
@@ -406,6 +420,9 @@ revoke execute on function public.register_team(text, text, text[], uuid, text, 
 grant execute on function public.register_team(text, text, text[], uuid, text, text[], text) to authenticated;
 
 -- 8. Actualizar register_american_participant para incorporar payment_method y payment_status
+drop function if exists public.register_american_participant(text, text, text);
+drop function if exists public.register_american_participant(text, text, text, text);
+
 create or replace function public.register_american_participant(
   p_code text,
   p_display_name text,
