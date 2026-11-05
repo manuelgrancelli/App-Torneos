@@ -1,13 +1,15 @@
 "use client";
 
-import { Banknote, Building2, CreditCard, DollarSign, HelpCircle, QrCode, Wallet } from "lucide-react";
+import { Banknote, Building2, CheckCircle2, DollarSign, ExternalLink, Link2, Wallet } from "lucide-react";
+import { useEffect } from "react";
 import type { UseFormReturn } from "react-hook-form";
 import { Controller } from "react-hook-form";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import type { CreateTournamentInput } from "@/lib/validation/tournament";
 
 export function PaymentConfigFields({
   form,
@@ -20,8 +22,36 @@ export function PaymentConfigFields({
   const isEnabled = form.watch("paymentConfig.enabled");
   const isAmerican = form.watch("isAmerican");
   const mpEnabled = form.watch("paymentConfig.methods.mercadopago.enabled");
+  const mpAccessToken = form.watch("paymentConfig.methods.mercadopago.accessToken");
   const transferEnabled = form.watch("paymentConfig.methods.transfer.enabled");
   const cashEnabled = form.watch("paymentConfig.methods.cash.enabled");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const oauthStatus = params.get("mp_oauth");
+    if (!oauthStatus) return;
+
+    if (oauthStatus === "connected") {
+      toast.success("¡Tu cuenta de Mercado Pago quedó vinculada al torneo!");
+    } else if (oauthStatus === "missing_client_id") {
+      toast.info(
+        "Para usar vinculación con 1 clic agregá MP_CLIENT_ID y MP_CLIENT_SECRET en .env.local, o pegá tu Access Token abajo.",
+      );
+    } else if (oauthStatus !== "cancelled") {
+      toast.error("No se pudo completar la vinculación con Mercado Pago. Probá pegando tu Access Token.");
+    }
+  }, []);
+
+  const handleConnectMpOAuth = () => {
+    if (typeof window === "undefined") return;
+    const match = window.location.pathname.match(/\/torneos\/([^/]+)/);
+    const tournamentId = match?.[1] ?? "";
+    const returnTo = window.location.pathname;
+    window.location.href = `/api/payments/mercadopago/connect?tournamentId=${encodeURIComponent(
+      tournamentId,
+    )}&returnTo=${encodeURIComponent(returnTo)}`;
+  };
 
   return (
     <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 space-y-5">
@@ -179,19 +209,43 @@ export function PaymentConfigFields({
 
               {mpEnabled && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-sky-500/20">
-                  <div className="sm:col-span-2 rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 space-y-2">
+                  <div className="sm:col-span-2 rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-sky-950 dark:text-sky-200">
+                          🔑 Cuenta de Mercado Pago del Organizador (Checkout Directo)
+                        </span>
+                        {mpAccessToken ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                            <CheckCircle2 className="size-3" /> Vinculada
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleConnectMpOAuth}
+                        disabled={disabled}
+                        className="h-7 px-2.5 text-[11px] font-bold bg-[#009EE3] hover:bg-[#008ACA] text-white cursor-pointer gap-1"
+                      >
+                        <Link2 className="size-3.5" />
+                        Vincular mi Mercado Pago con 1 clic
+                      </Button>
+                    </div>
+
                     <Field>
                       <div className="flex flex-wrap items-center justify-between gap-1">
-                        <FieldLabel className="text-xs font-bold text-sky-950 dark:text-sky-200">
-                          🔑 Access Token de Mercado Pago (para cobro directo con monto y tarjetas)
+                        <FieldLabel className="text-[11px] font-semibold text-sky-950 dark:text-sky-200">
+                          O pegá directamente tu Access Token de Mercado Pago:
                         </FieldLabel>
                         <a
                           href="https://www.mercadopago.com.ar/developers/panel/app"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-[11px] font-semibold text-sky-600 dark:text-sky-400 underline hover:opacity-80"
+                          className="text-[11px] font-semibold text-sky-600 dark:text-sky-400 underline hover:opacity-80 inline-flex items-center gap-0.5"
                         >
-                          Obtener mi Access Token en Mercado Pago Developers ↗
+                          Abrir Mercado Pago Developers <ExternalLink className="size-2.5" />
                         </a>
                       </div>
                       <Controller
@@ -210,7 +264,7 @@ export function PaymentConfigFields({
                         )}
                       />
                       <FieldDescription className="text-[11px] text-sky-900/80 dark:text-sky-200/80 leading-snug">
-                        Con tu <strong>Access Token</strong> (<code>APP_USR-...</code>), cuando el jugador toca pagar se le abre <strong>Mercado Pago One-Tap</strong> directamente con el monto exacto ya cargado y el carrusel de sus tarjetas / dinero en cuenta para elegir y confirmar.
+                        Al vincular tu cuenta (o pegar tu <code>APP_USR-...</code>), <strong>la plata entra directo a tu Mercado Pago</strong> y al jugador se le abre Mercado Pago con el monto exacto ya cargado y sus tarjetas para elegir y confirmar.
                       </FieldDescription>
                     </Field>
                   </div>
