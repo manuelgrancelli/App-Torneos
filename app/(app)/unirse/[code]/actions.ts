@@ -19,7 +19,7 @@ export const registerTeam = createAction(registerTeamSchema, async (input, { sup
     ? input.players.map((p) => p.name.trim())
     : (input.memberNames ?? []);
 
-  const { data, error } = await (supabase.rpc as any)("register_team", {
+  let { data, error } = await (supabase.rpc as any)("register_team", {
     p_code: input.code,
     p_team_name: input.teamName,
     p_member_emails: memberEmails,
@@ -28,6 +28,20 @@ export const registerTeam = createAction(registerTeamSchema, async (input, { sup
     p_member_names: memberNames,
     p_payment_method: input.paymentMethod ?? null,
   });
+
+  if (error && (error.code === "PGRST202" || error.code === "42883")) {
+    const retry = await (supabase.rpc as any)("register_team", {
+      p_code: input.code,
+      p_team_name: input.teamName,
+      p_member_emails: memberEmails,
+      p_category_id: input.categoryId ?? null,
+      p_logo_url: input.logoUrl ?? null,
+      p_member_names: memberNames,
+    });
+    data = retry.data;
+    error = retry.error;
+  }
+
   if (error) return actionError(dbErrorMessage(error));
 
   // Inicializar disponibilidad completa para la pareja si el torneo ya tiene franjas cargadas

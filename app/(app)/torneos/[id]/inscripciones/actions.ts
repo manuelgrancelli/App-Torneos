@@ -43,7 +43,36 @@ export const updateTeamPaymentStatus = createAction(
       p_payment_method: input.paymentMethod ?? null,
       p_payment_notes: input.paymentNotes ?? null,
     });
-    if (error) return actionError(dbErrorMessage(error));
+
+    if (error) {
+      // Fallback en caso de que la migración SQL de RPC aún no haya sido ejecutada
+      const { data: tour } = await supabase
+        .from("tournaments")
+        .select("standings_config")
+        .eq("id", input.tournamentId)
+        .maybeSingle();
+
+      if (!tour) return actionError(dbErrorMessage(error));
+
+      const sc = (tour.standings_config as Record<string, any> | null) ?? {};
+      const paymentsMap = (sc.paymentsMap as Record<string, any> | undefined) ?? {};
+      const prev = paymentsMap[input.teamId] ?? {};
+
+      paymentsMap[input.teamId] = {
+        ...prev,
+        paymentStatus: input.paymentStatus,
+        paymentMethod: input.paymentMethod ?? prev.paymentMethod ?? null,
+        paymentNotes: input.paymentNotes ?? prev.paymentNotes ?? null,
+        paidAt: input.paymentStatus === "paid" ? new Date().toISOString() : null,
+      };
+
+      const { error: fbErr } = await supabase
+        .from("tournaments")
+        .update({ standings_config: { ...sc, paymentsMap } as any })
+        .eq("id", input.tournamentId);
+
+      if (fbErr) return actionError(dbErrorMessage(error));
+    }
 
     revalidatePath(`/torneos/${input.tournamentId}`, "layout");
     revalidatePath(`/torneos/${input.tournamentId}/inscripciones`);

@@ -37,6 +37,19 @@ function revalidateTournament(tournamentId: string) {
  * traducido por dbErrorMessage.
  */
 export const updateTournament = createAction(updateTournamentSchema, async (input, { supabase }) => {
+  const { data: existing } = await supabase
+    .from("tournaments")
+    .select("standings_config")
+    .eq("id", input.tournamentId)
+    .maybeSingle();
+
+  const existingStandings = (existing?.standings_config as Record<string, unknown> | null) ?? {};
+  const mergedStandings = {
+    ...existingStandings,
+    ...input.standingsConfig,
+    ...(input.paymentConfig ? { payment: input.paymentConfig } : {}),
+  };
+
   const { data, error } = await supabase
     .from("tournaments")
     .update({
@@ -48,15 +61,22 @@ export const updateTournament = createAction(updateTournamentSchema, async (inpu
       max_teams: input.maxTeams,
       results_require_confirmation: input.resultsRequireConfirmation,
       scoring_config: input.scoringConfig,
-      standings_config: input.standingsConfig,
+      standings_config: mergedStandings as any,
       playoff_config: input.playoffConfig,
-      ...(input.paymentConfig ? { payment_config: input.paymentConfig as any } : {}),
     })
     .eq("id", input.tournamentId)
     .select("id");
 
   if (error) return actionError(dbErrorMessage(error));
   if (data.length === 0) return actionError(NOT_FOUND);
+
+  if (input.paymentConfig) {
+    await supabase
+      .from("tournaments")
+      .update({ payment_config: input.paymentConfig as any })
+      .eq("id", input.tournamentId);
+  }
+
   revalidateTournament(input.tournamentId);
   return actionOk(undefined, "Guardamos los cambios.");
 });
@@ -65,16 +85,39 @@ export const updateTournament = createAction(updateTournamentSchema, async (inpu
 export const updateTournamentPaymentConfig = createAction(
   updateTournamentPaymentConfigSchema,
   async (input, { supabase }) => {
-    const { data, error } = await supabase
+    const { data: existing } = await supabase
+      .from("tournaments")
+      .select("standings_config")
+      .eq("id", input.tournamentId)
+      .maybeSingle();
+
+    if (!existing) return actionError(NOT_FOUND);
+
+    const existingStandings = (existing.standings_config as Record<string, unknown> | null) ?? {};
+    const mergedStandings = {
+      ...existingStandings,
+      payment: input.paymentConfig,
+    };
+
+    // Guardamos en standings_config (compatible incluso antes de correr la migración)
+    const { data, error: fallbackErr } = await supabase
       .from("tournaments")
       .update({
-        payment_config: input.paymentConfig as any,
+        standings_config: mergedStandings as any,
       })
       .eq("id", input.tournamentId)
       .select("id");
 
-    if (error) return actionError(dbErrorMessage(error));
-    if (data.length === 0) return actionError(NOT_FOUND);
+    // Y también actualizamos la columna nativa payment_config si existe
+    await supabase
+      .from("tournaments")
+      .update({
+        payment_config: input.paymentConfig as any,
+      })
+      .eq("id", input.tournamentId);
+
+    if (fallbackErr) return actionError(dbErrorMessage(fallbackErr));
+    if (!data || data.length === 0) return actionError(NOT_FOUND);
     revalidateTournament(input.tournamentId);
     return actionOk(undefined, "Configuración de pagos guardada con éxito.");
   },

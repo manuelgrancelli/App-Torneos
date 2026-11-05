@@ -8,7 +8,7 @@ import type { PlayoffConfig } from "@/lib/domain/bracket";
 import type { ScoringConfig } from "@/lib/domain/scoring";
 import type { StandingsConfig } from "@/lib/domain/standings";
 import type { TournamentStatus } from "@/lib/domain/tournament-status";
-import { normalizePaymentConfig, type PaymentConfig } from "@/lib/domain/payment";
+import { extractTournamentPaymentConfig, type PaymentConfig } from "@/lib/domain/payment";
 import { publicTournamentTag } from "@/lib/public-cache";
 import { createPublicClient } from "@/lib/supabase/public";
 
@@ -55,9 +55,7 @@ async function loadPublicTournament(tournamentId: string): Promise<PublicTournam
   const [tournament, teams, groups, matches, courts, categories] = await Promise.all([
     supabase
       .from("tournaments")
-      .select(
-        "id, name, slug, description, banner_url, status, starts_on, ends_on, timezone, payment_config, scoring_config, standings_config, playoff_config, champion_team_id, circuit_id, circuit_order, circuits(id, name, slug), sports(name, min_team_size)",
-      )
+      .select("*, circuits(id, name, slug), sports(name, min_team_size)")
       .eq("id", tournamentId)
       .maybeSingle(),
     (supabase as any).from("teams").select("id, name, status, category_id, logo_url").eq("tournament_id", tournamentId).order("name"),
@@ -128,7 +126,7 @@ async function loadPublicTournament(tournamentId: string): Promise<PublicTournam
     scoringConfig: t.scoring_config as ScoringConfig,
     standingsConfig: t.standings_config as StandingsConfig,
     playoffConfig: t.playoff_config as PlayoffConfig,
-    paymentConfig: normalizePaymentConfig((t as any).payment_config),
+    paymentConfig: extractTournamentPaymentConfig(t as any),
     championTeamId: t.champion_team_id,
     circuit: (t as any).circuits
       ? {

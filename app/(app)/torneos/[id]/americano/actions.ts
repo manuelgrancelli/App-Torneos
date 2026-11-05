@@ -212,12 +212,22 @@ const joinAmericanSchema = z.object({
 export const joinAmericanParticipant = createAction(
   joinAmericanSchema,
   async (input, { supabase }) => {
-    const { data, error } = await (supabase.rpc as any)("register_american_participant", {
+    let { data, error } = await (supabase.rpc as any)("register_american_participant", {
       p_code: input.code,
       p_display_name: input.displayName,
       p_secondary_display_name: input.secondaryDisplayName || null,
       p_payment_method: input.paymentMethod || null,
     });
+
+    if (error && (error.code === "PGRST202" || error.code === "42883")) {
+      const retry = await (supabase.rpc as any)("register_american_participant", {
+        p_code: input.code,
+        p_display_name: input.displayName,
+        p_secondary_display_name: input.secondaryDisplayName || null,
+      });
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) return actionError(dbErrorMessage(error));
 
@@ -246,7 +256,36 @@ export const updateAmericanParticipantPaymentStatus = createAction(
       p_payment_method: input.paymentMethod ?? null,
       p_payment_notes: input.paymentNotes ?? null,
     });
-    if (error) return actionError(dbErrorMessage(error));
+
+    if (error) {
+      // Fallback en caso de que la migración SQL de RPC aún no haya sido ejecutada
+      const { data: tour } = await supabase
+        .from("tournaments")
+        .select("standings_config")
+        .eq("id", input.tournamentId)
+        .maybeSingle();
+
+      if (!tour) return actionError(dbErrorMessage(error));
+
+      const sc = (tour.standings_config as Record<string, any> | null) ?? {};
+      const paymentsMap = (sc.paymentsMap as Record<string, any> | undefined) ?? {};
+      const prev = paymentsMap[input.participantId] ?? {};
+
+      paymentsMap[input.participantId] = {
+        ...prev,
+        paymentStatus: input.paymentStatus,
+        paymentMethod: input.paymentMethod ?? prev.paymentMethod ?? null,
+        paymentNotes: input.paymentNotes ?? prev.paymentNotes ?? null,
+        paidAt: input.paymentStatus === "paid" ? new Date().toISOString() : null,
+      };
+
+      const { error: fbErr } = await supabase
+        .from("tournaments")
+        .update({ standings_config: { ...sc, paymentsMap } as any })
+        .eq("id", input.tournamentId);
+
+      if (fbErr) return actionError(dbErrorMessage(error));
+    }
 
     revalidateAmerican(input.tournamentId);
     return actionOk(undefined, "Estado de pago actualizado.");

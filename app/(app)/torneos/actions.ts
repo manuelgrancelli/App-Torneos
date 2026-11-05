@@ -62,6 +62,9 @@ export const createTournament = createAction(createTournamentSchema, async (inpu
     const effectiveScoringConfig = input.isAmerican && input.americanConfig
       ? { ...input.scoringConfig, american: input.americanConfig }
       : input.scoringConfig;
+    const effectiveStandingsConfig = input.paymentConfig
+      ? { ...input.standingsConfig, payment: input.paymentConfig }
+      : input.standingsConfig;
     const effectiveMaxTeams = input.isAmerican && input.americanConfig?.participantCount
       ? input.americanConfig.participantCount
       : input.maxTeams;
@@ -77,7 +80,7 @@ export const createTournament = createAction(createTournamentSchema, async (inpu
       p_max_teams: effectiveMaxTeams,
       p_court_names: courtNames,
       p_scoring_config: effectiveScoringConfig,
-      p_standings_config: input.standingsConfig,
+      p_standings_config: effectiveStandingsConfig,
       p_playoff_config: effectivePlayoffConfig,
       p_results_require_confirmation: input.resultsRequireConfirmation,
     };

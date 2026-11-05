@@ -34,7 +34,7 @@ import {
 } from "@/lib/competition-view";
 import { type PublicTournament, getPublicTournament, getPublicTournamentId } from "@/lib/data/public";
 import { formatDateRange, groupByLocalDay } from "@/lib/dates";
-import { normalizePaymentConfig } from "@/lib/domain/payment";
+import { extractTournamentPaymentConfig } from "@/lib/domain/payment";
 import { approvedTeamsLabel, teamNoun } from "@/lib/domain/tournament-status";
 import { type CategoryColorTheme, getCategoryColorByIndex } from "@/lib/category-colors";
 import { truncate } from "@/lib/utils/text";
@@ -59,7 +59,7 @@ async function loadTournament(slug: string): Promise<PublicTournament | null> {
     const authClient = await createClient();
     let query = authClient
       .from("tournaments")
-      .select("id, organizer_id, name, slug, description, banner_url, status, starts_on, ends_on, timezone, scoring_config, standings_config, playoff_config, champion_team_id, payment_config, sports(name, min_team_size)");
+      .select("*, sports(name, min_team_size)");
 
     if (slug.length === 36 && /^[0-9a-f-]{36}$/i.test(slug)) {
       query = query.or(`slug.eq.${slug},id.eq.${slug}`);
@@ -89,7 +89,7 @@ async function loadTournament(slug: string): Promise<PublicTournament | null> {
         scoringConfig: t.scoring_config as any,
         standingsConfig: t.standings_config as any,
         playoffConfig: t.playoff_config as any,
-        paymentConfig: normalizePaymentConfig((t as any).payment_config),
+        paymentConfig: extractTournamentPaymentConfig(t as any),
         championTeamId: t.champion_team_id,
         circuit: null,
         circuitOrder: null,

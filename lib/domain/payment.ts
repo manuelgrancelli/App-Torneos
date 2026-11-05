@@ -117,6 +117,87 @@ export function normalizePaymentConfig(raw: unknown): PaymentConfig {
 }
 
 /**
+ * Extrae la configuración de pagos de una fila de `tournaments`, soportando tanto la columna
+ * nativa `payment_config` como el respaldo en `standings_config.payment` o `scoring_config.payment`
+ * en caso de que la migración SQL aún no se haya ejecutado en la base de datos.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function extractTournamentPaymentConfig(row: Record<string, any> | null | undefined): PaymentConfig {
+  if (!row || typeof row !== "object") {
+    return DEFAULT_PAYMENT_CONFIG;
+  }
+  const direct = row.payment_config;
+  const fromStandings = row.standings_config && typeof row.standings_config === "object" ? row.standings_config.payment : undefined;
+  const fromScoring = row.scoring_config && typeof row.scoring_config === "object" ? row.scoring_config.payment : undefined;
+
+  if (direct && typeof direct === "object" && direct.enabled === true) {
+    return normalizePaymentConfig(direct);
+  }
+  if (fromStandings && typeof fromStandings === "object") {
+    return normalizePaymentConfig(fromStandings);
+  }
+  if (fromScoring && typeof fromScoring === "object") {
+    return normalizePaymentConfig(fromScoring);
+  }
+  return normalizePaymentConfig(direct);
+}
+
+export type FallbackPaymentRecord = {
+  paymentStatus?: PaymentStatus;
+  paymentMethod?: PaymentMethodType | null;
+  paidAt?: string | null;
+  paymentNotes?: string | null;
+};
+
+/**
+ * Extrae el mapa de pagos de respaldo almacenado en `standings_config.paymentsMap`.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function extractFallbackPaymentsMap(tournamentRow: Record<string, any> | null | undefined): Record<string, FallbackPaymentRecord> {
+  if (!tournamentRow || typeof tournamentRow !== "object") return {};
+  const sc = tournamentRow.standings_config;
+  if (sc && typeof sc === "object" && sc.paymentsMap && typeof sc.paymentsMap === "object") {
+    return sc.paymentsMap as Record<string, FallbackPaymentRecord>;
+  }
+  return {};
+}
+
+/**
+ * Resuelve el estado y método de pago de un equipo o participante combinando las columnas
+ * nativas con el mapa de respaldo.
+ */
+export function resolveEntityPayment(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  row: Record<string, any>,
+  fallbackMap?: Record<string, FallbackPaymentRecord>,
+  paymentEnabled = false,
+): {
+  paymentStatus: PaymentStatus;
+  paymentMethod: PaymentMethodType | null;
+  paidAt: string | null;
+  paymentNotes: string | null;
+} {
+  const fb = fallbackMap?.[row.id as string];
+  const rawStatus = (row.payment_status as PaymentStatus | undefined) ?? fb?.paymentStatus;
+  const defaultStatus: PaymentStatus = paymentEnabled ? "pending" : "not_required";
+  const paymentStatus: PaymentStatus =
+    rawStatus && ["pending", "paid", "cash_on_arrival", "not_required"].includes(rawStatus)
+      ? rawStatus
+      : defaultStatus;
+
+  const rawMethod = (row.payment_method as PaymentMethodType | null | undefined) ?? fb?.paymentMethod ?? null;
+  const paymentMethod: PaymentMethodType | null =
+    rawMethod && ["mercadopago", "transfer", "cash"].includes(rawMethod) ? rawMethod : null;
+
+  return {
+    paymentStatus,
+    paymentMethod,
+    paidAt: (row.paid_at as string | null | undefined) ?? fb?.paidAt ?? null,
+    paymentNotes: (row.payment_notes as string | null | undefined) ?? fb?.paymentNotes ?? null,
+  };
+}
+
+/**
  * Devuelve la lista de métodos de pago habilitados.
  */
 export function getEnabledPaymentMethods(config?: PaymentConfig | null): PaymentMethodType[] {

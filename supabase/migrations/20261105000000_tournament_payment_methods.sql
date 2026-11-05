@@ -495,3 +495,4 @@ $$;
 
 revoke execute on function public.register_american_participant(text, text, text, text) from public, anon;
 grant execute on function public.register_american_participant(text, text, text, text) to authenticated;
+

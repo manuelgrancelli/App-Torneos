@@ -3,7 +3,14 @@ import { cache } from "react";
 import { type PlayoffConfig, normalizePlayoffConfig } from "@/lib/domain/bracket";
 import { type ScoringConfig, normalizeScoringConfig } from "@/lib/domain/scoring";
 import { type StandingsConfig, normalizeStandingsConfig } from "@/lib/domain/standings";
-import { normalizePaymentConfig, type PaymentConfig, type PaymentMethodType, type PaymentStatus } from "@/lib/domain/payment";
+import {
+  extractFallbackPaymentsMap,
+  extractTournamentPaymentConfig,
+  resolveEntityPayment,
+  type PaymentConfig,
+  type PaymentMethodType,
+  type PaymentStatus,
+} from "@/lib/domain/payment";
 import type { TournamentStatus } from "@/lib/domain/tournament-status";
 import { createClient } from "@/lib/supabase/server";
 import type { Tables } from "@/lib/supabase/database.types";
@@ -88,7 +95,7 @@ export const getTeamForMember = cache(async (teamId: string, userId: string): Pr
   const { data: team, error } = await (supabase as any)
     .from("teams")
     .select(
-      "id, name, logo_url, invite_code, status, captain_id, tournament_id, payment_status, payment_method, paid_at, payment_notes, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(slot_id), tournaments!teams_tournament_id_fkey(id, name, slug, status, timezone, starts_on, ends_on, results_require_confirmation, banner_url, payment_config, scoring_config, standings_config, playoff_config, champion_team_id, circuit_id, circuit_order, circuits(id, name, slug), sports(name, min_team_size, max_team_size))",
+      "*, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(slot_id), tournaments!teams_tournament_id_fkey(*, circuits(id, name, slug), sports(name, min_team_size, max_team_size))",
     )
     .eq("id", teamId)
     .maybeSingle();
@@ -107,14 +114,18 @@ export const getTeamForMember = cache(async (teamId: string, userId: string): Pr
   if (courts.error) throw courts.error;
 
   const t = team.tournaments;
+  const paymentConfig = extractTournamentPaymentConfig(t);
+  const fallbackMap = extractFallbackPaymentsMap(t);
+  const paymentInfo = resolveEntityPayment(team, fallbackMap, paymentConfig.enabled);
+
   return {
     id: team.id,
     name: team.name,
     status: team.status,
-    paymentStatus: (team.payment_status as PaymentStatus) ?? "not_required",
-    paymentMethod: (team.payment_method as PaymentMethodType | null) ?? null,
-    paidAt: (team.paid_at as string | null) ?? null,
-    paymentNotes: (team.payment_notes as string | null) ?? null,
+    paymentStatus: paymentInfo.paymentStatus,
+    paymentMethod: paymentInfo.paymentMethod,
+    paidAt: paymentInfo.paidAt,
+    paymentNotes: paymentInfo.paymentNotes,
     logoUrl: (team.logo_url as string | null) ?? null,
     inviteCode: (team.invite_code as string | null) ?? null,
     isCaptain: team.captain_id === userId,
@@ -141,7 +152,7 @@ export const getTeamForMember = cache(async (teamId: string, userId: string): Pr
       maxTeamSize: t.sports?.max_team_size ?? 2,
       resultsRequireConfirmation: t.results_require_confirmation,
       bannerUrl: t.banner_url ?? null,
-      paymentConfig: normalizePaymentConfig(t.payment_config),
+      paymentConfig,
       scoringConfig: normalizeScoringConfig(t.scoring_config),
       standingsConfig: normalizeStandingsConfig(t.standings_config),
       playoffConfig: normalizePlayoffConfig(t.playoff_config),
@@ -184,30 +195,34 @@ import { getTournamentCategories } from "./categories";
 /** Inscripciones de un torneo vistas por su organizador (con emails de los integrantes). */
 export const listTournamentTeams = cache(async (tournamentId: string): Promise<OrganizerTeam[]> => {
   const supabase = await createClient();
-  const [{ data, error }, categories] = await Promise.all([
+  const [{ data, error }, categories, tourRes] = await Promise.all([
     (supabase as any)
       .from("teams")
-      .select("id, name, logo_url, invite_code, status, category_id, test_generated, organizer_registered, created_at, payment_status, payment_method, paid_at, payment_notes, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(slot_id)")
+      .select("*, team_members(id, email, display_name, user_id, role, profiles(full_name)), team_availability(slot_id)")
       .eq("tournament_id", tournamentId)
       .order("created_at"),
     getTournamentCategories(tournamentId),
+    supabase.from("tournaments").select("*").eq("id", tournamentId).maybeSingle(),
   ]);
   if (error) throw error;
 
   const singleCategoryId = categories.length === 1 ? categories[0]!.id : null;
+  const paymentConfig = extractTournamentPaymentConfig(tourRes.data);
+  const fallbackMap = extractFallbackPaymentsMap(tourRes.data);
 
   return data.map((team: Record<string, unknown>) => {
     const availabilitySlotIds = ((team.team_availability as { slot_id: string }[]) ?? []).map((a) => a.slot_id);
+    const paymentInfo = resolveEntityPayment(team, fallbackMap, paymentConfig.enabled);
     return {
       id: team.id as string,
       name: team.name as string,
       logoUrl: (team.logo_url as string | null) ?? null,
       inviteCode: (team.invite_code as string | null) ?? null,
       status: team.status as TeamStatus,
-      paymentStatus: ((team.payment_status as PaymentStatus) ?? "not_required"),
-      paymentMethod: (team.payment_method as PaymentMethodType | null) ?? null,
-      paidAt: (team.paid_at as string | null) ?? null,
-      paymentNotes: (team.payment_notes as string | null) ?? null,
+      paymentStatus: paymentInfo.paymentStatus,
+      paymentMethod: paymentInfo.paymentMethod,
+      paidAt: paymentInfo.paidAt,
+      paymentNotes: paymentInfo.paymentNotes,
       categoryId: ((team.category_id as string | null) ?? null) || singleCategoryId,
       testGenerated: team.test_generated as boolean,
       organizerRegistered: team.organizer_registered as boolean,

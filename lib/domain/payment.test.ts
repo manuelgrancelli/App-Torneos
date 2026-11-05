@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_PAYMENT_CONFIG,
+  extractTournamentPaymentConfig,
   formatCurrency,
   getEnabledPaymentMethods,
   normalizePaymentConfig,
   paymentConfigSchema,
   pricingTypeLabel,
+  resolveEntityPayment,
 } from "./payment";
 
 describe("lib/domain/payment", () => {
@@ -81,4 +83,29 @@ describe("lib/domain/payment", () => {
     expect(pricingTypeLabel("per_team", false)).toBe("por pareja / equipo");
     expect(pricingTypeLabel("per_team", true)).toBe("por participante");
   });
+
+  it("extrae la configuración de pagos tanto de payment_config como del respaldo en standings_config", () => {
+    const rowWithFallback = {
+      standings_config: {
+        payment: {
+          enabled: true,
+          amount: 12000,
+        },
+      },
+    };
+    const extracted = extractTournamentPaymentConfig(rowWithFallback);
+    expect(extracted.enabled).toBe(true);
+    expect(extracted.amount).toBe(12000);
+  });
+
+  it("resuelve el estado de pago desde la columna o el mapa de respaldo", () => {
+    const row = { id: "team-1" };
+    const fallbackMap = {
+      "team-1": { paymentStatus: "paid" as const, paymentMethod: "mercadopago" as const },
+    };
+    const res = resolveEntityPayment(row, fallbackMap, true);
+    expect(res.paymentStatus).toBe("paid");
+    expect(res.paymentMethod).toBe("mercadopago");
+  });
 });
+

@@ -3,7 +3,13 @@ import "server-only";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { AmericanConfig } from "@/lib/validation/tournament";
-import type { PaymentMethodType, PaymentStatus } from "@/lib/domain/payment";
+import {
+  extractFallbackPaymentsMap,
+  extractTournamentPaymentConfig,
+  resolveEntityPayment,
+  type PaymentMethodType,
+  type PaymentStatus,
+} from "@/lib/domain/payment";
 
 export type AmericanParticipant = {
   id: string;
@@ -103,30 +109,39 @@ export const listAmericanParticipants = cache(
       query = query.eq("category_id", categoryId);
     }
 
-    const { data, error } = await query;
+    const [{ data, error }, tourRes] = await Promise.all([
+      query,
+      supabase.from("tournaments").select("*").eq("id", tournamentId).maybeSingle(),
+    ]);
     if (error) {
       console.error("[listAmericanParticipants] Error al consultar participantes:", error);
       return [];
     }
 
+    const paymentConfig = extractTournamentPaymentConfig(tourRes.data);
+    const fallbackMap = extractFallbackPaymentsMap(tourRes.data);
+
     const rawList = (data || []) as any[];
     if (rawList.length <= 1) {
-      return rawList.map((row) => ({
-        id: row.id,
-        tournamentId: row.tournament_id,
-        categoryId: row.category_id,
-        userId: row.user_id,
-        displayName: row.display_name,
-        secondaryDisplayName: row.secondary_display_name,
-        email: row.email,
-        phone: row.phone,
-        seedNumber: row.seed_number,
-        paymentStatus: (row.payment_status as PaymentStatus) ?? "not_required",
-        paymentMethod: (row.payment_method as PaymentMethodType | null) ?? null,
-        paidAt: row.paid_at ?? null,
-        paymentNotes: row.payment_notes ?? null,
-        createdAt: row.created_at,
-      }));
+      return rawList.map((row) => {
+        const pay = resolveEntityPayment(row, fallbackMap, paymentConfig.enabled);
+        return {
+          id: row.id,
+          tournamentId: row.tournament_id,
+          categoryId: row.category_id,
+          userId: row.user_id,
+          displayName: row.display_name,
+          secondaryDisplayName: row.secondary_display_name,
+          email: row.email,
+          phone: row.phone,
+          seedNumber: row.seed_number,
+          paymentStatus: pay.paymentStatus,
+          paymentMethod: pay.paymentMethod,
+          paidAt: pay.paidAt,
+          paymentNotes: pay.paymentNotes,
+          createdAt: row.created_at,
+        };
+      });
     }
 
     // Deduplicación en memoria: si hay filas con el mismo email o mismo user_id,
@@ -183,22 +198,25 @@ export const listAmericanParticipants = cache(
       })();
     }
 
-    return deduplicated.map((row: any) => ({
-      id: row.id,
-      tournamentId: row.tournament_id,
-      categoryId: row.category_id,
-      userId: row.user_id,
-      displayName: row.display_name,
-      secondaryDisplayName: row.secondary_display_name,
-      email: row.email,
-      phone: row.phone,
-      seedNumber: row.seed_number,
-      paymentStatus: (row.payment_status as PaymentStatus) ?? "not_required",
-      paymentMethod: (row.payment_method as PaymentMethodType | null) ?? null,
-      paidAt: row.paid_at ?? null,
-      paymentNotes: row.payment_notes ?? null,
-      createdAt: row.created_at,
-    }));
+    return deduplicated.map((row: any) => {
+      const pay = resolveEntityPayment(row, fallbackMap, paymentConfig.enabled);
+      return {
+        id: row.id,
+        tournamentId: row.tournament_id,
+        categoryId: row.category_id,
+        userId: row.user_id,
+        displayName: row.display_name,
+        secondaryDisplayName: row.secondary_display_name,
+        email: row.email,
+        phone: row.phone,
+        seedNumber: row.seed_number,
+        paymentStatus: pay.paymentStatus,
+        paymentMethod: pay.paymentMethod,
+        paidAt: pay.paidAt,
+        paymentNotes: pay.paymentNotes,
+        createdAt: row.created_at,
+      };
+    });
   }
 );
 

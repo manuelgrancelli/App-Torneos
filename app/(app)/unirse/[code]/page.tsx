@@ -16,7 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 import { normalizeInviteCode } from "@/lib/validation/registration";
 import { getTournamentCategories } from "@/lib/data/categories";
 import { getAmericanConfig, isAmericanTournament } from "@/lib/data/american";
-import { normalizePaymentConfig } from "@/lib/domain/payment";
+import { extractTournamentPaymentConfig } from "@/lib/domain/payment";
 import { AmericanJoinCard } from "@/components/american/american-join-card";
 
 export const metadata: Metadata = { title: "Inscripción" };
@@ -57,7 +57,7 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
   const [tourExtra, categories] = await Promise.all([
     supabase
       .from("tournaments")
-      .select("banner_url, description, scoring_config, payment_config")
+      .select("*")
       .eq("id", tournament.tournament_id)
       .maybeSingle(),
     getTournamentCategories(tournament.tournament_id),
@@ -66,7 +66,7 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
   const bannerUrl = tourExtra.data?.banner_url ?? null;
   const description = tourExtra.data?.description ?? null;
   const isAmerican = isAmericanTournament(tourExtra.data);
-  const paymentConfig = normalizePaymentConfig(tourExtra.data?.payment_config);
+  const paymentConfig = extractTournamentPaymentConfig(tourExtra.data);
 
   let myAmericanParticipant: { id: string; display_name: string } | null = null;
   if (isAmerican) {
