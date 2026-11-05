@@ -16,6 +16,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { teamNoun } from "@/lib/domain/tournament-status";
 import { applyServerErrors, firstErrorMessage } from "@/lib/forms";
 import { registerTeamSchema } from "@/lib/validation/registration";
+import { getEnabledPaymentMethods, type PaymentConfig, type PaymentMethodType } from "@/lib/domain/payment";
+import { PaymentMethodSelector } from "@/components/payments/payment-method-selector";
 import { MemberEmailsField } from "./member-emails-field";
 import { PlayerRosterBuilder, type PlayerEntry } from "./player-roster-builder";
 
@@ -40,6 +42,7 @@ type TeamFormProps = {
   categories?: TeamCategoryOption[];
   captainName?: string;
   captainEmail?: string;
+  paymentConfig?: PaymentConfig | null;
   onSaved?: () => void;
 } & ({ mode: "register"; code: string } | { mode: "edit"; teamId: string });
 
@@ -87,6 +90,11 @@ export function TeamForm(props: TeamFormProps) {
       name: "",
       email: "",
     }));
+  });
+
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethodType | null>(() => {
+    const enabled = getEnabledPaymentMethods(props.paymentConfig);
+    return enabled[0] ?? null;
   });
 
   const form = useForm({
@@ -162,6 +170,7 @@ export function TeamForm(props: TeamFormProps) {
       memberEmails,
       memberNames,
       players: playerPayload,
+      paymentMethod: selectedPaymentMethod,
     };
 
     startTransition(async () => {
@@ -363,6 +372,16 @@ export function TeamForm(props: TeamFormProps) {
                 />
               );
             }}
+          />
+        ) : null}
+
+        {props.mode === "register" && props.paymentConfig?.enabled ? (
+          <PaymentMethodSelector
+            paymentConfig={props.paymentConfig}
+            selectedMethod={selectedPaymentMethod}
+            onChange={setSelectedPaymentMethod}
+            disabled={isPending}
+            isIndividual={props.teamSize === 1}
           />
         ) : null}
 

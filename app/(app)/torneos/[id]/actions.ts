@@ -16,6 +16,7 @@ import {
   removeTournamentAdminSchema,
   tournamentIdSchema,
   updateTournamentBannerSchema,
+  updateTournamentPaymentConfigSchema,
   updateTournamentSchema,
 } from "@/lib/validation/tournament";
 import { ensurePlayoffBracket } from "./cuadro/actions";
@@ -49,6 +50,7 @@ export const updateTournament = createAction(updateTournamentSchema, async (inpu
       scoring_config: input.scoringConfig,
       standings_config: input.standingsConfig,
       playoff_config: input.playoffConfig,
+      ...(input.paymentConfig ? { payment_config: input.paymentConfig as any } : {}),
     })
     .eq("id", input.tournamentId)
     .select("id");
@@ -58,6 +60,25 @@ export const updateTournament = createAction(updateTournamentSchema, async (inpu
   revalidateTournament(input.tournamentId);
   return actionOk(undefined, "Guardamos los cambios.");
 });
+
+/** Guarda la configuración de pagos del torneo (arancel, Mercado Pago, transferencias, efectivo). */
+export const updateTournamentPaymentConfig = createAction(
+  updateTournamentPaymentConfigSchema,
+  async (input, { supabase }) => {
+    const { data, error } = await supabase
+      .from("tournaments")
+      .update({
+        payment_config: input.paymentConfig as any,
+      })
+      .eq("id", input.tournamentId)
+      .select("id");
+
+    if (error) return actionError(dbErrorMessage(error));
+    if (data.length === 0) return actionError(NOT_FOUND);
+    revalidateTournament(input.tournamentId);
+    return actionOk(undefined, "Configuración de pagos guardada con éxito.");
+  },
+);
 
 /** Borra el torneo (solo si no está en estado finalizado: lo aplica la política de RLS). */
 export const deleteTournament = createAction(tournamentIdSchema, async ({ tournamentId }, { supabase }) => {

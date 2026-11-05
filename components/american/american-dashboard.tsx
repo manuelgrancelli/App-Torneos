@@ -3,6 +3,7 @@
 import { Award, CalendarDays, CheckCircle2, Clock, Flame, Sparkles, Target, Trophy, Users } from "lucide-react";
 import { useState } from "react";
 import type { AmericanMatch, AmericanParticipant, AmericanStandingRow } from "@/lib/data/american";
+import type { PaymentConfig } from "@/lib/domain/payment";
 import type { AmericanConfig } from "@/lib/validation/tournament";
 import { cn } from "@/lib/utils";
 import { AmericanMatchesBoard } from "./american-matches-board";
@@ -20,6 +21,7 @@ export function AmericanDashboard({
   matches,
   standings,
   readOnly = false,
+  paymentConfig,
 }: {
   tournamentId: string;
   tournamentName: string;
@@ -29,6 +31,7 @@ export function AmericanDashboard({
   matches: AmericanMatch[];
   standings: AmericanStandingRow[];
   readOnly?: boolean;
+  paymentConfig?: PaymentConfig | null;
 }) {
   const isIndividual = (config?.format ?? "INDIVIDUAL_ROTATIVO") === "INDIVIDUAL_ROTATIVO";
   const scoringMode = config?.scoringMode ?? "fixed_points";
@@ -195,6 +198,7 @@ export function AmericanDashboard({
           targetRounds={config?.roundsCount || 5}
           hasMatches={matches.length > 0}
           readOnly={readOnly}
+          paymentConfig={paymentConfig}
         />
       )}
     </div>

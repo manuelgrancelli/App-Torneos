@@ -35,6 +35,7 @@ export const registerTeamSchema = z.object({
   memberNames: z.array(z.string().trim().max(80)).max(60).optional().default([]),
   players: z.array(playerItemSchema).max(60).optional(),
   logoUrl: logoUrlSchema,
+  paymentMethod: z.enum(["mercadopago", "transfer", "cash"]).optional().nullable(),
 });
 
 export const updateRosterSchema = z.object({
@@ -162,6 +163,21 @@ export const replaceTeamPlayerSchema = z.object({
   newTeamName: z.string().trim().min(2, "El nombre debe tener al menos 2 caracteres.").max(60, "Máximo 60 caracteres.").optional(),
 });
 
+export const updateTeamPaymentStatusSchema = z.object({
+  tournamentId: z.uuid(),
+  teamId: z.uuid(),
+  paymentStatus: z.enum(["pending", "paid", "cash_on_arrival", "not_required"]),
+  paymentMethod: z.enum(["mercadopago", "transfer", "cash"]).optional().nullable(),
+  paymentNotes: z.string().trim().max(500).optional().nullable(),
+});
+
+export const setTeamPaymentMethodSchema = z.object({
+  teamId: z.uuid(),
+  paymentMethod: z.enum(["mercadopago", "transfer", "cash"]),
+});
+
+export type UpdateTeamPaymentStatusInput = z.infer<typeof updateTeamPaymentStatusSchema>;
+export type SetTeamPaymentMethodInput = z.infer<typeof setTeamPaymentMethodSchema>;
 export type RegisterTeamInput = z.input<typeof registerTeamSchema>;
 export type UpdateRosterInput = z.input<typeof updateRosterSchema>;
 export type OrganizerCreateTeamInput = z.input<typeof organizerCreateTeamSchema>;

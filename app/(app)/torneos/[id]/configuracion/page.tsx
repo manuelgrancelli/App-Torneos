@@ -6,6 +6,7 @@ import { DeleteTournamentButton } from "@/components/tournaments/delete-tourname
 import { type FormLocks, TournamentForm } from "@/components/tournaments/tournament-form";
 import { TournamentBannerManager } from "@/components/tournaments/tournament-banner-manager";
 import { TournamentAdminsManager } from "@/components/tournaments/tournament-admins-manager";
+import { TournamentPaymentConfigCard } from "@/components/tournaments/payment-config-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOrganizerTournament } from "@/lib/data/organizer";
@@ -82,6 +83,11 @@ export default async function TournamentSettingsPage({ params }: PageProps<"/tor
           />
         </CardContent>
       </Card>
+
+      <TournamentPaymentConfigCard
+        tournamentId={tournament.id}
+        initialConfig={tournament.paymentConfig}
+      />
 
       <TournamentForm
         tournamentId={tournament.id}

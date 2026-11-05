@@ -43,6 +43,7 @@ export default async function AmericanTournamentPage({
         participants={participants}
         matches={matches}
         standings={standings}
+        paymentConfig={tournament.paymentConfig}
       />
     </div>
   );

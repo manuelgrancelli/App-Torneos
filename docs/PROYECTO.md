@@ -3078,3 +3078,29 @@ Formato: `D-NNN — Título (fecha · fase)`, seguido de **Decisión / Motivo / 
      - `TournamentNav` solo expone "Torneo Americano" y "Configuración".
      - Rutas tradicionales (`canchas-franjas`, `inscripciones`, `grupos`, `partidos`, `cuadro`, `categorias`, `disponibilidad`) redirigen automáticamente a `/torneos/[id]/americano` si el torneo es americano.
 - **Cómo aplicar:** implementado en `lib/domain/american-scoring.ts`, `lib/domain/american-scoring.test.ts`, `components/american/american-matches-board.tsx`, `app/(app)/torneos/[id]/americano/actions.ts` y páginas en `app/(app)/torneos/[id]/*`.
+
+### D-208 — Sistema de Cobranzas y Métodos de Pago Configurables (Mercado Pago, Transferencia y Efectivo en el Club) (2026-11-05)
+- **Contexto:**
+  Los organizadores necesitaban cobrar los aranceles de inscripción a sus torneos y ofrecer a los participantes diferentes alternativas de pago (Mercado Pago, transferencia bancaria o pago presencial en efectivo al presentarse en la mesa del torneo), así como llevar un control financiero en tiempo real de lo recaudado, lo pendiente y lo a cobrar en el club.
+- **Decisión:**
+  1. **Configuración de aranceles y métodos por torneo (`lib/domain/payment.ts`):**
+     - Estructura `PaymentConfig` almacenada en columna JSONB `tournaments.payment_config` con normalizador robusto `normalizePaymentConfig` y defaults seguros.
+     - Permite activar o desactivar arancel (`enabled: boolean`), definir monto y tipo de cobro (`per_team` o `per_player`), moneda (`ARS`), e instrucciones generales de envío de comprobante.
+     - Métodos seleccionables individualmente:
+       - **Mercado Pago:** Alias, CVU y link de pago opcional.
+       - **Transferencia Bancaria:** Banco, Titular de cuenta, CBU/CVU y Alias.
+       - **Efectivo en el torneo:** Pago presencial el día del torneo en la mesa de control con instrucciones personalizables.
+  2. **Gestión y edición por el organizador:**
+     - Integrado en el paso 2 y paso 3 ("Reglas y Aranceles" y "Revisión") del wizard de creación de torneos (`TournamentWizard`, `TournamentReview`).
+     - Editable en todo momento desde `/torneos/[id]/configuracion` mediante `TournamentPaymentConfigCard`.
+  3. **Experiencia del jugador al inscribirse y en su panel:**
+     - En el flujo de inscripción (`/unirse/[code]` y `AmericanJoinCard`), el jugador visualiza el costo y los métodos habilitados, pudiendo seleccionar cómo abonará con botones de 1 clic para copiar CBU/CVU/Alias.
+     - En `/inscripciones/[teamId]`, el jugador cuenta con `TeamPaymentCard` para consultar el estado del pago (`pending`, `paid`, `cash_on_arrival`), ver los datos bancarios y cambiar a efectivo si lo prefiere.
+  4. **Panel de control financiero y actualización de estados:**
+     - En torneos tradicionales (`/torneos/[id]/inscripciones` vía `RegistrationsList`): Resumen de recaudación superior (Total cobrado, A cobrar en mesa, Pendiente) y control de cobro por equipo (`TeamPaymentControl`) con acciones rápidas ("Marcar Pagado", "Efectivo", "Volver a pendiente").
+     - En torneos americanos (`/torneos/[id]/americano` vía `AmericanParticipantsManager`): Barra de control financiero de recaudación y badges de pago con botones de confirmación rápida por participante.
+  5. **Migración SQL y RPCs seguras (`20261105000000_tournament_payment_methods.sql`):**
+     - Añadidas columnas `payment_status`, `payment_method`, `paid_at`, `payment_notes` en `teams` y `american_participants`.
+     - Funciones RPC `update_team_payment_status`, `update_american_participant_payment_status` y `set_team_payment_method` con verificación estricta de organizador/capitán.
+     - Actualizadas `register_team` y `register_american_participant` para soportar `p_payment_method` e inicializar el estado en `pending`, `cash_on_arrival` o `not_required` según corresponda.
+- **Cómo aplicar:** implementado en `lib/domain/payment.ts`, `components/payments/*`, `components/tournaments/payment-config-*`, `components/registration/*`, `components/american/*`, Server Actions correspondientes y migración `supabase/migrations/20261105000000_tournament_payment_methods.sql`.

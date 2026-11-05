@@ -207,6 +207,7 @@ export default async function RegistrationsPage({
           categories={categoryOptions}
           slots={groupSlots}
           timezone={tournament.timezone}
+          paymentConfig={tournament.paymentConfig}
         />
       </div>
     </div>

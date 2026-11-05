@@ -1,6 +1,13 @@
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDateRange } from "@/lib/dates";
+import {
+  formatCurrency,
+  getEnabledPaymentMethods,
+  normalizePaymentConfig,
+  PAYMENT_METHOD_LABELS,
+  pricingTypeLabel,
+} from "@/lib/domain/payment";
 import type { CreateTournamentInput } from "@/lib/validation/tournament";
 import { playoffSummary, scoringSummary, standingsSummary } from "./config-summary";
 
@@ -114,6 +121,17 @@ export function TournamentReview({
           { label: "Playoffs", value: playoffSummary(values.playoffConfig), step: 2 },
         ]),
     ...(values.bannerUrl ? [{ label: "Flyer con reglas", value: "Cargado", step: 2 }] : []),
+    {
+      label: "Inscripción y Pagos",
+      value: values.paymentConfig?.enabled
+        ? `${formatCurrency(values.paymentConfig.amount)} (${pricingTypeLabel(values.paymentConfig.pricingType ?? "per_team", isAmerican)}) · Métodos: ${
+            getEnabledPaymentMethods(normalizePaymentConfig(values.paymentConfig))
+              .map((m) => PAYMENT_METHOD_LABELS[m])
+              .join(", ") || "A coordinar"
+          }`
+        : "Sin arancel / Gratuito",
+      step: 2,
+    },
   ];
 
   return (

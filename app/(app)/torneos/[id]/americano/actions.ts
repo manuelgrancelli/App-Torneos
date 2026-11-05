@@ -203,6 +203,7 @@ const joinAmericanSchema = z.object({
   code: z.string().min(3, "El código es inválido."),
   displayName: z.string().trim().min(2, "El nombre debe tener al menos 2 caracteres.").max(100),
   secondaryDisplayName: z.string().trim().max(100).optional().nullable(),
+  paymentMethod: z.enum(["mercadopago", "transfer", "cash"]).optional().nullable(),
 });
 
 /**
@@ -215,12 +216,40 @@ export const joinAmericanParticipant = createAction(
       p_code: input.code,
       p_display_name: input.displayName,
       p_secondary_display_name: input.secondaryDisplayName || null,
+      p_payment_method: input.paymentMethod || null,
     });
 
     if (error) return actionError(dbErrorMessage(error));
 
     revalidatePath("/torneos");
     return actionOk({ participantId: data }, "¡Te inscribiste con éxito al Torneo Americano!");
+  }
+);
+
+const updateAmericanParticipantPaymentStatusSchema = z.object({
+  tournamentId: z.string().uuid(),
+  participantId: z.string().uuid(),
+  paymentStatus: z.enum(["pending", "paid", "cash_on_arrival", "not_required"]),
+  paymentMethod: z.enum(["mercadopago", "transfer", "cash"]).optional().nullable(),
+  paymentNotes: z.string().trim().max(500).optional().nullable(),
+});
+
+/**
+ * Actualiza el estado de cobro de un participante del torneo americano.
+ */
+export const updateAmericanParticipantPaymentStatus = createAction(
+  updateAmericanParticipantPaymentStatusSchema,
+  async (input, { supabase }) => {
+    const { error } = await (supabase.rpc as any)("update_american_participant_payment_status", {
+      p_participant_id: input.participantId,
+      p_payment_status: input.paymentStatus,
+      p_payment_method: input.paymentMethod ?? null,
+      p_payment_notes: input.paymentNotes ?? null,
+    });
+    if (error) return actionError(dbErrorMessage(error));
+
+    revalidateAmerican(input.tournamentId);
+    return actionOk(undefined, "Estado de pago actualizado.");
   }
 );
 

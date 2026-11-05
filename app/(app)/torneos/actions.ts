@@ -89,6 +89,10 @@ export const createTournament = createAction(createTournamentSchema, async (inpu
         await supabase.from("tournaments").update({ banner_url: input.bannerUrl }).eq("id", data);
       }
 
+      if (input.paymentConfig) {
+        await supabase.from("tournaments").update({ payment_config: input.paymentConfig as any }).eq("id", data);
+      }
+
       if (input.isAmerican) {
         await supabase.from("tournaments").update({ status: "registration_open" }).eq("id", data);
       }

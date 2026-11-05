@@ -16,7 +16,9 @@ import {
   replaceTeamPlayerSchema,
   reviewRegistrationSchema,
   setTeamAvailabilitySchema,
+  setTeamPaymentMethodSchema,
   tournamentRegistrationActionSchema,
+  updateTeamPaymentStatusSchema,
 } from "@/lib/validation/registration";
 
 /** Aprobar o rechazar una inscripción (la RPC controla cupo y plantel completo). */
@@ -30,6 +32,40 @@ export const reviewRegistration = createAction(reviewRegistrationSchema, async (
   refreshPublicTournament(input.tournamentId);
   return actionOk(undefined, input.decision === "approved" ? "Inscripción aprobada." : "Inscripción rechazada.");
 });
+
+/** Actualiza el estado de pago del equipo (Pagado, Efectivo en club, Pendiente). */
+export const updateTeamPaymentStatus = createAction(
+  updateTeamPaymentStatusSchema,
+  async (input, { supabase }) => {
+    const { error } = await (supabase.rpc as any)("update_team_payment_status", {
+      p_team_id: input.teamId,
+      p_payment_status: input.paymentStatus,
+      p_payment_method: input.paymentMethod ?? null,
+      p_payment_notes: input.paymentNotes ?? null,
+    });
+    if (error) return actionError(dbErrorMessage(error));
+
+    revalidatePath(`/torneos/${input.tournamentId}`, "layout");
+    revalidatePath(`/torneos/${input.tournamentId}/inscripciones`);
+    revalidatePath(`/inscripciones/${input.teamId}`);
+    return actionOk(undefined, "Estado de pago actualizado.");
+  },
+);
+
+/** Permite que el equipo elija su método de pago previsto. */
+export const setTeamPaymentMethod = createAction(
+  setTeamPaymentMethodSchema,
+  async (input, { supabase }) => {
+    const { error } = await (supabase.rpc as any)("set_team_payment_method", {
+      p_team_id: input.teamId,
+      p_payment_method: input.paymentMethod,
+    });
+    if (error) return actionError(dbErrorMessage(error));
+
+    revalidatePath(`/inscripciones/${input.teamId}`);
+    return actionOk(undefined, "Forma de pago seleccionada.");
+  },
+);
 
 /** Rellena cupos de un torneo de prueba con parejas ficticias. */
 export const fillTestTeamSlots = createAction(

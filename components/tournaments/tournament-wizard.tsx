@@ -26,6 +26,8 @@ import { RulesSections } from "./rules-sections";
 import { SportSelector } from "./sport-selector";
 import { AmericanTournamentFields } from "./american-tournament-fields";
 import { TournamentFlyerField } from "./tournament-flyer-field";
+import { PaymentConfigFields } from "./payment-config-fields";
+import { DEFAULT_PAYMENT_CONFIG } from "@/lib/domain/payment";
 import {
   ConfirmationField,
   DateFields,
@@ -53,7 +55,7 @@ const STEP_TITLES = [
 const STEP_FIELDS = [
   ["name", "sportId", "description", "scoringConfig", "isAmerican", "americanConfig", "courtCount"],
   ["startsOn", "endsOn", "courtCount", "hasMultipleVenues", "venueName", "venues"],
-  ["resultsRequireConfirmation", "scoringConfig", "standingsConfig", "playoffConfig", "bannerUrl"],
+  ["resultsRequireConfirmation", "scoringConfig", "standingsConfig", "playoffConfig", "bannerUrl", "paymentConfig"],
 ] as const satisfies readonly (readonly (keyof CreateTournamentInput)[])[];
 
 /** Primer paso que contiene alguno de los campos con error. */
@@ -107,6 +109,7 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
       participantCount: 12,
       roundsCount: 5,
     },
+    paymentConfig: DEFAULT_PAYMENT_CONFIG,
   };
 
   const form = useForm<CreateTournamentInput, unknown, z.output<typeof createTournamentSchema>>({
@@ -449,6 +452,8 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
                   <RulesSections form={form} />
                 </div>
               )}
+
+              <PaymentConfigFields form={form} disabled={isPending} />
             </div>
           ) : null}
 

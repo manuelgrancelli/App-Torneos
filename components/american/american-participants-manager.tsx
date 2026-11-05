@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Copy, Link as LinkIcon, Mail, Plus, Share2, Sparkles, Trash2, Trophy, UserCheck, UserPlus, Users } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, Link as LinkIcon, Mail, Plus, Share2, Sparkles, Trash2, Trophy, UserCheck, UserPlus, Users, Banknote, Check, Clock, DollarSign, Wallet } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
@@ -11,11 +11,18 @@ import {
   joinSelfAsAmericanParticipant,
   removeAmericanParticipant,
   resetAmericanFixture,
+  updateAmericanParticipantPaymentStatus,
 } from "@/app/(app)/torneos/[id]/americano/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import type { AmericanParticipant } from "@/lib/data/american";
+import {
+  formatCurrency,
+  PAYMENT_METHOD_LABELS,
+  type PaymentConfig,
+  type PaymentStatus,
+} from "@/lib/domain/payment";
 import { cn } from "@/lib/utils";
 
 export function AmericanParticipantsManager({
@@ -27,6 +34,7 @@ export function AmericanParticipantsManager({
   targetRounds = 5,
   hasMatches,
   readOnly = false,
+  paymentConfig,
 }: {
   tournamentId: string;
   inviteCode?: string | null;
@@ -36,6 +44,7 @@ export function AmericanParticipantsManager({
   targetRounds?: number;
   hasMatches: boolean;
   readOnly?: boolean;
+  paymentConfig?: PaymentConfig | null;
 }) {
   const [name, setName] = useState("");
   const [secondaryName, setSecondaryName] = useState("");
@@ -155,6 +164,21 @@ export function AmericanParticipantsManager({
     });
   };
 
+  const handleUpdatePaymentStatus = (participantId: string, status: PaymentStatus) => {
+    startTransition(async () => {
+      const res = await updateAmericanParticipantPaymentStatus({
+        tournamentId,
+        participantId,
+        paymentStatus: status,
+      });
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(res.message);
+    });
+  };
+
   // Detección de emails duplicados para advertir al organizador y ofrecer unificación
   const emailCountMap = new Map<string, number>();
   for (const p of participants) {
@@ -166,6 +190,14 @@ export function AmericanParticipantsManager({
   const duplicatedEmails = Array.from(emailCountMap.entries())
     .filter(([_, cnt]) => cnt > 1)
     .map(([em]) => em);
+
+  const paidCount = participants.filter((p) => p.paymentStatus === "paid").length;
+  const cashCount = participants.filter((p) => p.paymentStatus === "cash_on_arrival").length;
+  const pendingCount = participants.filter((p) => !p.paymentStatus || p.paymentStatus === "pending").length;
+  const unitPrice = paymentConfig?.enabled && paymentConfig.amount ? paymentConfig.amount : 0;
+  const totalCollected = paidCount * unitPrice;
+  const totalCashPending = cashCount * unitPrice;
+  const totalPending = pendingCount * unitPrice;
 
   return (
     <div className="space-y-5">
@@ -314,6 +346,66 @@ export function AmericanParticipantsManager({
         </div>
       )}
 
+      {/* Resumen financiero (cuando hay arancel configurado) */}
+      {paymentConfig?.enabled && (
+        <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-xs">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-border/50">
+            <div className="flex items-center gap-2">
+              <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                <Wallet className="size-4" />
+              </span>
+              <div>
+                <h4 className="text-sm font-bold text-foreground">Control de recaudación</h4>
+                <p className="text-xs text-muted-foreground">
+                  Arancel: <strong className="text-foreground">{formatCurrency(paymentConfig.amount, paymentConfig.currency)}</strong> por {paymentConfig.pricingType === "per_team" ? "pareja" : "jugador"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Cobrado</span>
+                <CheckCircle2 className="size-4 text-emerald-600" />
+              </div>
+              <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300 mt-1">
+                {formatCurrency(totalCollected, paymentConfig.currency)}
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {paidCount} {paidCount === 1 ? "inscripto pagado" : "inscriptos pagados"}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-amber-700 dark:text-amber-300">A cobrar en mesa</span>
+                <Banknote className="size-4 text-amber-600" />
+              </div>
+              <p className="text-lg font-bold text-amber-700 dark:text-amber-300 mt-1">
+                {formatCurrency(totalCashPending, paymentConfig.currency)}
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {cashCount} en efectivo al llegar
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-border bg-muted/30 p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">Pendiente</span>
+                <Clock className="size-4 text-muted-foreground" />
+              </div>
+              <p className="text-lg font-bold text-foreground mt-1">
+                {formatCurrency(totalPending, paymentConfig.currency)}
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {pendingCount} sin confirmar
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Formulario rápido para que el organizador inscriba participantes (oculto para jugadores) */}
       {!readOnly && (
         <form onSubmit={handleAdd} className="rounded-2xl border border-border/80 bg-muted/20 p-4 space-y-3">
@@ -376,52 +468,121 @@ export function AmericanParticipantsManager({
         {participants.map((p, index) => (
           <div
             key={p.id}
-            className="rounded-xl border border-border/70 bg-card p-3 flex items-center justify-between gap-2 shadow-xs transition-colors hover:bg-muted/30"
+            className="rounded-xl border border-border/70 bg-card p-3 flex flex-col justify-between gap-2 shadow-xs transition-colors hover:bg-muted/30"
           >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="flex size-6 items-center justify-center rounded-full bg-muted text-[11px] font-bold text-muted-foreground shrink-0">
-                {index + 1}
-              </span>
-              <div className="min-w-0 space-y-0.5">
-                <span className="text-sm font-semibold text-foreground block truncate">
-                  {p.displayName}
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="flex size-6 items-center justify-center rounded-full bg-muted text-[11px] font-bold text-muted-foreground shrink-0">
+                  {index + 1}
                 </span>
-                {p.secondaryDisplayName && (
-                  <span className="text-xs text-muted-foreground block truncate">
-                    / {p.secondaryDisplayName}
+                <div className="min-w-0 space-y-0.5">
+                  <span className="text-sm font-semibold text-foreground block truncate">
+                    {p.displayName}
                   </span>
-                )}
-                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                  {p.email ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground truncate" title={p.email}>
-                      <Mail className="size-3 shrink-0" />
-                      <span className="truncate max-w-[140px]">{p.email}</span>
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-muted-foreground/80 bg-muted/60 px-1.5 py-0.5 rounded-md">
-                      Inscripción manual
+                  {p.secondaryDisplayName && (
+                    <span className="text-xs text-muted-foreground block truncate">
+                      / {p.secondaryDisplayName}
                     </span>
                   )}
-                  {p.userId && (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md">
-                      <UserCheck className="size-2.5" />
-                      Cuenta vinculada
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    {p.email ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground truncate" title={p.email}>
+                        <Mail className="size-3 shrink-0" />
+                        <span className="truncate max-w-[140px]">{p.email}</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground/80 bg-muted/60 px-1.5 py-0.5 rounded-md">
+                        Inscripción manual
+                      </span>
+                    )}
+                    {p.userId && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md">
+                        <UserCheck className="size-2.5" />
+                        Cuenta vinculada
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {!readOnly && !hasMatches && (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(p.id, p.displayName)}
+                  disabled={isPending}
+                  className="text-muted-foreground hover:text-destructive p-1 rounded-md transition-colors cursor-pointer shrink-0"
+                  title="Eliminar participante"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              )}
+            </div>
+
+            {paymentConfig?.enabled && (
+              <div className="pt-2 border-t border-border/50 flex flex-wrap items-center justify-between gap-1.5 text-xs">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {p.paymentStatus === "paid" ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                      <Check className="size-2.5" />
+                      Pagado
+                    </span>
+                  ) : p.paymentStatus === "cash_on_arrival" ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+                      <Banknote className="size-2.5" />
+                      Efectivo en mesa
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-muted border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      <Clock className="size-2.5" />
+                      Pendiente
+                    </span>
+                  )}
+
+                  {p.paymentMethod && (
+                    <span className="text-[10px] text-muted-foreground font-medium">
+                      ({PAYMENT_METHOD_LABELS[p.paymentMethod]})
                     </span>
                   )}
                 </div>
-              </div>
-            </div>
 
-            {!readOnly && !hasMatches && (
-              <button
-                type="button"
-                onClick={() => handleDelete(p.id, p.displayName)}
-                disabled={isPending}
-                className="text-muted-foreground hover:text-destructive p-1 rounded-md transition-colors cursor-pointer shrink-0"
-                title="Eliminar participante"
-              >
-                <Trash2 className="size-3.5" />
-              </button>
+                {!readOnly && (
+                  <div className="flex items-center gap-1">
+                    {p.paymentStatus !== "paid" ? (
+                      <button
+                        type="button"
+                        onClick={() => handleUpdatePaymentStatus(p.id, "paid")}
+                        disabled={isPending}
+                        className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline px-1.5 py-0.5 rounded cursor-pointer"
+                        title="Marcar como pagado"
+                      >
+                        Marcar pagado
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleUpdatePaymentStatus(p.id, "pending")}
+                        disabled={isPending}
+                        className="text-[11px] text-muted-foreground hover:underline px-1.5 py-0.5 rounded cursor-pointer"
+                        title="Volver a pendiente"
+                      >
+                        Pendiente
+                      </button>
+                    )}
+
+                    {p.paymentStatus !== "cash_on_arrival" && p.paymentStatus !== "paid" && (
+                      <button
+                        type="button"
+                        onClick={() => handleUpdatePaymentStatus(p.id, "cash_on_arrival")}
+                        disabled={isPending}
+                        className="text-[11px] font-medium text-amber-600 dark:text-amber-400 hover:underline px-1 py-0.5 rounded cursor-pointer"
+                        title="Abonará en efectivo en el club"
+                      >
+                        Efectivo
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         ))}

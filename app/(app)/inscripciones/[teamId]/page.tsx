@@ -11,6 +11,7 @@ import { AddMemberInline } from "@/components/registration/add-member-inline";
 import { RemoveMemberButton } from "@/components/registration/remove-member-button";
 import { TeamActions } from "@/components/registration/team-actions";
 import { TeamInviteCard } from "@/components/registration/team-invite-card";
+import { TeamPaymentCard } from "@/components/payments/team-payment-card";
 import { TeamShield } from "@/components/teams/team-shield";
 import { StatusBadge, TeamStatusBadge, SportBadge } from "@/components/tournaments/status-badge";
 import { TournamentBanner } from "@/components/tournaments/tournament-banner";
@@ -157,6 +158,16 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
           El organizador rechazó la inscripción. Podés editar el equipo para que la vuelva a revisar.
         </p>
       ) : null}
+
+      <TeamPaymentCard
+        teamId={team.id}
+        isCaptain={team.isCaptain}
+        paymentStatus={team.paymentStatus}
+        paymentMethod={team.paymentMethod}
+        paidAt={team.paidAt}
+        paymentNotes={team.paymentNotes}
+        paymentConfig={tournament.paymentConfig}
+      />
 
       <PlayerProgressPanel
         progress={progress}

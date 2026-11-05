@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CalendarClock, Check, ChevronRight, Crown, Sparkles, UserPen, UserRoundX, X, ClipboardList } from "lucide-react";
+import { AlertCircle, CalendarClock, Check, ChevronRight, Crown, Sparkles, UserPen, UserRoundX, X, ClipboardList, Banknote, CheckCircle2, Clock, DollarSign, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
@@ -10,6 +10,7 @@ import {
   assignTeamCategory,
   fillTestTeamSlots,
   reviewRegistration,
+  updateTeamPaymentStatus,
 } from "@/app/(app)/torneos/[id]/inscripciones/actions";
 import { mergeCategories } from "@/app/(app)/torneos/[id]/categorias/actions";
 import { findDuplicateCategoryPairs } from "@/lib/domain/category-matcher";
@@ -21,6 +22,12 @@ import { Button } from "@/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
 import type { OrganizerTeam, TeamStatus } from "@/lib/data/teams";
+import {
+  formatCurrency,
+  PAYMENT_METHOD_LABELS,
+  type PaymentConfig,
+  type PaymentStatus,
+} from "@/lib/domain/payment";
 import { cn } from "@/lib/utils";
 import { ReplacePlayerDialog } from "./replace-player-dialog";
 import { TeamAvailabilityDialog, type DialogSlot } from "./team-availability-dialog";
@@ -48,6 +55,7 @@ type RegistrationsListProps = {
   categories?: { id: string; name: string; maxTeams?: number | null }[];
   slots?: DialogSlot[];
   timezone?: string;
+  paymentConfig?: PaymentConfig | null;
 };
 
 function ReviewButtons({
@@ -237,6 +245,84 @@ function BulkAssignBanner({
   );
 }
 
+function TeamPaymentControl({
+  team,
+  onUpdateStatus,
+}: {
+  team: OrganizerTeam;
+  onUpdateStatus: (teamId: string, status: PaymentStatus) => void;
+}) {
+  const isPaid = team.paymentStatus === "paid";
+  const isCash = team.paymentStatus === "cash_on_arrival";
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40">
+      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        <span className="text-[11px] font-semibold text-muted-foreground">Arancel:</span>
+        {isPaid ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2 className="size-3" />
+            Pagado
+          </span>
+        ) : isCash ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+            <Banknote className="size-3" />
+            Efectivo en mesa
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full bg-muted border border-border px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+            <Clock className="size-3" />
+            Pendiente
+          </span>
+        )}
+
+        {team.paymentMethod && (
+          <span className="text-[11px] text-muted-foreground font-medium">
+            ({PAYMENT_METHOD_LABELS[team.paymentMethod]})
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        {!isPaid ? (
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => onUpdateStatus(team.id, "paid")}
+            className="h-7 px-2.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-xs"
+          >
+            <Check className="size-3.5 mr-1" />
+            Marcar Pagado
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => onUpdateStatus(team.id, "pending")}
+            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+          >
+            Volver a pendiente
+          </Button>
+        )}
+
+        {!isCash && !isPaid && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => onUpdateStatus(team.id, "cash_on_arrival")}
+            className="h-7 px-2 text-xs border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 cursor-pointer"
+          >
+            <Banknote className="size-3 mr-1" />
+            Efectivo
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TeamCard({
   team,
   tournamentId,
@@ -245,8 +331,10 @@ function TeamCard({
   canReview,
   categories,
   allTeams,
+  paymentConfig,
   onOpenAvailability,
   onOpenReplacePlayer,
+  onUpdatePaymentStatus,
 }: {
   team: OrganizerTeam;
   tournamentId: string;
@@ -255,8 +343,10 @@ function TeamCard({
   canReview: boolean;
   categories?: { id: string; name: string; maxTeams?: number | null }[];
   allTeams: OrganizerTeam[];
+  paymentConfig?: PaymentConfig | null;
   onOpenAvailability: (teamId: string) => void;
   onOpenReplacePlayer: (team: OrganizerTeam, memberId?: string) => void;
+  onUpdatePaymentStatus: (teamId: string, status: PaymentStatus) => void;
 }) {
   const complete = team.members.length >= teamSize;
   const foundCat = team.categoryId && categories ? categories.find((c) => c.id === team.categoryId) : null;
@@ -352,6 +442,12 @@ function TeamCard({
           ))}
         </ul>
       )}
+      {paymentConfig?.enabled ? (
+        <TeamPaymentControl
+          team={team}
+          onUpdateStatus={onUpdatePaymentStatus}
+        />
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40">
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -403,12 +499,32 @@ export function RegistrationsList({
   categories,
   slots = [],
   timezone = "America/Argentina/Buenos_Aires",
+  paymentConfig,
 }: RegistrationsListProps) {
   const router = useRouter();
   const [isToolPending, startToolTransition] = useTransition();
+  const [, startPaymentTransition] = useTransition();
   const [selectedCat, setSelectedCat] = useState<string>("all");
   const [availabilityTeamId, setAvailabilityTeamId] = useState<string | null>(null);
   const [replaceTarget, setReplaceTarget] = useState<{ team: OrganizerTeam; memberId?: string | null } | null>(null);
+
+  const handleUpdatePaymentStatus = (teamId: string, status: PaymentStatus) => {
+    startPaymentTransition(async () => {
+      const team = teams.find((t) => t.id === teamId);
+      const res = await updateTeamPaymentStatus({
+        tournamentId,
+        teamId,
+        paymentStatus: status,
+        paymentMethod: status === "cash_on_arrival" ? "cash" : team?.paymentMethod ?? null,
+      });
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(res.message);
+      router.refresh();
+    });
+  };
 
   const isFootball = sportId ? isFootballSport(sportId) : teamSize > 2;
   const nounSingular = isFootball ? "equipo" : teamSize === 1 ? "jugador" : "pareja";
@@ -551,8 +667,86 @@ export function RegistrationsList({
     });
   }
 
+  const amount = paymentConfig?.amount ?? 0;
+  const paidTeams = teams.filter((t) => t.paymentStatus === "paid");
+  const cashTeams = teams.filter((t) => t.paymentStatus === "cash_on_arrival");
+  const pendingTeams = teams.filter(
+    (t) => t.paymentStatus === "pending" || !t.paymentStatus || t.paymentStatus === ("not_required" as any),
+  );
+
+  const totalCollected = paidTeams.length * amount;
+  const totalCashPending = cashTeams.length * amount;
+  const totalPending = pendingTeams.length * amount;
+
   return (
     <div className="space-y-4">
+      {paymentConfig?.enabled ? (
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 sm:p-5 space-y-3 shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-500/20 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                <DollarSign className="size-4" />
+              </span>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">
+                  Recaudación y Control de Pagos
+                </h3>
+                <span className="text-xs text-muted-foreground">
+                  Arancel: {formatCurrency(paymentConfig.amount)}
+                </span>
+              </div>
+            </div>
+
+            <div className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+              {paidTeams.length} de {teams.length} inscriptos al día
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <div className="rounded-xl border border-emerald-500/30 bg-card p-3 space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                Total Recaudado (Cobrado)
+              </span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg sm:text-xl font-black text-emerald-600 dark:text-emerald-400">
+                  {formatCurrency(totalCollected)}
+                </span>
+                <span className="text-xs text-muted-foreground font-medium">
+                  ({paidTeams.length} {paidTeams.length === 1 ? nounSingular : nounPlural})
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-amber-500/30 bg-card p-3 space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                Efectivo en el club (a cobrar)
+              </span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg sm:text-xl font-black text-amber-600 dark:text-amber-400">
+                  {formatCurrency(totalCashPending)}
+                </span>
+                <span className="text-xs text-muted-foreground font-medium">
+                  ({cashTeams.length} {cashTeams.length === 1 ? nounSingular : nounPlural})
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border/80 bg-card p-3 space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                Pendiente de cobro
+              </span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg sm:text-xl font-black text-muted-foreground">
+                  {formatCurrency(totalPending)}
+                </span>
+                <span className="text-xs text-muted-foreground font-medium">
+                  ({pendingTeams.length} {pendingTeams.length === 1 ? nounSingular : nounPlural})
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {categories && categories.length > 1 ? (
         <div className="flex flex-wrap items-center gap-1.5 pb-1">
           <span className="text-xs font-medium text-muted-foreground mr-1">Categoría:</span>
@@ -792,8 +986,10 @@ export function RegistrationsList({
                               canReview={canReview}
                               categories={categories}
                               allTeams={teams}
+                              paymentConfig={paymentConfig}
                               onOpenAvailability={setAvailabilityTeamId}
                               onOpenReplacePlayer={(t, mId) => setReplaceTarget({ team: t, memberId: mId })}
+                              onUpdatePaymentStatus={handleUpdatePaymentStatus}
                             />
                           ))}
                         </ul>
@@ -817,8 +1013,10 @@ export function RegistrationsList({
               canReview={canReview}
               categories={categories}
               allTeams={teams}
+              paymentConfig={paymentConfig}
               onOpenAvailability={setAvailabilityTeamId}
               onOpenReplacePlayer={(t, mId) => setReplaceTarget({ team: t, memberId: mId })}
+              onUpdatePaymentStatus={handleUpdatePaymentStatus}
             />
           ))}
         </ul>

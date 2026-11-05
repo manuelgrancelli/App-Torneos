@@ -16,6 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 import { normalizeInviteCode } from "@/lib/validation/registration";
 import { getTournamentCategories } from "@/lib/data/categories";
 import { getAmericanConfig, isAmericanTournament } from "@/lib/data/american";
+import { normalizePaymentConfig } from "@/lib/domain/payment";
 import { AmericanJoinCard } from "@/components/american/american-join-card";
 
 export const metadata: Metadata = { title: "Inscripción" };
@@ -56,7 +57,7 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
   const [tourExtra, categories] = await Promise.all([
     supabase
       .from("tournaments")
-      .select("banner_url, description, scoring_config")
+      .select("banner_url, description, scoring_config, payment_config")
       .eq("id", tournament.tournament_id)
       .maybeSingle(),
     getTournamentCategories(tournament.tournament_id),
@@ -65,6 +66,7 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
   const bannerUrl = tourExtra.data?.banner_url ?? null;
   const description = tourExtra.data?.description ?? null;
   const isAmerican = isAmericanTournament(tourExtra.data);
+  const paymentConfig = normalizePaymentConfig(tourExtra.data?.payment_config);
 
   let myAmericanParticipant: { id: string; display_name: string } | null = null;
   if (isAmerican) {
@@ -199,6 +201,7 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
             }
             defaultName={user.fullName}
             userEmail={user.email}
+            paymentConfig={paymentConfig}
           />
         )
       ) : tournament.my_team_id ? (
@@ -262,6 +265,7 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
               defaultName={suggestedName(user.fullName, minTeamSize)}
               captainName={user.fullName}
               captainEmail={user.email}
+              paymentConfig={paymentConfig}
               categories={categories.map((c) => ({
                 id: c.id,
                 name: c.name,

@@ -18,13 +18,13 @@ export type Database = {
                   Relationships: []
                 },"american_participants": {
                   Row: {
-                    "category_id": string | null,"created_at": string,"display_name": string,"email": string | null,"id": string,"phone": string | null,"secondary_display_name": string | null,"seed_number": number | null,"tournament_id": string,"updated_at": string,"user_id": string | null
+                    "category_id": string | null,"created_at": string,"display_name": string,"email": string | null,"id": string,"paid_at": string | null,"payment_method": "mercadopago" | "transfer" | "cash" | null,"payment_notes": string | null,"payment_status": "pending" | "paid" | "cash_on_arrival" | "not_required","phone": string | null,"secondary_display_name": string | null,"seed_number": number | null,"tournament_id": string,"updated_at": string,"user_id": string | null
                   }
                   Insert: {
-                    "category_id"?: string | null,"created_at"?: string,"display_name": string,"email"?: string | null,"id"?: string,"phone"?: string | null,"secondary_display_name"?: string | null,"seed_number"?: number | null,"tournament_id": string,"updated_at"?: string,"user_id"?: string | null
+                    "category_id"?: string | null,"created_at"?: string,"display_name": string,"email"?: string | null,"id"?: string,"paid_at"?: string | null,"payment_method"?: "mercadopago" | "transfer" | "cash" | null,"payment_notes"?: string | null,"payment_status"?: "pending" | "paid" | "cash_on_arrival" | "not_required","phone"?: string | null,"secondary_display_name"?: string | null,"seed_number"?: number | null,"tournament_id": string,"updated_at"?: string,"user_id"?: string | null
                   }
                   Update: {
-                    "category_id"?: string | null,"created_at"?: string,"display_name"?: string,"email"?: string | null,"id"?: string,"phone"?: string | null,"secondary_display_name"?: string | null,"seed_number"?: number | null,"tournament_id"?: string,"updated_at"?: string,"user_id"?: string | null
+                    "category_id"?: string | null,"created_at"?: string,"display_name"?: string,"email"?: string | null,"id"?: string,"paid_at"?: string | null,"payment_method"?: "mercadopago" | "transfer" | "cash" | null,"payment_notes"?: string | null,"payment_status"?: "pending" | "paid" | "cash_on_arrival" | "not_required","phone"?: string | null,"secondary_display_name"?: string | null,"seed_number"?: number | null,"tournament_id"?: string,"updated_at"?: string,"user_id"?: string | null
                   }
                   Relationships: []
                 },"american_standings": {
@@ -320,13 +320,13 @@ isOneToOne: false
                   ]
                 },"teams": {
                   Row: {
-                    "captain_id": string,"category_id": string | null,"created_at": string,"id": string,"invite_code": string | null,"logo_url": string | null,"name": string,"organizer_registered": boolean,"status": Database["public"]['Enums']["team_status"],"test_generated": boolean,"tournament_id": string,"updated_at": string
+                    "captain_id": string,"category_id": string | null,"created_at": string,"id": string,"invite_code": string | null,"logo_url": string | null,"name": string,"organizer_registered": boolean,"paid_at": string | null,"payment_method": "mercadopago" | "transfer" | "cash" | null,"payment_notes": string | null,"payment_status": "pending" | "paid" | "cash_on_arrival" | "not_required","status": Database["public"]['Enums']["team_status"],"test_generated": boolean,"tournament_id": string,"updated_at": string
                   }
                   Insert: {
-                    "captain_id": string,"category_id"?: string | null,"created_at"?: string,"id"?: string,"invite_code"?: string | null,"logo_url"?: string | null,"name": string,"organizer_registered"?: boolean,"status"?: Database["public"]['Enums']["team_status"],"test_generated"?: boolean,"tournament_id": string,"updated_at"?: string
+                    "captain_id": string,"category_id"?: string | null,"created_at"?: string,"id"?: string,"invite_code"?: string | null,"logo_url"?: string | null,"name": string,"organizer_registered"?: boolean,"paid_at"?: string | null,"payment_method"?: "mercadopago" | "transfer" | "cash" | null,"payment_notes"?: string | null,"payment_status"?: "pending" | "paid" | "cash_on_arrival" | "not_required","status"?: Database["public"]['Enums']["team_status"],"test_generated"?: boolean,"tournament_id": string,"updated_at"?: string
                   }
                   Update: {
-                    "captain_id"?: string,"category_id"?: string | null,"created_at"?: string,"id"?: string,"invite_code"?: string | null,"logo_url"?: string | null,"name"?: string,"organizer_registered"?: boolean,"status"?: Database["public"]['Enums']["team_status"],"test_generated"?: boolean,"tournament_id"?: string,"updated_at"?: string
+                    "captain_id"?: string,"category_id"?: string | null,"created_at"?: string,"id"?: string,"invite_code"?: string | null,"logo_url"?: string | null,"name"?: string,"organizer_registered"?: boolean,"paid_at"?: string | null,"payment_method"?: "mercadopago" | "transfer" | "cash" | null,"payment_notes"?: string | null,"payment_status"?: "pending" | "paid" | "cash_on_arrival" | "not_required","status"?: Database["public"]['Enums']["team_status"],"test_generated"?: boolean,"tournament_id"?: string,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -408,13 +408,13 @@ isOneToOne: true
                   ]
                 },"tournaments": {
                   Row: {
-                    "banner_url": string | null,"champion_team_id": string | null,"circuit_id": string | null,"circuit_order": number | null,"created_at": string,"description": string | null,"ends_on": string,"id": string,"is_test": boolean,"max_teams": number,"name": string,"organizer_id": string,"playoff_config": NonNullable<Json>,"results_require_confirmation": boolean,"scoring_config": NonNullable<Json>,"slug": string,"sport_id": string,"standings_config": NonNullable<Json>,"starts_on": string,"status": Database["public"]['Enums']["tournament_status"],"timezone": string,"updated_at": string
+                    "banner_url": string | null,"champion_team_id": string | null,"circuit_id": string | null,"circuit_order": number | null,"created_at": string,"description": string | null,"ends_on": string,"id": string,"is_test": boolean,"max_teams": number,"name": string,"organizer_id": string,"payment_config": NonNullable<Json>,"playoff_config": NonNullable<Json>,"results_require_confirmation": boolean,"scoring_config": NonNullable<Json>,"slug": string,"sport_id": string,"standings_config": NonNullable<Json>,"starts_on": string,"status": Database["public"]['Enums']["tournament_status"],"timezone": string,"updated_at": string
                   }
                   Insert: {
-                    "banner_url"?: string | null,"champion_team_id"?: string | null,"circuit_id"?: string | null,"circuit_order"?: number | null,"created_at"?: string,"description"?: string | null,"ends_on": string,"id"?: string,"is_test"?: boolean,"max_teams": number,"name": string,"organizer_id": string,"playoff_config"?: NonNullable<Json>,"results_require_confirmation"?: boolean,"scoring_config": NonNullable<Json>,"slug": string,"sport_id": string,"standings_config": NonNullable<Json>,"starts_on": string,"status"?: Database["public"]['Enums']["tournament_status"],"timezone"?: string,"updated_at"?: string
+                    "banner_url"?: string | null,"champion_team_id"?: string | null,"circuit_id"?: string | null,"circuit_order"?: number | null,"created_at"?: string,"description"?: string | null,"ends_on": string,"id"?: string,"is_test"?: boolean,"max_teams": number,"name": string,"organizer_id": string,"payment_config"?: NonNullable<Json>,"playoff_config"?: NonNullable<Json>,"results_require_confirmation"?: boolean,"scoring_config": NonNullable<Json>,"slug": string,"sport_id": string,"standings_config": NonNullable<Json>,"starts_on": string,"status"?: Database["public"]['Enums']["tournament_status"],"timezone"?: string,"updated_at"?: string
                   }
                   Update: {
-                    "banner_url"?: string | null,"champion_team_id"?: string | null,"circuit_id"?: string | null,"circuit_order"?: number | null,"created_at"?: string,"description"?: string | null,"ends_on"?: string,"id"?: string,"is_test"?: boolean,"max_teams"?: number,"name"?: string,"organizer_id"?: string,"playoff_config"?: NonNullable<Json>,"results_require_confirmation"?: boolean,"scoring_config"?: NonNullable<Json>,"slug"?: string,"sport_id"?: string,"standings_config"?: NonNullable<Json>,"starts_on"?: string,"status"?: Database["public"]['Enums']["tournament_status"],"timezone"?: string,"updated_at"?: string
+                    "banner_url"?: string | null,"champion_team_id"?: string | null,"circuit_id"?: string | null,"circuit_order"?: number | null,"created_at"?: string,"description"?: string | null,"ends_on"?: string,"id"?: string,"is_test"?: boolean,"max_teams"?: number,"name"?: string,"organizer_id"?: string,"payment_config"?: NonNullable<Json>,"playoff_config"?: NonNullable<Json>,"results_require_confirmation"?: boolean,"scoring_config"?: NonNullable<Json>,"slug"?: string,"sport_id"?: string,"standings_config"?: NonNullable<Json>,"starts_on"?: string,"status"?: Database["public"]['Enums']["tournament_status"],"timezone"?: string,"updated_at"?: string
                   }
                   Relationships: [
                     {

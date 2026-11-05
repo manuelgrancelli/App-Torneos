@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { getEnabledPaymentMethods, type PaymentConfig, type PaymentMethodType } from "@/lib/domain/payment";
+import { PaymentMethodSelector } from "@/components/payments/payment-method-selector";
 
 export function AmericanJoinCard({
   code,
@@ -16,16 +18,22 @@ export function AmericanJoinCard({
   isIndividual,
   defaultName,
   userEmail,
+  paymentConfig,
 }: {
   code: string;
   tournamentName: string;
   isIndividual: boolean;
   defaultName: string;
   userEmail: string;
+  paymentConfig?: PaymentConfig | null;
 }) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState(defaultName || "");
   const [secondaryName, setSecondaryName] = useState("");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethodType | null>(() => {
+    const enabled = getEnabledPaymentMethods(paymentConfig);
+    return enabled[0] ?? null;
+  });
   const [isPending, startTransition] = useTransition();
   const [isRegistered, setIsRegistered] = useState(false);
 
@@ -45,6 +53,7 @@ export function AmericanJoinCard({
         code,
         displayName: displayName.trim(),
         secondaryDisplayName: !isIndividual ? secondaryName.trim() : undefined,
+        paymentMethod: selectedPaymentMethod,
       });
 
       if (!res.ok) {
@@ -137,6 +146,16 @@ export function AmericanJoinCard({
               <span>Tu cuenta y correo asociado:</span>
               <strong className="text-foreground">{userEmail}</strong>
             </div>
+
+            {paymentConfig?.enabled ? (
+              <PaymentMethodSelector
+                paymentConfig={paymentConfig}
+                selectedMethod={selectedPaymentMethod}
+                onChange={setSelectedPaymentMethod}
+                disabled={isPending}
+                isIndividual={isIndividual}
+              />
+            ) : null}
           </div>
 
           <Button

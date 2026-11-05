@@ -4,6 +4,7 @@ import { playoffConfigSchema } from "@/lib/domain/bracket";
 import { scoringConfigSchema } from "@/lib/domain/scoring";
 import { TIEBREAKER_LABELS, standingsConfigSchema, tiebreakersFor } from "@/lib/domain/standings";
 import { isValidLocalDate } from "@/lib/domain/slots";
+import { DEFAULT_PAYMENT_CONFIG, paymentConfigSchema } from "@/lib/domain/payment";
 
 /** Esquemas de los formularios de torneo, canchas y franjas (cliente y servidor). */
 
@@ -69,6 +70,7 @@ const tournamentInfoShape = {
     participantCount: 12,
     roundsCount: 5,
   }),
+  paymentConfig: paymentConfigSchema.default(DEFAULT_PAYMENT_CONFIG),
 };
 
 type ConfigFields = {
@@ -224,6 +226,13 @@ export const updateTournamentBannerSchema = z.object({
 });
 
 export type UpdateTournamentBannerInput = z.infer<typeof updateTournamentBannerSchema>;
+
+export const updateTournamentPaymentConfigSchema = z.object({
+  tournamentId: z.uuid(),
+  paymentConfig: paymentConfigSchema,
+});
+
+export type UpdateTournamentPaymentConfigInput = z.input<typeof updateTournamentPaymentConfigSchema>;
 
 export const adminInviteCodeSchema = z.object({
   code: z.string().trim().toUpperCase().min(1, { error: "Ingresá un código válido." }),

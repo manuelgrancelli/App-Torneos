@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { AmericanConfig } from "@/lib/validation/tournament";
+import type { PaymentMethodType, PaymentStatus } from "@/lib/domain/payment";
 
 export type AmericanParticipant = {
   id: string;
@@ -14,6 +15,10 @@ export type AmericanParticipant = {
   email: string | null;
   phone: string | null;
   seedNumber: number | null;
+  paymentStatus?: PaymentStatus;
+  paymentMethod?: PaymentMethodType | null;
+  paidAt?: string | null;
+  paymentNotes?: string | null;
   createdAt: string;
 };
 
@@ -116,6 +121,10 @@ export const listAmericanParticipants = cache(
         email: row.email,
         phone: row.phone,
         seedNumber: row.seed_number,
+        paymentStatus: (row.payment_status as PaymentStatus) ?? "not_required",
+        paymentMethod: (row.payment_method as PaymentMethodType | null) ?? null,
+        paidAt: row.paid_at ?? null,
+        paymentNotes: row.payment_notes ?? null,
         createdAt: row.created_at,
       }));
     }
@@ -184,6 +193,10 @@ export const listAmericanParticipants = cache(
       email: row.email,
       phone: row.phone,
       seedNumber: row.seed_number,
+      paymentStatus: (row.payment_status as PaymentStatus) ?? "not_required",
+      paymentMethod: (row.payment_method as PaymentMethodType | null) ?? null,
+      paidAt: row.paid_at ?? null,
+      paymentNotes: row.payment_notes ?? null,
       createdAt: row.created_at,
     }));
   }

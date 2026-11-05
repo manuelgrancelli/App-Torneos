@@ -4,6 +4,7 @@ import { normalizeScoringConfig, type ScoringConfig } from "@/lib/domain/scoring
 import type { StandingsConfig } from "@/lib/domain/standings";
 import type { PlayoffConfig } from "@/lib/domain/bracket";
 import type { TournamentStatus } from "@/lib/domain/tournament-status";
+import { normalizePaymentConfig, type PaymentConfig } from "@/lib/domain/payment";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser, isSuperAdmin } from "@/lib/auth";
 import type { Tables } from "@/lib/supabase/database.types";
@@ -416,6 +417,7 @@ export type OrganizerTournament = {
   sport: Sport;
   inviteCode: string | null;
   adminInviteCode?: string | null;
+  paymentConfig: PaymentConfig;
   isTest: boolean;
   isOwner: boolean;
   canDelete?: boolean;
@@ -503,6 +505,7 @@ export const getOrganizerTournament = cache(
       playoffConfig: data.playoff_config as PlayoffConfig,
       championTeamId: data.champion_team_id,
       sport: data.sports,
+      paymentConfig: normalizePaymentConfig(data.payment_config),
       inviteCode: data.tournament_invites?.code ?? null,
       adminInviteCode,
       isTest: data.is_test,
