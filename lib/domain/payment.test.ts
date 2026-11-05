@@ -3,7 +3,9 @@ import {
   DEFAULT_PAYMENT_CONFIG,
   extractTournamentPaymentConfig,
   formatCurrency,
+  getEffectiveTransferDetails,
   getEnabledPaymentMethods,
+  getPlayablePaymentMethods,
   normalizePaymentConfig,
   paymentConfigSchema,
   pricingTypeLabel,
@@ -62,13 +64,15 @@ describe("lib/domain/payment", () => {
       ...DEFAULT_PAYMENT_CONFIG,
       enabled: true,
       methods: {
-        mercadopago: { enabled: true, alias: "mp.alias", cvu: null, paymentLink: null },
+        mercadopago: { enabled: true, alias: "mp.alias", cvu: null, paymentLink: null, accessToken: null },
         transfer: { enabled: false, bank: null, accountHolder: null, cbuOrCvu: null, alias: null },
         cash: { enabled: true, instructions: null },
       },
     };
 
     expect(getEnabledPaymentMethods(enabledConfig)).toEqual(["mercadopago", "cash"]);
+    expect(getPlayablePaymentMethods(enabledConfig)).toEqual(["mercadopago", "transfer", "cash"]);
+    expect(getEffectiveTransferDetails(enabledConfig).alias).toBe("mp.alias");
   });
 
   it("formatea moneda adecuadamente en pesos argentinos", () => {

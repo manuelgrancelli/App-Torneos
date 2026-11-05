@@ -161,6 +161,8 @@ export default async function TeamPage({ params }: PageProps<"/inscripciones/[te
 
       <TeamPaymentCard
         teamId={team.id}
+        tournamentId={tournament.id}
+        teamName={team.name}
         isCaptain={team.isCaptain}
         paymentStatus={team.paymentStatus}
         paymentMethod={team.paymentMethod}

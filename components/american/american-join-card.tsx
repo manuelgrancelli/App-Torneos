@@ -9,11 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { getEnabledPaymentMethods, type PaymentConfig, type PaymentMethodType } from "@/lib/domain/payment";
+import { getPlayablePaymentMethods, type PaymentConfig, type PaymentMethodType } from "@/lib/domain/payment";
+import { launchMercadoPagoPayment } from "@/lib/payments/mercadopago-client";
 import { PaymentMethodSelector } from "@/components/payments/payment-method-selector";
 
 export function AmericanJoinCard({
   code,
+  tournamentId,
   tournamentName,
   isIndividual,
   defaultName,
@@ -21,6 +23,7 @@ export function AmericanJoinCard({
   paymentConfig,
 }: {
   code: string;
+  tournamentId?: string;
   tournamentName: string;
   isIndividual: boolean;
   defaultName: string;
@@ -31,8 +34,8 @@ export function AmericanJoinCard({
   const [displayName, setDisplayName] = useState(defaultName || "");
   const [secondaryName, setSecondaryName] = useState("");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethodType | null>(() => {
-    const enabled = getEnabledPaymentMethods(paymentConfig);
-    return enabled[0] ?? null;
+    const playable = getPlayablePaymentMethods(paymentConfig);
+    return playable[0] ?? null;
   });
   const [isPending, startTransition] = useTransition();
   const [isRegistered, setIsRegistered] = useState(false);
@@ -62,6 +65,15 @@ export function AmericanJoinCard({
       }
 
       toast.success(res.message);
+      if (paymentConfig?.enabled && selectedPaymentMethod === "mercadopago" && tournamentId) {
+        await launchMercadoPagoPayment({
+          tournamentId,
+          participantId: res.data.participantId,
+          teamName: displayName.trim(),
+          returnPath: `/unirse/${code}`,
+          openInNewTab: true,
+        });
+      }
       setIsRegistered(true);
       router.refresh();
     });
@@ -154,6 +166,8 @@ export function AmericanJoinCard({
                 onChange={setSelectedPaymentMethod}
                 disabled={isPending}
                 isIndividual={isIndividual}
+                tournamentId={tournamentId}
+                teamName={displayName.trim() || defaultName}
               />
             ) : null}
           </div>
@@ -164,7 +178,9 @@ export function AmericanJoinCard({
             className="w-full h-10 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs cursor-pointer"
           >
             {isPending ? <Spinner /> : <UserPlus className="size-4 mr-1.5" />}
-            Confirmar mi inscripción
+            {paymentConfig?.enabled && selectedPaymentMethod === "mercadopago"
+              ? "Inscribirme y pagar con Mercado Pago ↗"
+              : "Confirmar mi inscripción"}
           </Button>
         </form>
       </CardContent>

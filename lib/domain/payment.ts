@@ -35,6 +35,7 @@ export const mercadoPagoConfigSchema = z.object({
   alias: z.string().trim().max(100).nullable().optional().default(null),
   cvu: z.string().trim().max(100).nullable().optional().default(null),
   paymentLink: z.string().trim().url("Ingresá un link válido.").max(500).nullable().optional().or(z.literal("")).default(null),
+  accessToken: z.string().trim().max(300).nullable().optional().default(null),
 });
 export type MercadoPagoConfig = z.infer<typeof mercadoPagoConfigSchema>;
 
@@ -76,12 +77,12 @@ export const paymentConfigSchema = z.object({
   pricingType: pricingTypeSchema.default("per_team"),
   methods: z
     .object({
-      mercadopago: mercadoPagoConfigSchema.default({ enabled: false, alias: null, cvu: null, paymentLink: null }),
+      mercadopago: mercadoPagoConfigSchema.default({ enabled: false, alias: null, cvu: null, paymentLink: null, accessToken: null }),
       transfer: transferConfigSchema.default({ enabled: false, bank: null, accountHolder: null, cbuOrCvu: null, alias: null }),
       cash: cashConfigSchema.default({ enabled: false, instructions: "Abonar en mesa de control antes del primer partido." }),
     })
     .default({
-      mercadopago: { enabled: false, alias: null, cvu: null, paymentLink: null },
+      mercadopago: { enabled: false, alias: null, cvu: null, paymentLink: null, accessToken: null },
       transfer: { enabled: false, bank: null, accountHolder: null, cbuOrCvu: null, alias: null },
       cash: { enabled: false, instructions: "Abonar en mesa de control antes del primer partido." },
     }),
@@ -95,7 +96,7 @@ export const DEFAULT_PAYMENT_CONFIG: PaymentConfig = {
   amount: null,
   pricingType: "per_team",
   methods: {
-    mercadopago: { enabled: false, alias: null, cvu: null, paymentLink: null },
+    mercadopago: { enabled: false, alias: null, cvu: null, paymentLink: null, accessToken: null },
     transfer: { enabled: false, bank: null, accountHolder: null, cbuOrCvu: null, alias: null },
     cash: { enabled: false, instructions: "Abonar en mesa de control antes del primer partido." },
   },
@@ -207,6 +208,50 @@ export function getEnabledPaymentMethods(config?: PaymentConfig | null): Payment
   if (config.methods.transfer?.enabled) list.push("transfer");
   if (config.methods.cash?.enabled) list.push("cash");
   return list;
+}
+
+/**
+ * Devuelve las opciones de pago disponibles para el jugador:
+ * Si el organizador activó Mercado Pago y cargó un Alias o CVU (aunque no haya activado
+ * por separado el switch de Transferencia), habilita automáticamente tanto la opción de
+ * "Pagar desde Mercado Pago (App / Checkout)" como la de "Transferir por Alias / CVU".
+ */
+export function getPlayablePaymentMethods(config?: PaymentConfig | null): PaymentMethodType[] {
+  if (!config || !config.enabled) return [];
+  const list: PaymentMethodType[] = [];
+  const mp = config.methods.mercadopago;
+  const tr = config.methods.transfer;
+
+  if (mp?.enabled) {
+    list.push("mercadopago");
+  }
+  if (tr?.enabled || (mp?.enabled && Boolean(mp.alias || mp.cvu))) {
+    list.push("transfer");
+  }
+  if (config.methods.cash?.enabled) {
+    list.push("cash");
+  }
+  return list;
+}
+
+/**
+ * Unifica los datos de transferencia (CBU/CVU/Alias/Banco/Titular), tomando los de
+ * `transfer` o reutilizando el Alias/CVU cargado en `mercadopago` si corresponde.
+ */
+export function getEffectiveTransferDetails(config?: PaymentConfig | null): {
+  bank: string | null;
+  accountHolder: string | null;
+  cbuOrCvu: string | null;
+  alias: string | null;
+} {
+  const tr = config?.methods.transfer;
+  const mp = config?.methods.mercadopago;
+  return {
+    bank: tr?.bank || (mp?.enabled && (mp.alias || mp.cvu) ? "Mercado Pago / CVU" : null),
+    accountHolder: tr?.accountHolder || null,
+    cbuOrCvu: tr?.cbuOrCvu || mp?.cvu || null,
+    alias: tr?.alias || mp?.alias || null,
+  };
 }
 
 /**

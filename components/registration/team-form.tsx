@@ -16,7 +16,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { teamNoun } from "@/lib/domain/tournament-status";
 import { applyServerErrors, firstErrorMessage } from "@/lib/forms";
 import { registerTeamSchema } from "@/lib/validation/registration";
-import { getEnabledPaymentMethods, type PaymentConfig, type PaymentMethodType } from "@/lib/domain/payment";
+import { getPlayablePaymentMethods, type PaymentConfig, type PaymentMethodType } from "@/lib/domain/payment";
+import { launchMercadoPagoPayment } from "@/lib/payments/mercadopago-client";
 import { PaymentMethodSelector } from "@/components/payments/payment-method-selector";
 import { MemberEmailsField } from "./member-emails-field";
 import { PlayerRosterBuilder, type PlayerEntry } from "./player-roster-builder";
@@ -31,6 +32,7 @@ export type TeamCategoryOption = {
 
 type TeamFormProps = {
   /** Integrantes que necesita el deporte (incluido quien inscribe). */
+  tournamentId?: string;
   teamSize: number;
   minTeamSize?: number;
   maxTeamSize?: number;
@@ -93,8 +95,8 @@ export function TeamForm(props: TeamFormProps) {
   });
 
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethodType | null>(() => {
-    const enabled = getEnabledPaymentMethods(props.paymentConfig);
-    return enabled[0] ?? null;
+    const playable = getPlayablePaymentMethods(props.paymentConfig);
+    return playable[0] ?? null;
   });
 
   const form = useForm({
@@ -182,6 +184,15 @@ export function TeamForm(props: TeamFormProps) {
           return;
         }
         toast.success(result.message ?? "¡Listo!");
+        if (props.paymentConfig?.enabled && selectedPaymentMethod === "mercadopago" && props.tournamentId) {
+          await launchMercadoPagoPayment({
+            tournamentId: props.tournamentId,
+            teamId: result.data.teamId,
+            teamName: payload.teamName,
+            returnPath: `/inscripciones/${result.data.teamId}`,
+            openInNewTab: true,
+          });
+        }
         router.push(`/inscripciones/${result.data.teamId}`);
         return;
       }
@@ -382,6 +393,8 @@ export function TeamForm(props: TeamFormProps) {
             onChange={setSelectedPaymentMethod}
             disabled={isPending}
             isIndividual={props.teamSize === 1}
+            tournamentId={props.tournamentId}
+            teamName={watchedTeamName || props.defaultName}
           />
         ) : null}
 
@@ -389,9 +402,13 @@ export function TeamForm(props: TeamFormProps) {
           <Button type="submit" disabled={isPending} className="w-full sm:w-auto h-9 text-xs font-semibold shadow-xs">
             {isPending ? <Spinner /> : null}
             {props.mode === "register"
-              ? props.teamSize === 1
-                ? "Inscribirme al torneo"
-                : "Inscribir equipo"
+              ? props.paymentConfig?.enabled && selectedPaymentMethod === "mercadopago"
+                ? props.teamSize === 1
+                  ? "Inscribirme y pagar con Mercado Pago ↗"
+                  : "Inscribir y pagar con Mercado Pago ↗"
+                : props.teamSize === 1
+                  ? "Inscribirme al torneo"
+                  : "Inscribir equipo"
               : "Guardar cambios"}
           </Button>
         </div>

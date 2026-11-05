@@ -236,6 +236,32 @@ export function PaymentConfigFields({
                       </FieldDescription>
                     </Field>
                   </div>
+
+                  <div className="sm:col-span-2">
+                    <Field>
+                      <FieldLabel className="text-[11px] font-semibold">
+                        Access Token de Mercado Pago — API Checkout Pro (opcional)
+                      </FieldLabel>
+                      <Controller
+                        name="paymentConfig.methods.mercadopago.accessToken"
+                        control={form.control}
+                        render={({ field }) => (
+                          <Input
+                            type="password"
+                            autoComplete="off"
+                            placeholder="APP_USR-... o TEST-..."
+                            value={field.value ?? ""}
+                            onChange={(e) => field.onChange(e.target.value || null)}
+                            disabled={disabled}
+                            className="text-xs h-8 bg-card font-mono"
+                          />
+                        )}
+                      />
+                      <FieldDescription className="text-[11px]">
+                        Opcional: pegá tu Access Token de Mercado Pago Developers para generar un checkout online con el monto exacto y acreditación automática al pagar.
+                      </FieldDescription>
+                    </Field>
+                  </div>
                 </div>
               )}
             </div>

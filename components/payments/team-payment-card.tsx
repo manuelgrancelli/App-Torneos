@@ -1,7 +1,8 @@
 "use client";
 
-import { AlertCircle, Banknote, Building2, CheckCircle2, Clock, Copy, ExternalLink, ShieldCheck, Wallet } from "lucide-react";
-import { useState, useTransition } from "react";
+import { Banknote, Building2, Check, CheckCircle2, Clock, Copy, ExternalLink, ShieldCheck, Wallet } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { setTeamPaymentMethod } from "@/app/(app)/torneos/[id]/inscripciones/actions";
 import { Badge } from "@/components/ui/badge";
@@ -13,11 +14,15 @@ import {
   type PaymentMethodType,
   type PaymentStatus,
   formatCurrency,
+  getEffectiveTransferDetails,
   pricingTypeLabel,
 } from "@/lib/domain/payment";
+import { launchMercadoPagoPayment } from "@/lib/payments/mercadopago-client";
 
 export function TeamPaymentCard({
   teamId,
+  tournamentId,
+  teamName,
   isCaptain,
   paymentStatus,
   paymentMethod,
@@ -26,6 +31,8 @@ export function TeamPaymentCard({
   paymentConfig,
 }: {
   teamId: string;
+  tournamentId?: string;
+  teamName?: string;
   isCaptain: boolean;
   paymentStatus: PaymentStatus;
   paymentMethod?: PaymentMethodType | null;
@@ -33,9 +40,38 @@ export function TeamPaymentCard({
   paymentNotes?: string | null;
   paymentConfig?: PaymentConfig | null;
 }) {
+  const router = useRouter();
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [isChangingMethod, setIsChangingMethod] = useState(false);
+  const [isLaunchingMp, setIsLaunchingMp] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (typeof window === "undefined" || paymentStatus === "paid") return;
+    const params = new URLSearchParams(window.location.search);
+    const mpStatus = params.get("mp_status") || params.get("collection_status") || params.get("status");
+    const paymentId = params.get("payment_id") || params.get("collection_id");
+
+    if (mpStatus === "approved" && paymentId) {
+      void fetch("/api/payments/mercadopago/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentId,
+          tournamentId,
+          teamId,
+        }),
+      })
+        .then((r) => r.json())
+        .then((res) => {
+          if (res?.ok && res?.verified) {
+            toast.success("¡Pago de Mercado Pago acreditado automáticamente!");
+            router.refresh();
+          }
+        })
+        .catch(() => null);
+    }
+  }, [paymentStatus, router, teamId, tournamentId]);
 
   if (!paymentConfig || !paymentConfig.enabled) {
     return null;
@@ -45,7 +81,7 @@ export function TeamPaymentCard({
     if (navigator.clipboard?.writeText) {
       void navigator.clipboard.writeText(text);
       setCopiedKey(key);
-      toast.success(`${label} copiado`);
+      toast.success(`${label} copiado al portapapeles`);
       setTimeout(() => setCopiedKey(null), 2500);
     } else {
       toast.info(`${label}: ${text}`);
@@ -64,12 +100,36 @@ export function TeamPaymentCard({
     });
   };
 
+  const handleOpenMercadoPago = async () => {
+    if (!tournamentId) {
+      if (paymentConfig.methods.mercadopago?.paymentLink) {
+        window.open(paymentConfig.methods.mercadopago.paymentLink, "_blank", "noopener,noreferrer");
+      }
+      return;
+    }
+    setIsLaunchingMp(true);
+    try {
+      await launchMercadoPagoPayment({
+        tournamentId,
+        teamId,
+        teamName,
+        returnPath: `/inscripciones/${teamId}`,
+        openInNewTab: true,
+      });
+    } finally {
+      setIsLaunchingMp(false);
+    }
+  };
+
   const isPaid = paymentStatus === "paid";
   const isCash = paymentStatus === "cash_on_arrival" || paymentMethod === "cash";
   const isPendingPay = paymentStatus === "pending";
 
   const mp = paymentConfig.methods.mercadopago;
-  const transfer = paymentConfig.methods.transfer;
+  const effectiveTransfer = getEffectiveTransferDetails(paymentConfig);
+  const hasTransferOption = Boolean(
+    paymentConfig.methods.transfer?.enabled || effectiveTransfer.alias || effectiveTransfer.cbuOrCvu,
+  );
 
   return (
     <Card className="border-border/80 shadow-xs">
@@ -164,128 +224,104 @@ export function TeamPaymentCard({
           </div>
         )}
 
-        {/* 3. Si está pendiente (o si quiere ver datos para transferir) */}
+        {/* 3. Si está pendiente (o si quiere ver datos para transferir / pagar con MP) */}
         {(isPendingPay || isChangingMethod) && (
           <div className="space-y-3 pt-1">
             <p className="text-xs text-muted-foreground">
-              Podés realizar la transferencia a las siguientes cuentas del organizador:
+              Elegí si querés abrir Mercado Pago para abonar o transferir por Alias / CVU / CBU:
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              {/* Mercado Pago */}
+              {/* Opción 1: Pagar desde Mercado Pago */}
               {mp?.enabled && (
-                <div className="rounded-xl border border-sky-500/30 bg-sky-500/[0.04] p-3.5 space-y-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="flex size-6 items-center justify-center rounded bg-sky-500/20 text-sky-600 dark:text-sky-400">
-                      <Wallet className="size-3.5" />
-                    </span>
-                    <strong className="text-foreground">Mercado Pago</strong>
+                <div className="rounded-xl border border-sky-500/30 bg-sky-500/[0.04] p-3.5 space-y-2.5 flex flex-col justify-between">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="flex size-6 items-center justify-center rounded bg-sky-500/20 text-sky-600 dark:text-sky-400">
+                        <Wallet className="size-3.5" />
+                      </span>
+                      <strong className="text-foreground">Pagar desde Mercado Pago</strong>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-snug">
+                      {mp.accessToken || mp.paymentLink
+                        ? "Abrí el checkout de Mercado Pago para abonar con dinero en cuenta o tarjeta."
+                        : "Te copiamos el Alias del organizador y te abrimos Mercado Pago directamente."}
+                    </p>
                   </div>
 
-                  <div className="space-y-1.5 pt-1">
-                    {mp.alias && (
-                      <div className="flex items-center justify-between gap-1 rounded bg-muted/60 px-2 py-1">
-                        <span className="text-[11px] text-muted-foreground">Alias:</span>
-                        <div className="flex items-center gap-1.5">
-                          <strong className="font-mono text-foreground">{mp.alias}</strong>
-                          <button
-                            type="button"
-                            onClick={() => handleCopy(mp.alias!, "Alias MP", "mp-alias")}
-                            className="p-1 hover:text-primary cursor-pointer"
-                          >
-                            <Copy className="size-3" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {mp.cvu && (
-                      <div className="flex items-center justify-between gap-1 rounded bg-muted/60 px-2 py-1">
-                        <span className="text-[11px] text-muted-foreground">CVU:</span>
-                        <div className="flex items-center gap-1.5">
-                          <strong className="font-mono text-[10px] text-foreground">{mp.cvu}</strong>
-                          <button
-                            type="button"
-                            onClick={() => handleCopy(mp.cvu!, "CVU MP", "mp-cvu")}
-                            className="p-1 hover:text-primary cursor-pointer"
-                          >
-                            <Copy className="size-3" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {mp.paymentLink && (
-                      <div className="pt-1.5">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          asChild
-                          className="w-full h-7 text-xs border-sky-500/40 text-sky-700 dark:text-sky-300"
-                        >
-                          <a href={mp.paymentLink} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="size-3 mr-1" />
-                            Pagar por link de Mercado Pago
-                          </a>
-                        </Button>
-                      </div>
-                    )}
+                  <div className="pt-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isLaunchingMp || isPending}
+                      onClick={() => void handleOpenMercadoPago()}
+                      className="w-full h-8 text-xs font-bold bg-[#009EE3] hover:bg-[#0089C7] text-white cursor-pointer"
+                    >
+                      {isLaunchingMp ? (
+                        <Spinner className="mr-1.5" />
+                      ) : (
+                        <ExternalLink className="size-3.5 mr-1.5" />
+                      )}
+                      Abrir Mercado Pago ({formatCurrency(paymentConfig.amount)})
+                    </Button>
                   </div>
                 </div>
               )}
 
-              {/* Transferencia Bancaria */}
-              {transfer?.enabled && (
+              {/* Opción 2: Transferencia por Alias / CVU / CBU */}
+              {hasTransferOption && (
                 <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/[0.04] p-3.5 space-y-2.5">
                   <div className="flex items-center gap-2">
                     <span className="flex size-6 items-center justify-center rounded bg-indigo-500/20 text-indigo-600 dark:text-indigo-400">
                       <Building2 className="size-3.5" />
                     </span>
-                    <strong className="text-foreground">Transferencia bancaria</strong>
+                    <strong className="text-foreground">Transferir por Alias / CVU / CBU</strong>
                   </div>
 
                   <div className="space-y-1.5 pt-1">
-                    {transfer.bank && (
+                    {effectiveTransfer.bank && (
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-muted-foreground">Banco:</span>
-                        <strong className="text-foreground">{transfer.bank}</strong>
+                        <span className="text-muted-foreground">Entidad:</span>
+                        <strong className="text-foreground">{effectiveTransfer.bank}</strong>
                       </div>
                     )}
 
-                    {transfer.accountHolder && (
+                    {effectiveTransfer.accountHolder && (
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-muted-foreground">Titular:</span>
-                        <strong className="text-foreground">{transfer.accountHolder}</strong>
+                        <strong className="text-foreground">{effectiveTransfer.accountHolder}</strong>
                       </div>
                     )}
 
-                    {transfer.alias && (
-                      <div className="flex items-center justify-between gap-1 rounded bg-muted/60 px-2 py-1">
+                    {effectiveTransfer.alias && (
+                      <div className="flex items-center justify-between gap-1 rounded bg-muted/60 px-2.5 py-1.5">
                         <span className="text-[11px] text-muted-foreground">Alias:</span>
                         <div className="flex items-center gap-1.5">
-                          <strong className="font-mono text-foreground">{transfer.alias}</strong>
+                          <strong className="font-mono text-foreground">{effectiveTransfer.alias}</strong>
                           <button
                             type="button"
-                            onClick={() => handleCopy(transfer.alias!, "Alias bancario", "b-alias")}
-                            className="p-1 hover:text-primary cursor-pointer"
+                            onClick={() => handleCopy(effectiveTransfer.alias!, "Alias", "b-alias")}
+                            className="inline-flex items-center gap-1 rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/25 cursor-pointer"
                           >
-                            <Copy className="size-3" />
+                            {copiedKey === "b-alias" ? <Check className="size-3" /> : <Copy className="size-3" />}
+                            {copiedKey === "b-alias" ? "Copiado" : "Copiar"}
                           </button>
                         </div>
                       </div>
                     )}
 
-                    {transfer.cbuOrCvu && (
-                      <div className="flex items-center justify-between gap-1 rounded bg-muted/60 px-2 py-1">
-                        <span className="text-[11px] text-muted-foreground">CBU:</span>
+                    {effectiveTransfer.cbuOrCvu && (
+                      <div className="flex items-center justify-between gap-1 rounded bg-muted/60 px-2.5 py-1.5">
+                        <span className="text-[11px] text-muted-foreground">CBU/CVU:</span>
                         <div className="flex items-center gap-1.5">
-                          <strong className="font-mono text-[10px] text-foreground">{transfer.cbuOrCvu}</strong>
+                          <strong className="font-mono text-[10px] text-foreground">{effectiveTransfer.cbuOrCvu}</strong>
                           <button
                             type="button"
-                            onClick={() => handleCopy(transfer.cbuOrCvu!, "CBU", "b-cbu")}
-                            className="p-1 hover:text-primary cursor-pointer"
+                            onClick={() => handleCopy(effectiveTransfer.cbuOrCvu!, "CBU/CVU", "b-cbu")}
+                            className="inline-flex items-center gap-1 rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/25 cursor-pointer"
                           >
-                            <Copy className="size-3" />
+                            {copiedKey === "b-cbu" ? <Check className="size-3" /> : <Copy className="size-3" />}
+                            {copiedKey === "b-cbu" ? "Copiado" : "Copiar"}
                           </button>
                         </div>
                       </div>

@@ -195,6 +195,7 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
         ) : (
           <AmericanJoinCard
             code={code}
+            tournamentId={tournament.tournament_id}
             tournamentName={tournament.name}
             isIndividual={
               (getAmericanConfig(tourExtra.data)?.format ?? "INDIVIDUAL_ROTATIVO") === "INDIVIDUAL_ROTATIVO"
@@ -257,6 +258,7 @@ export default async function JoinTournamentPage({ params }: PageProps<"/unirse/
             <TeamForm
               mode="register"
               code={code}
+              tournamentId={tournament.tournament_id}
               teamSize={minTeamSize}
               minTeamSize={minTeamSize}
               maxTeamSize={maxTeamSize}

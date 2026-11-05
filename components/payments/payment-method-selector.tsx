@@ -1,24 +1,31 @@
 "use client";
 
-import { Banknote, Building2, Check, Copy, ExternalLink, Info, Wallet } from "lucide-react";
+import { ArrowUpRight, Banknote, Building2, Check, Copy, ExternalLink, Info, Sparkles, Wallet } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   type PaymentConfig,
   type PaymentMethodType,
   formatCurrency,
-  getEnabledPaymentMethods,
+  getEffectiveTransferDetails,
+  getPlayablePaymentMethods,
   pricingTypeLabel,
 } from "@/lib/domain/payment";
+import { launchMercadoPagoPayment } from "@/lib/payments/mercadopago-client";
 
 export function PaymentMethodSelector({
+  tournamentId,
+  teamName,
   paymentConfig,
   selectedMethod,
   onChange,
   disabled = false,
   isIndividual = false,
 }: {
+  tournamentId?: string;
+  teamName?: string;
   paymentConfig?: PaymentConfig | null;
   selectedMethod: PaymentMethodType | null;
   onChange: (method: PaymentMethodType) => void;
@@ -26,13 +33,14 @@ export function PaymentMethodSelector({
   isIndividual?: boolean;
 }) {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [isOpeningMp, setIsOpeningMp] = useState(false);
 
   if (!paymentConfig || !paymentConfig.enabled) {
     return null;
   }
 
-  const enabledMethods = getEnabledPaymentMethods(paymentConfig);
-  if (enabledMethods.length === 0) {
+  const playableMethods = getPlayablePaymentMethods(paymentConfig);
+  if (playableMethods.length === 0) {
     return null;
   }
 
@@ -47,9 +55,39 @@ export function PaymentMethodSelector({
     }
   };
 
+  const handleOpenMp = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onChange("mercadopago");
+
+    if (tournamentId) {
+      setIsOpeningMp(true);
+      await launchMercadoPagoPayment({
+        tournamentId,
+        teamName,
+        openInNewTab: true,
+      });
+      setIsOpeningMp(false);
+      return;
+    }
+
+    // Fallback directo si no se pasó tournamentId
+    const mp = paymentConfig.methods.mercadopago;
+    if (mp.paymentLink) {
+      window.open(mp.paymentLink, "_blank", "noopener,noreferrer");
+      return;
+    }
+    const targetAlias = mp.alias || mp.cvu || paymentConfig.methods.transfer.alias || paymentConfig.methods.transfer.cbuOrCvu;
+    if (targetAlias && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(targetAlias).catch(() => {});
+      toast.success(`¡Alias "${targetAlias}" copiado! Abriendo Mercado Pago...`);
+    }
+    window.open("https://www.mercadopago.com.ar/money-out/transfer", "_blank", "noopener,noreferrer");
+  };
+
   const mp = paymentConfig.methods.mercadopago;
-  const transfer = paymentConfig.methods.transfer;
   const cash = paymentConfig.methods.cash;
+  const hasTransferOption = playableMethods.includes("transfer");
+  const transferDetails = getEffectiveTransferDetails(paymentConfig);
 
   return (
     <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.04] p-4 sm:p-5 space-y-4">
@@ -75,7 +113,7 @@ export function PaymentMethodSelector({
 
       {/* Tarjetas de Métodos de Pago */}
       <div className="space-y-2.5">
-        {/* 1. Mercado Pago */}
+        {/* 1. Pagar desde Mercado Pago (Checkout API / Abrir MP) */}
         {mp?.enabled && (
           <div
             onClick={() => !disabled && onChange("mercadopago")}
@@ -86,83 +124,42 @@ export function PaymentMethodSelector({
             }`}
           >
             <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3 min-w-0">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
                 <span className="flex size-8 items-center justify-center rounded-lg bg-sky-500/15 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5">
                   <Wallet className="size-4" />
                 </span>
-                <div className="min-w-0 space-y-1">
-                  <div className="flex items-center gap-2">
+                <div className="min-w-0 space-y-1.5 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs sm:text-sm font-bold text-foreground">
-                      Mercado Pago
+                      Pagar desde Mercado Pago
                     </span>
-                    <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-700 dark:text-sky-300">
-                      Dinero en cuenta / Débito
+                    <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-700 dark:text-sky-300 inline-flex items-center gap-1">
+                      <Sparkles className="size-2.5" />
+                      Abre Mercado Pago
                     </span>
                   </div>
 
-                  <p className="text-xs text-muted-foreground">
-                    Transferí por Alias, CVU o mediante link de cobro.
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Te abre Mercado Pago directamente para abonar con dinero en cuenta, débito o crédito.
                   </p>
 
-                  {(mp.alias || mp.cvu) && (
-                    <div className="pt-2 flex flex-wrap gap-2 text-xs">
-                      {mp.alias && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopy(mp.alias!, "Alias MP", "mp-alias");
-                          }}
-                          className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-[11px] font-mono hover:bg-muted/80 border border-border/60 transition-colors"
-                        >
-                          <span className="text-muted-foreground font-sans">Alias:</span>
-                          <strong className="text-foreground">{mp.alias}</strong>
-                          {copiedKey === "mp-alias" ? (
-                            <Check className="size-3 text-emerald-600" />
-                          ) : (
-                            <Copy className="size-3 text-muted-foreground" />
-                          )}
-                        </button>
+                  <div className="pt-1 flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={disabled || isOpeningMp}
+                      onClick={handleOpenMp}
+                      className="h-8 px-3 text-xs font-bold bg-[#009EE3] hover:bg-[#008ACA] text-white shadow-xs cursor-pointer gap-1.5"
+                    >
+                      {isOpeningMp ? (
+                        <Spinner className="size-3.5" />
+                      ) : (
+                        <ExternalLink className="size-3.5" />
                       )}
-
-                      {mp.cvu && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopy(mp.cvu!, "CVU MP", "mp-cvu");
-                          }}
-                          className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-[11px] font-mono hover:bg-muted/80 border border-border/60 transition-colors"
-                        >
-                          <span className="text-muted-foreground font-sans">CVU:</span>
-                          <strong className="text-foreground">{mp.cvu}</strong>
-                          {copiedKey === "mp-cvu" ? (
-                            <Check className="size-3 text-emerald-600" />
-                          ) : (
-                            <Copy className="size-3 text-muted-foreground" />
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {mp.paymentLink && (
-                    <div className="pt-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        asChild
-                        className="h-7 text-xs gap-1.5 border-sky-500/40 hover:bg-sky-500/10 text-sky-700 dark:text-sky-300"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <a href={mp.paymentLink} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="size-3" />
-                          Pagar ahora por link de Mercado Pago
-                        </a>
-                      </Button>
-                    </div>
-                  )}
+                      Abrir Mercado Pago para pagar {paymentConfig.amount ? formatCurrency(paymentConfig.amount) : ""}
+                      <ArrowUpRight className="size-3.5" />
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -181,8 +178,8 @@ export function PaymentMethodSelector({
           </div>
         )}
 
-        {/* 2. Transferencia bancaria */}
-        {transfer?.enabled && (
+        {/* 2. Opción de Transferir (por Alias o CBU/CVU desde cualquier banco o billetera) */}
+        {hasTransferOption && (
           <div
             onClick={() => !disabled && onChange("transfer")}
             className={`rounded-xl border p-3.5 transition-all cursor-pointer ${
@@ -192,63 +189,77 @@ export function PaymentMethodSelector({
             }`}
           >
             <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3 min-w-0">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
                 <span className="flex size-8 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5">
                   <Building2 className="size-4" />
                 </span>
-                <div className="min-w-0 space-y-1">
-                  <div className="flex items-center gap-2">
+                <div className="min-w-0 space-y-1 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs sm:text-sm font-bold text-foreground">
-                      Transferencia bancaria
+                      Transferencia por Alias / CVU / CBU
                     </span>
-                    {transfer.bank && (
-                      <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 truncate max-w-[150px]">
-                        {transfer.bank}
+                    {transferDetails.bank && (
+                      <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 truncate max-w-[180px]">
+                        {transferDetails.bank}
                       </span>
                     )}
                   </div>
 
-                  {transfer.accountHolder && (
+                  <p className="text-xs text-muted-foreground">
+                    Copiá el Alias o CBU/CVU para transferir desde tu banco o billetera virtual.
+                  </p>
+
+                  {transferDetails.accountHolder && (
                     <p className="text-xs text-muted-foreground">
-                      Titular: <strong className="text-foreground">{transfer.accountHolder}</strong>
+                      Titular: <strong className="text-foreground">{transferDetails.accountHolder}</strong>
                     </p>
                   )}
 
                   <div className="pt-1.5 flex flex-wrap gap-2 text-xs">
-                    {transfer.alias && (
+                    {transferDetails.alias && (
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleCopy(transfer.alias!, "Alias bancario", "b-alias");
+                          onChange("transfer");
+                          handleCopy(transferDetails.alias!, "Alias", "b-alias");
                         }}
-                        className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-[11px] font-mono hover:bg-muted/80 border border-border/60 transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-muted px-2.5 py-1.5 text-xs font-mono hover:bg-muted/80 border border-border/80 transition-colors cursor-pointer"
                       >
                         <span className="text-muted-foreground font-sans">Alias:</span>
-                        <strong className="text-foreground">{transfer.alias}</strong>
+                        <strong className="text-foreground">{transferDetails.alias}</strong>
                         {copiedKey === "b-alias" ? (
-                          <Check className="size-3 text-emerald-600" />
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-sans font-bold text-emerald-600">
+                            <Check className="size-3" /> Copiado
+                          </span>
                         ) : (
-                          <Copy className="size-3 text-muted-foreground" />
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-sans font-semibold text-indigo-600 dark:text-indigo-400">
+                            <Copy className="size-3" /> Copiar
+                          </span>
                         )}
                       </button>
                     )}
 
-                    {transfer.cbuOrCvu && (
+                    {transferDetails.cbuOrCvu && (
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleCopy(transfer.cbuOrCvu!, "CBU/CVU", "b-cbu");
+                          onChange("transfer");
+                          handleCopy(transferDetails.cbuOrCvu!, "CBU/CVU", "b-cbu");
                         }}
-                        className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-[11px] font-mono hover:bg-muted/80 border border-border/60 transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-muted px-2.5 py-1.5 text-xs font-mono hover:bg-muted/80 border border-border/80 transition-colors cursor-pointer"
                       >
                         <span className="text-muted-foreground font-sans">CBU/CVU:</span>
-                        <strong className="text-foreground">{transfer.cbuOrCvu}</strong>
+                        <strong className="text-foreground">{transferDetails.cbuOrCvu}</strong>
                         {copiedKey === "b-cbu" ? (
-                          <Check className="size-3 text-emerald-600" />
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-sans font-bold text-emerald-600">
+                            <Check className="size-3" /> Copiado
+                          </span>
                         ) : (
-                          <Copy className="size-3 text-muted-foreground" />
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-sans font-semibold text-indigo-600 dark:text-indigo-400">
+                            <Copy className="size-3" /> Copiar
+                          </span>
                         )}
                       </button>
                     )}
@@ -335,4 +346,3 @@ export function PaymentMethodSelector({
     </div>
   );
 }
-
