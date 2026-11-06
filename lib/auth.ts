@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { DEFAULT_PAYMENT_CONFIG, normalizePaymentConfig, type PaymentConfig } from "@/lib/domain/payment";
 import { createClient } from "@/lib/supabase/server";
 
 export type CurrentUser = {
@@ -81,4 +82,29 @@ export async function isAccountOrganizer(): Promise<boolean> {
 /** Atajo para páginas y acciones de superadministrador de la plataforma (D-187). */
 export async function isSuperAdmin(): Promise<boolean> {
   return (await getAccountRole()) === "superadmin";
+}
+
+/**
+ * Obtiene la configuración de pagos predeterminada guardada en el perfil del organizador
+ * (`user_metadata.default_payment_config`).
+ */
+export async function getOrganizerPaymentDefaults(): Promise<{
+  hasSavedDefaults: boolean;
+  config: PaymentConfig;
+}> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data?.user) {
+    return { hasSavedDefaults: false, config: DEFAULT_PAYMENT_CONFIG };
+  }
+
+  const raw = data.user.user_metadata?.default_payment_config;
+  if (!raw || typeof raw !== "object") {
+    return { hasSavedDefaults: false, config: DEFAULT_PAYMENT_CONFIG };
+  }
+
+  return {
+    hasSavedDefaults: true,
+    config: normalizePaymentConfig(raw),
+  };
 }

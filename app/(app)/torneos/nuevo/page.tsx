@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/shared/page-header";
 import type { SportOption } from "@/components/tournaments/tournament-form";
 import { TournamentWizard } from "@/components/tournaments/tournament-wizard";
-import { isAccountOrganizer } from "@/lib/auth";
+import { getOrganizerPaymentDefaults, isAccountOrganizer } from "@/lib/auth";
 import { getSports } from "@/lib/data/tournaments";
 import type { ScoringConfig } from "@/lib/domain/scoring";
 import type { StandingsConfig } from "@/lib/domain/standings";
@@ -13,7 +13,10 @@ export const metadata: Metadata = { title: "Crear torneo" };
 export default async function NewTournamentPage() {
   // Solo las cuentas de organizador crean torneos (D-122); la base también lo exige.
   if (!(await isAccountOrganizer())) redirect("/torneos");
-  const sports = await getSports();
+  const [sports, paymentDefaults] = await Promise.all([
+    getSports(),
+    getOrganizerPaymentDefaults(),
+  ]);
   const options: SportOption[] = sports.map((sport) => {
     const raw = sport.default_scoring_config as Record<string, unknown>;
     const defaultScoringConfig = (raw?.type === "sets"
@@ -37,7 +40,10 @@ export default async function NewTournamentPage() {
     <div className="mx-auto max-w-2xl">
       <PageHeader title="Crear torneo" description="Te guiamos paso a paso. Son 4 pasos y podés volver cuando quieras." />
       {options.length > 0 ? (
-        <TournamentWizard sports={options} />
+        <TournamentWizard
+          sports={options}
+          savedPaymentConfig={paymentDefaults.hasSavedDefaults ? paymentDefaults.config : null}
+        />
       ) : (
         <p className="text-muted-foreground">No hay deportes configurados.</p>
       )}

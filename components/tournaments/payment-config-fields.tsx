@@ -1,30 +1,63 @@
 "use client";
 
-import { Banknote, Building2, CheckCircle2, DollarSign, ExternalLink, Link2, Wallet } from "lucide-react";
-import { useEffect } from "react";
+import { Banknote, BookmarkCheck, Building2, CheckCircle2, DollarSign, ExternalLink, Link2, Trash2, Wallet } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
 import type { UseFormReturn } from "react-hook-form";
 import { Controller } from "react-hook-form";
 import { toast } from "sonner";
+import { clearOrganizerPaymentDefaults, saveOrganizerPaymentDefaults } from "@/app/(app)/perfil/actions";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
 export function PaymentConfigFields({
   form,
   disabled = false,
+  hideProfileDefaultControls = false,
+  initialHasSavedDefaults = false,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   form: UseFormReturn<any>;
   disabled?: boolean;
+  hideProfileDefaultControls?: boolean;
+  initialHasSavedDefaults?: boolean;
 }) {
+  const [isSavingProfile, startProfileTransition] = useTransition();
+  const [hasSavedInProfile, setHasSavedInProfile] = useState(initialHasSavedDefaults);
   const isEnabled = form.watch("paymentConfig.enabled");
   const isAmerican = form.watch("isAmerican");
   const mpEnabled = form.watch("paymentConfig.methods.mercadopago.enabled");
   const mpAccessToken = form.watch("paymentConfig.methods.mercadopago.accessToken");
   const transferEnabled = form.watch("paymentConfig.methods.transfer.enabled");
   const cashEnabled = form.watch("paymentConfig.methods.cash.enabled");
+
+  const handleSaveToProfile = () => {
+    const currentPaymentConfig = form.getValues("paymentConfig");
+    startProfileTransition(async () => {
+      const res = await saveOrganizerPaymentDefaults(currentPaymentConfig);
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      setHasSavedInProfile(true);
+      toast.success(res.message);
+    });
+  };
+
+  const handleClearFromProfile = () => {
+    startProfileTransition(async () => {
+      const res = await clearOrganizerPaymentDefaults();
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      setHasSavedInProfile(false);
+      toast.info(res.message);
+    });
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -511,6 +544,52 @@ export function PaymentConfigFields({
               Este mensaje le aparecerá al jugador luego de completar su inscripción para saber dónde enviar el comprobante.
             </FieldDescription>
           </Field>
+
+          {!hideProfileDefaultControls && (
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.05] p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5">
+                  <BookmarkCheck className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-xs font-bold text-foreground">
+                    {hasSavedInProfile
+                      ? "Tenés tus datos de cobro guardados en tu perfil"
+                      : "Guardar como predeterminado en mi perfil (opcional)"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  Si los guardás en tu perfil, cada vez que crees un nuevo torneo ya van a aparecer cargados tus datos de Mercado Pago, Transferencia y Efectivo sin tener que escribirlos de nuevo.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={disabled || isSavingProfile}
+                  onClick={handleSaveToProfile}
+                  className="h-8 text-xs font-semibold border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 cursor-pointer"
+                >
+                  {isSavingProfile ? <Spinner className="size-3.5 mr-1" /> : <BookmarkCheck className="size-3.5 mr-1" />}
+                  {hasSavedInProfile ? "Actualizar en mi perfil" : "Guardar en mi perfil"}
+                </Button>
+
+                {hasSavedInProfile && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={disabled || isSavingProfile}
+                    onClick={handleClearFromProfile}
+                    title="Dejar de recordar mis datos de cobro por defecto"
+                    className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive cursor-pointer"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

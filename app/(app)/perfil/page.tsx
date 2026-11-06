@@ -5,11 +5,12 @@ import { signOut } from "@/app/(auth)/actions";
 import { PageHeader } from "@/components/shared/page-header";
 import { ThemeSelector } from "@/components/theme/theme-selector";
 import { PlayerStatsSummary } from "@/components/player/player-stats-summary";
+import { OrganizerPaymentDefaultsCard } from "@/components/profile/organizer-payment-defaults-card";
 import { TournamentStatsSummary } from "@/components/tournaments/tournament-stats-summary";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getAccountRole, getCurrentUser } from "@/lib/auth";
+import { getAccountRole, getCurrentUser, getOrganizerPaymentDefaults } from "@/lib/auth";
 import { getMyMatches } from "@/lib/data/history";
 import { computePlayerStats } from "@/lib/domain/stats";
 import { listOrganizedTournaments, listParticipations } from "@/lib/data/tournaments";
@@ -22,10 +23,11 @@ export default async function ProfilePage() {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const [role, organized, participations] = await Promise.all([
+  const [role, organized, participations, paymentDefaults] = await Promise.all([
     getAccountRole(),
     listOrganizedTournaments(user.id),
     listParticipations(user.id),
+    getOrganizerPaymentDefaults(),
   ]);
   // Cuenta de jugador sin torneos que co-administre: KPIs de jugador (D-122).
   const playerOnly = role === "player" && organized.length === 0;
@@ -102,6 +104,14 @@ export default async function ProfilePage() {
         <TournamentStatsSummary
           organized={organized}
           participations={participations}
+        />
+      )}
+
+      {/* Datos de cobro predeterminados para organizadores */}
+      {!playerOnly && (
+        <OrganizerPaymentDefaultsCard
+          initialConfig={paymentDefaults.config}
+          initialHasSavedDefaults={paymentDefaults.hasSavedDefaults}
         />
       )}
 

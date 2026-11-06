@@ -27,7 +27,7 @@ import { SportSelector } from "./sport-selector";
 import { AmericanTournamentFields } from "./american-tournament-fields";
 import { TournamentFlyerField } from "./tournament-flyer-field";
 import { PaymentConfigFields } from "./payment-config-fields";
-import { DEFAULT_PAYMENT_CONFIG } from "@/lib/domain/payment";
+import { DEFAULT_PAYMENT_CONFIG, type PaymentConfig } from "@/lib/domain/payment";
 import {
   ConfirmationField,
   DateFields,
@@ -68,7 +68,13 @@ function stepOfFirstError(names: readonly string[]): number {
  * Asistente de alta de torneo en 4 pasos (D-054, D-072, D-196): básico → fechas y cupo → reglas → revisión.
  * Con auto-guardado de borrador en localStorage y sincronización con el historial del navegador.
  */
-export function TournamentWizard({ sports }: { sports: SportOption[] }) {
+export function TournamentWizard({
+  sports,
+  savedPaymentConfig,
+}: {
+  sports: SportOption[];
+  savedPaymentConfig?: PaymentConfig | null;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [step, setStep] = useState(0);
@@ -109,7 +115,7 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
       participantCount: 12,
       roundsCount: 5,
     },
-    paymentConfig: DEFAULT_PAYMENT_CONFIG,
+    paymentConfig: savedPaymentConfig ?? DEFAULT_PAYMENT_CONFIG,
   };
 
   const form = useForm<CreateTournamentInput, unknown, z.output<typeof createTournamentSchema>>({
@@ -138,6 +144,10 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
         form.reset({
           ...defaultFormValues,
           ...draft.values,
+          paymentConfig:
+            draft.values.paymentConfig?.enabled
+              ? draft.values.paymentConfig
+              : (savedPaymentConfig ?? draft.values.paymentConfig ?? DEFAULT_PAYMENT_CONFIG),
         });
 
         if (typeof draft.step === "number" && draft.step >= 0 && draft.step <= LAST_STEP) {
@@ -453,7 +463,11 @@ export function TournamentWizard({ sports }: { sports: SportOption[] }) {
                 </div>
               )}
 
-              <PaymentConfigFields form={form} disabled={isPending} />
+              <PaymentConfigFields
+                form={form}
+                disabled={isPending}
+                initialHasSavedDefaults={Boolean(savedPaymentConfig)}
+              />
             </div>
           ) : null}
 

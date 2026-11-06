@@ -76,8 +76,9 @@ export async function GET(request: Request) {
       return NextResponse.redirect(backUrl);
     }
 
+    const supabase = await createClient();
+
     if (tournamentId) {
-      const supabase = await createClient();
       const { data: tour } = await supabase
         .from("tournaments")
         .select("*")
@@ -103,6 +104,28 @@ export async function GET(request: Request) {
           .from("tournaments")
           .update({ payment_config: updatedConfig } as never)
           .eq("id", tournamentId);
+      }
+    } else if (returnTo.startsWith("/perfil")) {
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData?.user) {
+        const currentDefault = extractTournamentPaymentConfig({
+          payment_config: userData.user.user_metadata?.default_payment_config,
+        });
+        const updatedDefault = {
+          ...currentDefault,
+          enabled: true,
+          methods: {
+            ...currentDefault.methods,
+            mercadopago: {
+              ...currentDefault.methods.mercadopago,
+              enabled: true,
+              accessToken: tokenData.access_token,
+            },
+          },
+        };
+        await supabase.auth.updateUser({
+          data: { default_payment_config: updatedDefault },
+        });
       }
     }
 
