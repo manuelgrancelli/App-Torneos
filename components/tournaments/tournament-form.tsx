@@ -3,12 +3,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import type { z } from "zod";
 import { updateTournament } from "@/app/(app)/torneos/[id]/actions";
+import { CollapsibleSection } from "@/components/shared/collapsible-section";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import type { ScoringConfig } from "@/lib/domain/scoring";
@@ -55,6 +55,26 @@ export function TournamentForm({ tournamentId, sport, defaults, locks }: Tournam
     defaultValues: { ...defaults, sportId: sport.id, courtCount: 1 },
   });
 
+  const watchedName = useWatch({ control: form.control, name: "name" });
+  const watchedStartsOn = useWatch({ control: form.control, name: "startsOn" });
+  const watchedEndsOn = useWatch({ control: form.control, name: "endsOn" });
+  const { errors } = form.formState;
+  const hasBasicErrors = Boolean(
+    errors.name ||
+      errors.description ||
+      errors.startsOn ||
+      errors.endsOn ||
+      errors.timezone ||
+      errors.resultsRequireConfirmation,
+  );
+  const basicSummary = [
+    watchedName || defaults.name,
+    sport.name,
+    watchedStartsOn && watchedEndsOn ? `${watchedStartsOn} → ${watchedEndsOn}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   const onSubmit = form.handleSubmit((values) => {
     startTransition(async () => {
       // En edición no se cambian el deporte ni la cantidad inicial de canchas.
@@ -83,26 +103,25 @@ export function TournamentForm({ tournamentId, sport, defaults, locks }: Tournam
 
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h2 className="text-base font-semibold">Datos del torneo</h2>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <FieldGroup>
-            <NameField form={form} />
-            <Field>
-              <FieldLabel>Deporte</FieldLabel>
-              <p className="text-sm">{sport.name}</p>
-            </Field>
-            <DescriptionField form={form} />
-            <DateFields form={form} />
-            <TimezoneField form={form} lockReason={locks.timezone} />
-            <ConfirmationField form={form} />
-          </FieldGroup>
-        </CardContent>
-      </Card>
+      <CollapsibleSection
+        title="Datos del torneo"
+        description="Nombre, descripción, fechas de competencia, zona horaria y confirmación de resultados."
+        summary={basicSummary}
+        locked={Boolean(locks.timezone)}
+        forceOpen={hasBasicErrors}
+      >
+        <FieldGroup>
+          <NameField form={form} />
+          <Field>
+            <FieldLabel>Deporte</FieldLabel>
+            <p className="text-sm">{sport.name}</p>
+          </Field>
+          <DescriptionField form={form} />
+          <DateFields form={form} />
+          <TimezoneField form={form} lockReason={locks.timezone} />
+          <ConfirmationField form={form} />
+        </FieldGroup>
+      </CollapsibleSection>
 
       <RulesSections form={form} locks={locks} />
 

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { type ActionResult, actionError, actionOk } from "@/lib/actions/safe-action";
 import { getCurrentUser } from "@/lib/auth";
-import { paymentConfigSchema, type PaymentConfig } from "@/lib/domain/payment";
+import { strictPaymentConfigSchema, type PaymentConfig } from "@/lib/domain/payment";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -17,9 +17,10 @@ export async function saveOrganizerPaymentDefaults(
   const user = await getCurrentUser();
   if (!user) return actionError("Tenés que iniciar sesión.");
 
-  const parsed = paymentConfigSchema.safeParse(input);
+  const parsed = strictPaymentConfigSchema.safeParse(input);
   if (!parsed.success) {
-    return actionError("Revisá los datos de cobro antes de guardarlos en tu perfil.");
+    const firstMsg = parsed.error.issues[0]?.message ?? "Revisá los datos de cobro antes de guardarlos en tu perfil.";
+    return actionError(firstMsg);
   }
 
   const supabase = await createClient();

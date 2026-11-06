@@ -90,6 +90,71 @@ export const paymentConfigSchema = z.object({
 });
 export type PaymentConfig = z.infer<typeof paymentConfigSchema>;
 
+/**
+ * Validación estricta al guardar configuración de pagos:
+ * Exige que cada método habilitado tenga sus datos mínimos obligatorios.
+ */
+export function validatePaymentConfigFields(
+  config: PaymentConfig,
+  ctx: z.RefinementCtx,
+  basePath: (string | number)[] = [],
+) {
+  if (!config.enabled) return;
+
+  if (!config.amount || config.amount <= 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: [...basePath, "amount"],
+      message: "Ingresá el costo del arancel mayor a $0.",
+    });
+  }
+
+  const mp = config.methods.mercadopago;
+  const tr = config.methods.transfer;
+  const cash = config.methods.cash;
+
+  if (!mp.enabled && !tr.enabled && !cash.enabled) {
+    ctx.addIssue({
+      code: "custom",
+      path: [...basePath, "methods"],
+      message: "Activá al menos una forma de pago (Mercado Pago, Transferencia o Efectivo).",
+    });
+  }
+
+  if (mp.enabled) {
+    const hasMpData = Boolean(
+      mp.accessToken?.trim() ||
+        mp.paymentLink?.trim() ||
+        mp.alias?.trim() ||
+        mp.cvu?.trim(),
+    );
+    if (!hasMpData) {
+      ctx.addIssue({
+        code: "custom",
+        path: [...basePath, "methods", "mercadopago", "alias"],
+        message: "Para habilitar Mercado Pago completá al menos tu Access Token, Link de pago, Alias o CVU.",
+      });
+    }
+  }
+
+  if (tr.enabled) {
+    const hasTransferData = Boolean(
+      tr.alias?.trim() || tr.cbuOrCvu?.trim(),
+    );
+    if (!hasTransferData) {
+      ctx.addIssue({
+        code: "custom",
+        path: [...basePath, "methods", "transfer", "alias"],
+        message: "Para habilitar Transferencia bancaria ingresá al menos el Alias o el CBU/CVU.",
+      });
+    }
+  }
+}
+
+export const strictPaymentConfigSchema = paymentConfigSchema.superRefine((val, ctx) => {
+  validatePaymentConfigFields(val, ctx, []);
+});
+
 export const DEFAULT_PAYMENT_CONFIG: PaymentConfig = {
   enabled: false,
   currency: "ARS",

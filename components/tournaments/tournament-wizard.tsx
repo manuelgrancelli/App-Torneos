@@ -467,6 +467,7 @@ export function TournamentWizard({
                 form={form}
                 disabled={isPending}
                 initialHasSavedDefaults={Boolean(savedPaymentConfig)}
+                defaultCollapsed
               />
             </div>
           ) : null}

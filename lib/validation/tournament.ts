@@ -4,7 +4,12 @@ import { playoffConfigSchema } from "@/lib/domain/bracket";
 import { scoringConfigSchema } from "@/lib/domain/scoring";
 import { TIEBREAKER_LABELS, standingsConfigSchema, tiebreakersFor } from "@/lib/domain/standings";
 import { isValidLocalDate } from "@/lib/domain/slots";
-import { DEFAULT_PAYMENT_CONFIG, paymentConfigSchema } from "@/lib/domain/payment";
+import {
+  DEFAULT_PAYMENT_CONFIG,
+  paymentConfigSchema,
+  strictPaymentConfigSchema,
+  validatePaymentConfigFields,
+} from "@/lib/domain/payment";
 
 /** Esquemas de los formularios de torneo, canchas y franjas (cliente y servidor). */
 
@@ -133,6 +138,9 @@ export const createTournamentSchema = z
   })
   .superRefine((data, ctx) => {
     crossFieldChecks(data, ctx);
+    if (data.paymentConfig) {
+      validatePaymentConfigFields(data.paymentConfig, ctx, ["paymentConfig"]);
+    }
     if (data.hasMultipleVenues) {
       if (!data.venues || data.venues.length < 2) {
         ctx.addIssue({
@@ -229,7 +237,7 @@ export type UpdateTournamentBannerInput = z.infer<typeof updateTournamentBannerS
 
 export const updateTournamentPaymentConfigSchema = z.object({
   tournamentId: z.uuid(),
-  paymentConfig: paymentConfigSchema,
+  paymentConfig: strictPaymentConfigSchema,
 });
 
 export type UpdateTournamentPaymentConfigInput = z.input<typeof updateTournamentPaymentConfigSchema>;

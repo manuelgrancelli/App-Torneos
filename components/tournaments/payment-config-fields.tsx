@@ -1,6 +1,17 @@
 "use client";
 
-import { Banknote, BookmarkCheck, Building2, CheckCircle2, DollarSign, ExternalLink, Link2, Trash2, Wallet } from "lucide-react";
+import {
+  Banknote,
+  BookmarkCheck,
+  Building2,
+  CheckCircle2,
+  ChevronDown,
+  DollarSign,
+  ExternalLink,
+  Link2,
+  Trash2,
+  Wallet,
+} from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import type { UseFormReturn } from "react-hook-form";
 import { Controller } from "react-hook-form";
@@ -12,27 +23,55 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { formatCurrency } from "@/lib/domain/payment";
 
 export function PaymentConfigFields({
   form,
   disabled = false,
   hideProfileDefaultControls = false,
   initialHasSavedDefaults = false,
+  defaultCollapsed = false,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   form: UseFormReturn<any>;
   disabled?: boolean;
   hideProfileDefaultControls?: boolean;
   initialHasSavedDefaults?: boolean;
+  defaultCollapsed?: boolean;
 }) {
   const [isSavingProfile, startProfileTransition] = useTransition();
   const [hasSavedInProfile, setHasSavedInProfile] = useState(initialHasSavedDefaults);
+  const [isSectionOpen, setIsSectionOpen] = useState(!defaultCollapsed);
+  const [openMethods, setOpenMethods] = useState<Record<"mp" | "transfer" | "cash", boolean>>({
+    mp: true,
+    transfer: true,
+    cash: true,
+  });
+
   const isEnabled = form.watch("paymentConfig.enabled");
+  const amount = form.watch("paymentConfig.amount");
+  const pricingType = form.watch("paymentConfig.pricingType");
   const isAmerican = form.watch("isAmerican");
   const mpEnabled = form.watch("paymentConfig.methods.mercadopago.enabled");
   const mpAccessToken = form.watch("paymentConfig.methods.mercadopago.accessToken");
   const transferEnabled = form.watch("paymentConfig.methods.transfer.enabled");
   const cashEnabled = form.watch("paymentConfig.methods.cash.enabled");
+
+  const toggleMethodOpen = (key: "mp" | "transfer" | "cash") => {
+    setOpenMethods((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const activeMethodsLabels = [
+    mpEnabled ? "Mercado Pago" : null,
+    transferEnabled ? "Transferencia" : null,
+    cashEnabled ? "Efectivo" : null,
+  ].filter(Boolean);
+
+  const summaryText = !isEnabled
+    ? "Torneo gratuito / Sin costo de inscripción"
+    : `${amount ? formatCurrency(Number(amount)) : "Monto sin definir"} (${
+        pricingType === "per_player" ? "por jugador" : "por pareja / equipo"
+      })${activeMethodsLabels.length > 0 ? ` · ${activeMethodsLabels.join(", ")}` : ""}`;
 
   const handleSaveToProfile = () => {
     const currentPaymentConfig = form.getValues("paymentConfig");
@@ -88,41 +127,70 @@ export function PaymentConfigFields({
 
   return (
     <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50 pb-4">
-        <div className="space-y-1">
+      <div
+        onClick={() => isEnabled && setIsSectionOpen((prev) => !prev)}
+        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+          isEnabled && isSectionOpen ? "border-b border-border/50 pb-4" : ""
+        } ${isEnabled ? "cursor-pointer select-none" : ""}`}
+      >
+        <div className="space-y-1 min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+            <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 shrink-0">
               <DollarSign className="size-4" />
             </span>
             <h3 className="text-sm sm:text-base font-bold text-foreground">
-              Arancel e Inscripciones
+              Formas de Pago y Arancel
             </h3>
           </div>
-          <p className="text-xs text-muted-foreground leading-snug">
-            Activá si el torneo requiere pago de inscripción y elegí qué formas de pago aceptás.
+          <p className="text-xs text-muted-foreground leading-snug truncate">
+            {isEnabled && !isSectionOpen
+              ? summaryText
+              : "Activá si el torneo requiere pago de inscripción y elegí qué formas de pago aceptás."}
           </p>
         </div>
 
-        <Controller
-          name="paymentConfig.enabled"
-          control={form.control}
-          render={({ field }) => (
-            <div className="flex items-center gap-2.5 shrink-0">
-              <span className="text-xs font-semibold text-foreground">
-                {field.value ? "Con arancel" : "Gratuito / Sin costo"}
-              </span>
-              <Switch
-                checked={field.value}
-                onCheckedChange={field.onChange}
-                disabled={disabled}
-                aria-label="Cobro de inscripción"
+        <div
+          className="flex items-center gap-3 shrink-0"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Controller
+            name="paymentConfig.enabled"
+            control={form.control}
+            render={({ field }) => (
+              <div className="flex items-center gap-2.5">
+                <span className="text-xs font-semibold text-foreground">
+                  {field.value ? "Con arancel" : "Gratuito / Sin costo"}
+                </span>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={(checked) => {
+                    field.onChange(checked);
+                    if (checked) setIsSectionOpen(true);
+                  }}
+                  disabled={disabled}
+                  aria-label="Cobro de inscripción"
+                />
+              </div>
+            )}
+          />
+          {isEnabled && (
+            <button
+              type="button"
+              onClick={() => setIsSectionOpen((prev) => !prev)}
+              className="flex size-7 items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              aria-label={isSectionOpen ? "Plegar formas de pago" : "Desplegar formas de pago"}
+            >
+              <ChevronDown
+                className={`size-4 transition-transform duration-200 ${
+                  isSectionOpen ? "rotate-180" : ""
+                }`}
               />
-            </div>
+            </button>
           )}
-        />
+        </div>
       </div>
 
-      {isEnabled && (
+      {isEnabled && isSectionOpen && (
         <div className="space-y-5 animate-in fade-in-50 duration-200">
           {/* Monto y Modalidad */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -141,8 +209,8 @@ export function PaymentConfigFields({
                       </span>
                       <Input
                         type="number"
-                        min="1"
-                        step="100"
+                        min="0"
+                        step="any"
                         placeholder="Ej: 15000"
                         value={field.value ?? ""}
                         onChange={(e) => {
@@ -177,9 +245,9 @@ export function PaymentConfigFields({
                       type="button"
                       onClick={() => field.onChange("per_team")}
                       disabled={disabled}
-                      className={`h-9 rounded-lg border text-xs font-semibold px-2.5 transition-colors cursor-pointer ${
+                      className={`h-9 rounded-lg border text-xs font-bold px-2.5 transition-all cursor-pointer ${
                         field.value === "per_team"
-                          ? "border-primary bg-primary/10 text-primary"
+                          ? "border-emerald-600 bg-emerald-600 text-white shadow-xs"
                           : "border-border hover:bg-muted/50 text-muted-foreground"
                       }`}
                     >
@@ -189,9 +257,9 @@ export function PaymentConfigFields({
                       type="button"
                       onClick={() => field.onChange("per_player")}
                       disabled={disabled}
-                      className={`h-9 rounded-lg border text-xs font-semibold px-2.5 transition-colors cursor-pointer ${
+                      className={`h-9 rounded-lg border text-xs font-bold px-2.5 transition-all cursor-pointer ${
                         field.value === "per_player"
-                          ? "border-primary bg-primary/10 text-primary"
+                          ? "border-emerald-600 bg-emerald-600 text-white shadow-xs"
                           : "border-border hover:bg-muted/50 text-muted-foreground"
                       }`}
                     >
@@ -216,7 +284,10 @@ export function PaymentConfigFields({
             <div className={`rounded-xl border p-3.5 space-y-3 transition-colors ${
               mpEnabled ? "border-sky-500/40 bg-sky-500/[0.03]" : "border-border/70 bg-muted/20"
             }`}>
-              <div className="flex items-center justify-between gap-2">
+              <div
+                onClick={() => mpEnabled && toggleMethodOpen("mp")}
+                className={`flex items-center justify-between gap-2 ${mpEnabled ? "cursor-pointer select-none" : ""}`}
+              >
                 <div className="flex items-center gap-2">
                   <span className="flex size-7 items-center justify-center rounded-lg bg-sky-500/15 text-sky-600 dark:text-sky-400">
                     <Wallet className="size-4" />
@@ -226,27 +297,42 @@ export function PaymentConfigFields({
                     <span className="text-[11px] text-muted-foreground">Alias, CVU o link directo de pago</span>
                   </div>
                 </div>
-                <Controller
-                  name="paymentConfig.methods.mercadopago.enabled"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      disabled={disabled}
-                      aria-label="Habilitar Mercado Pago"
-                    />
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <Controller
+                    name="paymentConfig.methods.mercadopago.enabled"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked);
+                          if (checked) setOpenMethods((prev) => ({ ...prev, mp: true }));
+                        }}
+                        disabled={disabled}
+                        aria-label="Habilitar Mercado Pago"
+                      />
+                    )}
+                  />
+                  {mpEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => toggleMethodOpen("mp")}
+                      className="p-1 text-muted-foreground hover:text-foreground cursor-pointer"
+                      aria-label={openMethods.mp ? "Plegar Mercado Pago" : "Desplegar Mercado Pago"}
+                    >
+                      <ChevronDown className={`size-4 transition-transform ${openMethods.mp ? "rotate-180" : ""}`} />
+                    </button>
                   )}
-                />
+                </div>
               </div>
 
-              {mpEnabled && (
+              {mpEnabled && openMethods.mp && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-sky-500/20">
-                  <div className="sm:col-span-2 rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 space-y-2.5">
+                  <div className="sm:col-span-2 rounded-lg border border-sky-500/30 bg-sky-500/10 p-2.5 space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-bold text-sky-950 dark:text-sky-200">
-                          🔑 Cuenta de Mercado Pago del Organizador (Checkout Directo)
+                          Cuenta de Mercado Pago
                         </span>
                         {mpAccessToken ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
@@ -263,14 +349,14 @@ export function PaymentConfigFields({
                         className="h-7 px-2.5 text-[11px] font-bold bg-[#009EE3] hover:bg-[#008ACA] text-white cursor-pointer gap-1"
                       >
                         <Link2 className="size-3.5" />
-                        Vincular mi Mercado Pago con 1 clic
+                        Vincular mi Mercado Pago
                       </Button>
                     </div>
 
                     <Field>
                       <div className="flex flex-wrap items-center justify-between gap-1">
                         <FieldLabel className="text-[11px] font-semibold text-sky-950 dark:text-sky-200">
-                          O pegá directamente tu Access Token de Mercado Pago:
+                          Access Token:
                         </FieldLabel>
                         <a
                           href="https://www.mercadopago.com.ar/developers/panel/app"
@@ -278,7 +364,7 @@ export function PaymentConfigFields({
                           rel="noopener noreferrer"
                           className="text-[11px] font-semibold text-sky-600 dark:text-sky-400 underline hover:opacity-80 inline-flex items-center gap-0.5"
                         >
-                          Abrir Mercado Pago Developers <ExternalLink className="size-2.5" />
+                          Mercado Pago Developers <ExternalLink className="size-2.5" />
                         </a>
                       </div>
                       <Controller
@@ -288,7 +374,7 @@ export function PaymentConfigFields({
                           <Input
                             type="password"
                             autoComplete="off"
-                            placeholder="Pegá acá tu token: APP_USR-..."
+                            placeholder="APP_USR-..."
                             value={field.value ?? ""}
                             onChange={(e) => field.onChange(e.target.value || null)}
                             disabled={disabled}
@@ -296,31 +382,33 @@ export function PaymentConfigFields({
                           />
                         )}
                       />
-                      <FieldDescription className="text-[11px] text-sky-900/80 dark:text-sky-200/80 leading-snug">
-                        Al vincular tu cuenta (o pegar tu <code>APP_USR-...</code>), <strong>la plata entra directo a tu Mercado Pago</strong> y al jugador se le abre Mercado Pago con el monto exacto ya cargado y sus tarjetas para elegir y confirmar.
-                      </FieldDescription>
                     </Field>
                   </div>
 
                   <Field>
-                    <FieldLabel className="text-[11px] font-semibold">Alias de Mercado Pago (para quien elija transferir)</FieldLabel>
+                    <FieldLabel className="text-[11px] font-semibold">Alias de Mercado Pago</FieldLabel>
                     <Controller
                       name="paymentConfig.methods.mercadopago.alias"
                       control={form.control}
-                      render={({ field }) => (
-                        <Input
-                          placeholder="Ej: mi.torneo.mp"
-                          value={field.value ?? ""}
-                          onChange={(e) => field.onChange(e.target.value || null)}
-                          disabled={disabled}
-                          className="text-xs h-8 bg-card"
-                        />
+                      render={({ field, fieldState }) => (
+                        <div className="space-y-1">
+                          <Input
+                            placeholder="Ej: mi.torneo.mp"
+                            value={field.value ?? ""}
+                            onChange={(e) => field.onChange(e.target.value || null)}
+                            disabled={disabled}
+                            className="text-xs h-8 bg-card"
+                          />
+                          {fieldState.error && (
+                            <p className="text-[11px] font-medium text-destructive">{fieldState.error.message}</p>
+                          )}
+                        </div>
                       )}
                     />
                   </Field>
 
                   <Field>
-                    <FieldLabel className="text-[11px] font-semibold">CVU de Mercado Pago (opcional)</FieldLabel>
+                    <FieldLabel className="text-[11px] font-semibold">CVU (opcional)</FieldLabel>
                     <Controller
                       name="paymentConfig.methods.mercadopago.cvu"
                       control={form.control}
@@ -339,7 +427,7 @@ export function PaymentConfigFields({
                   <div className="sm:col-span-2">
                     <Field>
                       <FieldLabel className="text-[11px] font-semibold">
-                        Link de pago de Mercado Pago (alternativa sin Access Token)
+                        Link de pago (opcional)
                       </FieldLabel>
                       <Controller
                         name="paymentConfig.methods.mercadopago.paymentLink"
@@ -354,9 +442,6 @@ export function PaymentConfigFields({
                           />
                         )}
                       />
-                      <FieldDescription className="text-[11px]">
-                        Si no usás Access Token, podés pegar acá un link de cobro creado en tu app de Mercado Pago.
-                      </FieldDescription>
                     </Field>
                   </div>
                 </div>
@@ -367,7 +452,10 @@ export function PaymentConfigFields({
             <div className={`rounded-xl border p-3.5 space-y-3 transition-colors ${
               transferEnabled ? "border-indigo-500/40 bg-indigo-500/[0.03]" : "border-border/70 bg-muted/20"
             }`}>
-              <div className="flex items-center justify-between gap-2">
+              <div
+                onClick={() => transferEnabled && toggleMethodOpen("transfer")}
+                className={`flex items-center justify-between gap-2 ${transferEnabled ? "cursor-pointer select-none" : ""}`}
+              >
                 <div className="flex items-center gap-2">
                   <span className="flex size-7 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400">
                     <Building2 className="size-4" />
@@ -377,21 +465,36 @@ export function PaymentConfigFields({
                     <span className="text-[11px] text-muted-foreground">CBU / CVU, Alias y Titular de cuenta</span>
                   </div>
                 </div>
-                <Controller
-                  name="paymentConfig.methods.transfer.enabled"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      disabled={disabled}
-                      aria-label="Habilitar Transferencia bancaria"
-                    />
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <Controller
+                    name="paymentConfig.methods.transfer.enabled"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked);
+                          if (checked) setOpenMethods((prev) => ({ ...prev, transfer: true }));
+                        }}
+                        disabled={disabled}
+                        aria-label="Habilitar Transferencia bancaria"
+                      />
+                    )}
+                  />
+                  {transferEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => toggleMethodOpen("transfer")}
+                      className="p-1 text-muted-foreground hover:text-foreground cursor-pointer"
+                      aria-label={openMethods.transfer ? "Plegar Transferencia" : "Desplegar Transferencia"}
+                    >
+                      <ChevronDown className={`size-4 transition-transform ${openMethods.transfer ? "rotate-180" : ""}`} />
+                    </button>
                   )}
-                />
+                </div>
               </div>
 
-              {transferEnabled && (
+              {transferEnabled && openMethods.transfer && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-indigo-500/20">
                   <Field>
                     <FieldLabel className="text-[11px] font-semibold">Banco o Entidad</FieldLabel>
@@ -449,14 +552,19 @@ export function PaymentConfigFields({
                     <Controller
                       name="paymentConfig.methods.transfer.alias"
                       control={form.control}
-                      render={({ field }) => (
-                        <Input
-                          placeholder="Ej: TORNEO.PADEL.2026"
-                          value={field.value ?? ""}
-                          onChange={(e) => field.onChange(e.target.value || null)}
-                          disabled={disabled}
-                          className="text-xs h-8 bg-card"
-                        />
+                      render={({ field, fieldState }) => (
+                        <div className="space-y-1">
+                          <Input
+                            placeholder="Ej: TORNEO.PADEL.2026"
+                            value={field.value ?? ""}
+                            onChange={(e) => field.onChange(e.target.value || null)}
+                            disabled={disabled}
+                            className="text-xs h-8 bg-card"
+                          />
+                          {fieldState.error && (
+                            <p className="text-[11px] font-medium text-destructive">{fieldState.error.message}</p>
+                          )}
+                        </div>
                       )}
                     />
                   </Field>
@@ -468,7 +576,10 @@ export function PaymentConfigFields({
             <div className={`rounded-xl border p-3.5 space-y-3 transition-colors ${
               cashEnabled ? "border-amber-500/40 bg-amber-500/[0.03]" : "border-border/70 bg-muted/20"
             }`}>
-              <div className="flex items-center justify-between gap-2">
+              <div
+                onClick={() => cashEnabled && toggleMethodOpen("cash")}
+                className={`flex items-center justify-between gap-2 ${cashEnabled ? "cursor-pointer select-none" : ""}`}
+              >
                 <div className="flex items-center gap-2">
                   <span className="flex size-7 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
                     <Banknote className="size-4" />
@@ -482,21 +593,36 @@ export function PaymentConfigFields({
                     </span>
                   </div>
                 </div>
-                <Controller
-                  name="paymentConfig.methods.cash.enabled"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      disabled={disabled}
-                      aria-label="Habilitar Pago en efectivo"
-                    />
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <Controller
+                    name="paymentConfig.methods.cash.enabled"
+                    control={form.control}
+                    render={({ field }) => (
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked);
+                          if (checked) setOpenMethods((prev) => ({ ...prev, cash: true }));
+                        }}
+                        disabled={disabled}
+                        aria-label="Habilitar Pago en efectivo"
+                      />
+                    )}
+                  />
+                  {cashEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => toggleMethodOpen("cash")}
+                      className="p-1 text-muted-foreground hover:text-foreground cursor-pointer"
+                      aria-label={openMethods.cash ? "Plegar Efectivo" : "Desplegar Efectivo"}
+                    >
+                      <ChevronDown className={`size-4 transition-transform ${openMethods.cash ? "rotate-180" : ""}`} />
+                    </button>
                   )}
-                />
+                </div>
               </div>
 
-              {cashEnabled && (
+              {cashEnabled && openMethods.cash && (
                 <div className="pt-1 border-t border-amber-500/20">
                   <Field>
                     <FieldLabel className="text-[11px] font-semibold">
